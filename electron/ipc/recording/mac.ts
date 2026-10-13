@@ -1,3 +1,4 @@
+import { prepareRecordingAudio } from "./library";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import fs from "node:fs/promises";
 import { BrowserWindow } from "electron";
@@ -186,6 +187,7 @@ export function attachNativeCaptureLifecycle(process: ChildProcessWithoutNullStr
 }
 
 export async function finalizeStoredVideo(videoPath: string) {
+	await prepareRecordingAudio(videoPath);
 	console.log("[finalize] Optimization active: skipping safety-net muxing.");
 
 	let validation: { fileSizeBytes: number; durationSeconds: number | null };

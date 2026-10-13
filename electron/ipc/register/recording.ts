@@ -1,3 +1,4 @@
+import { prepareRecordingAudio } from "../recording/library";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { execFile, spawn } from "node:child_process";
 import fs from "node:fs/promises";
@@ -1736,6 +1737,7 @@ export function registerRecordingHandlers(
 						diagnosticsError,
 					);
 				});
+				await prepareRecordingAudio(videoPath, options?.startDelayMs);
 				return { success: true, path: sidecarPath };
 			} catch (error) {
 				await Promise.all([
