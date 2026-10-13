@@ -41,6 +41,8 @@ export async function convertMicrophone(
 	signal: AbortSignal,
 	onProgress: (completed: number, total: number) => void,
 ) {
+	const workers = new AbortController();
+	signal = AbortSignal.any([signal, workers.signal]);
 	const duration = await audioDuration(micPath, signal);
 	const chunks = planChunks(duration, await silences(micPath, signal));
 	let cursor = 0;
@@ -60,7 +62,7 @@ export async function convertMicrophone(
 					"-i",
 					micPath,
 					"-t",
-					String(c.end - c.start),
+					(c.end - c.start).toFixed(6),
 					"-ac",
 					"1",
 					"-ar",
@@ -97,7 +99,15 @@ export async function convertMicrophone(
 		}
 	};
 	// Wait for both workers before cleanup, even on failure; neither can write into a removed temp dir.
-	const results = await Promise.allSettled([worker(), worker()]);
+	const guarded = async () => {
+		try {
+			await worker();
+		} catch (error) {
+			workers.abort(error);
+			throw error;
+		}
+	};
+	const results = await Promise.allSettled([guarded(), guarded()]);
 	const failure = results.find((r) => r.status === "rejected");
 	if (failure?.status === "rejected") throw failure.reason;
 	signal.throwIfAborted();
@@ -178,18 +188,25 @@ async function run(
 		created.push(mic);
 		controller.signal.throwIfAborted();
 		const video = `${base}.voice${suffix}.mp4`;
+		const temporaryVideo = path.join(temp, "voice.mp4");
 		await ffmpeg(
 			mixArgs(
 				metadata,
 				mic,
-				video,
+				temporaryVideo,
 				await audioDuration(metadata.videoPath, controller.signal),
 			),
 			controller.signal,
 		);
-		created.push(video);
 		controller.signal.throwIfAborted();
-		await writeAudioMetadata({ ...metadata, changedMicPath: mic, voiceVideoPath: video });
+		await fs.copyFile(temporaryVideo, video, 1);
+		created.push(video);
+		await writeAudioMetadata({
+			...metadata,
+			...(await readAudioMetadata(metadata.videoPath)),
+			changedMicPath: mic,
+			voiceVideoPath: video,
+		});
 		committed = true;
 		Object.assign(progress, { state: "done", outputPath: video });
 	} catch (e) {
