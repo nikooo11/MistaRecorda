@@ -102,4 +102,4 @@ Sharing a preset transfers its name and settings, not ownership of the ElevenLab
 
 ![Preset name saved for recipients](screenshots/voice-preset-name.png)
 
-The rename flow was playtested in the running Electron preset editor. Automated tests verify exact name preservation (including Unicode) through save, export and import, and cover successful, failed and unauthorized custom-voice renames without changing a real ElevenLabs voice.
+The rename flow was playtested in the running Electron preset editor, including Save and export through the native file dialog and inspection of the exported file on import. Automated tests verify exact name preservation (including Unicode) through save, export and import, and cover successful, failed and unauthorized custom-voice renames without changing a real ElevenLabs voice.
