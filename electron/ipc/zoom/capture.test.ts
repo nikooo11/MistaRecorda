@@ -56,3 +56,49 @@ test("global key routing respects modifiers, ignores repeats/paused input and pe
 	await persistRecordedZooms(path.join(mock.dir, "different.mp4"));
 	await expect(fs.stat(path.join(mock.dir, "different.mp4.zooms.json"))).rejects.toThrow();
 });
+
+test("tap toggles follow on/off without repeats or unmatched key-up restarting it", async () => {
+	mock.dir = await fs.mkdtemp(path.join(os.tmpdir(), "follow-zoom-"));
+	await saveZoomSettings({ ...defaultRecordingZoomSettings, ctrl: true });
+	mock.point = { x: 400, y: 400 };
+	startZoomCapture(() => ({ x: 0, y: 0, width: 1000, height: 800 }));
+	zoomKeyEvent(true, { keycode: 44, ctrlKey: true }, 100, false);
+	zoomKeyEvent(false, { keycode: 44 }, 180, false);
+	expect(zoomStatus()).toMatchObject({ holding: true, following: true, count: 0 });
+	zoomKeyEvent(false, { keycode: 44 }, 250, false); // duplicate release
+	zoomKeyEvent(true, { keycode: 44 }, 300, false); // wrong modifiers
+	zoomKeyEvent(false, { keycode: 44 }, 350, false);
+	expect(zoomStatus().following).toBe(true);
+	mock.point = { x: 1500, y: 900 }; // toggling off works outside the capture
+	zoomKeyEvent(true, { keycode: 44, ctrlKey: true }, 2100, false);
+	zoomKeyEvent(true, { keycode: 44, ctrlKey: true }, 2130, false); // repeat
+	zoomKeyEvent(false, { keycode: 44 }, 2180, false);
+	expect(zoomStatus()).toMatchObject({ holding: false, following: false, count: 1 });
+	const video = path.join(mock.dir, "follow.mp4");
+	await persistRecordedZooms(video);
+	const { regions } = JSON.parse(await fs.readFile(`${video}.zooms.json`, "utf8"));
+	expect(regions).toHaveLength(1);
+	expect(regions[0]).toMatchObject({ startMs: 100, endMs: 2100, mode: "auto" });
+});
+
+test("pause ends follow and a key release after pause cannot latch another zoom", async () => {
+	mock.dir = await fs.mkdtemp(path.join(os.tmpdir(), "pause-zoom-"));
+	await saveZoomSettings(defaultRecordingZoomSettings);
+	mock.point = { x: 400, y: 400 };
+	startZoomCapture(() => ({ x: 0, y: 0, width: 1000, height: 800 }));
+	zoomKeyEvent(true, { keycode: 44 }, 100, false);
+	zoomKeyEvent(false, { keycode: 44 }, 180, false);
+	closeHeldZoom(1000);
+	expect(zoomStatus()).toMatchObject({ following: false, count: 1 });
+	zoomKeyEvent(true, { keycode: 44 }, 1000, true);
+	zoomKeyEvent(false, { keycode: 44 }, 1100, false);
+	expect(zoomStatus().holding).toBe(false);
+	zoomKeyEvent(true, { keycode: 44 }, 1200, false);
+	closeHeldZoom(1300); // pause mid-press before tap threshold
+	zoomKeyEvent(false, { keycode: 44 }, 1300, true);
+	expect(zoomStatus().holding).toBe(false);
+	zoomKeyEvent(true, { keycode: 44 }, 1400, false);
+	zoomKeyEvent(false, { keycode: 44 }, 1480, false);
+	stopZoomCapture(2000);
+	expect(zoomStatus()).toMatchObject({ recording: false, following: false, count: 3 });
+});

@@ -26,6 +26,7 @@ export interface RecordingZoomStatus {
 	settings: RecordingZoomSettings;
 	recording: boolean;
 	holding: boolean;
+	following: boolean;
 	count: number;
 	hookReady: boolean;
 	outlineAvailable: boolean;

@@ -381,15 +381,15 @@
 		"singleFavorite": "If exactly one voice is favorited, it is selected automatically now and each time the app starts. With multiple favorites, your last selection is kept."
 	},
 	"recordingZoom": {
-		"title": "Hold to zoom",
-		"description": "Point at the area you want to highlight. Hold your shortcut while recording; release it to end the zoom.",
+		"title": "Recording zoom",
+		"description": "Hold your shortcut for a fixed target, or tap to toggle a zoom that follows the cursor.",
 		"enable": "Enable recording zoom shortcut",
-		"key": "Hold key",
+		"key": "Zoom key",
 		"amount": "Zoom amount",
 		"meta": "Cmd / Windows",
 		"save": "Save shortcut",
 		"preview": "Target outline preview",
-		"locked": "The target locks around the cursor when you press the key. Move, resize, retime or delete each zoom later in the editor.",
+		"locked": "Hold to lock the target. Tap to follow the cursor; tap again to zoom out. Both kinds of zoom can be edited or removed later.",
 		"exclusion": "The target outline is a separate window, excluded by native macOS capture and supported Windows capture. If exclusion is unavailable, the outline stays hidden and zoom markers still work.",
 		"keyPassThrough": "The shortcut is observed, not blocked: the focused app still receives the key. Use a modifier combination to avoid typing letters into the app you are recording.",
 		"shortLabel": "Zoom",
@@ -399,6 +399,12 @@
 		"invalidSettings": "Could not save the shortcut. Try again.",
 		"recordingActive": "Stop recording before changing this shortcut.",
 		"hookUnavailable": "Global keyboard input is unavailable. On Mac, grant Accessibility and Input Monitoring permissions, then restart.",
-		"outlineHidden": "The outline is hidden for this capture backend to keep it out of your recording."
+		"outlineHidden": "The outline is hidden for this capture backend to keep it out of your recording.",
+		"following": "Following",
+		"infoTitle": "How recording zoom works",
+		"infoHold": "Hold {{shortcut}}: the box stays fixed where you first pressed the key. Release to zoom back out and hide the box.",
+		"infoTap": "Tap {{shortcut}} briefly: zoom in and follow the cursor. The box moves with the cursor. Tap {{shortcut}} again to zoom back out and hide the box.",
+		"infoCapture": "The box is a guide only and is excluded from the recording. If safe exclusion is unavailable, the box stays hidden; the zoom still works.",
+		"infoEdit": "Zooms stay editable: change their timing, amount or focus, or delete them in the editor. Pausing or stopping ends the active zoom."
 	}
 }

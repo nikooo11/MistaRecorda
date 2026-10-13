@@ -3396,7 +3396,7 @@ export default function VideoEditor() {
 			if (disposed) return;
 			recordedZoomsImportedPath.current = videoSourcePath;
 			if (result.success && result.regions.length) {
-				// Recorded holds are ordinary manual regions. Project saves (including deletions)
+				// Recorded gestures retain their manual/auto modes. Project saves (including deletions)
 				// take precedence over this one-time import from the original recording.
 				pendingFreshRecordingAutoZoomPathRef.current = null;
 				setZoomRegions((existing) => existing.length ? existing : result.regions);

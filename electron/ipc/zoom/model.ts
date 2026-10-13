@@ -27,6 +27,8 @@ export function zoomTarget(focus: ZoomFocus, depth: ZoomDepth) {
 	const cy = Math.min(1 - size / 2, Math.max(size / 2, focus.cy));
 	return { cx, cy, x: cx - size / 2, y: cy - size / 2, width: size, height: size };
 }
+export const ZOOM_TAP_THRESHOLD_MS = 250;
+
 export class HeldZoomCapture {
 	regions: ZoomRegion[] = [];
 	active: ZoomRegion | null = null;
@@ -41,6 +43,22 @@ export class HeldZoomCapture {
 			focus: { cx: target.cx, cy: target.cy },
 			mode: "manual",
 		};
+	}
+	/** A quick release latches cursor-follow; a held release ends the fixed zoom. */
+	releaseKey(timeMs: number) {
+		if (!this.active || this.active.mode === "auto") return;
+		if (timeMs - this.active.startMs < ZOOM_TAP_THRESHOLD_MS) {
+			this.active.mode = "auto";
+		} else {
+			this.release(timeMs);
+		}
+	}
+	target(cursorFocus: ZoomFocus) {
+		if (!this.active) return null;
+		return zoomTarget(
+			this.active.mode === "auto" ? cursorFocus : this.active.focus,
+			this.active.depth,
+		);
 	}
 	release(timeMs: number) {
 		if (!this.active) return;
@@ -73,7 +91,7 @@ export function normalizeRecordedZooms(value: unknown): ZoomRegion[] {
 			endMs: r.endMs,
 			depth: r.depth,
 			focus: { cx: r.focus.cx, cy: r.focus.cy },
-			mode: "manual",
+			mode: r.mode === "auto" ? "auto" : "manual",
 		}));
 }
 export function canShowZoomOutline(platform: string, release: string, nativeMacExcluded: boolean) {
