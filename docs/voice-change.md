@@ -99,3 +99,7 @@ For a preset, open **Voice Browser → Presets → Edit preset**. Change **Prese
 For an owned custom voice, open **My voices → Search → Edit trained voice** and change **Name**. **Save** updates your ElevenLabs voice and immediately refreshes the voice name in the browser. **Save and create preset** also opens a shareable preset with the saved name. Enter the creator, adjust settings if desired, and choose **Save and export**. Existing presets keep their independently chosen names; edit their preset name separately if needed. A voice you cannot edit remotely can still have a locally named preset.
 
 Sharing a preset transfers its name and settings, not ownership of the ElevenLabs voice model. The recipient still needs access to the referenced voice and their own API key.
+
+![Preset name saved for recipients](screenshots/voice-preset-name.png)
+
+The rename flow was playtested in the running Electron preset editor. Automated tests verify exact name preservation (including Unicode) through save, export and import, and cover successful, failed and unauthorized custom-voice renames without changing a real ElevenLabs voice.
