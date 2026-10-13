@@ -189,9 +189,8 @@ function applyVisibility() {
 		editor?.hide();
 		hint?.hide();
 	}
-	if (store.state.output !== "screen" || status.webcam) {
-		if (!surface?.isVisible()) surface?.showInactive();
-	} else surface?.hide();
+	// Keep the clean window registered with the OS even for transparent screen-only output.
+	if (!surface?.isVisible()) surface?.showInactive();
 }
 function trusted(e: IpcMainInvokeEvent) {
 	if (e.senderFrame !== e.sender.mainFrame || !BrowserWindow.fromWebContents(e.sender))
@@ -516,6 +515,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 export function boardCaptureExclusions() {
 	return {
 		ownerPID: process.pid,
+		cleanSurfaceTitle: store?.state.enabled ? "MistaRecorda Drawing Surface" : undefined,
 		titles: BrowserWindow.getAllWindows()
 			.filter((w) => w !== surface)
 			.map((w) => w.getTitle()),

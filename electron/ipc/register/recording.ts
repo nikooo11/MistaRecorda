@@ -741,6 +741,7 @@ export function registerRecordingHandlers(
 					zoomOverlayOwnerPID: process.pid,
 					zoomOverlayTitle: ZOOM_OVERLAY_TITLE,
 					presenterWindowTitles: boardCaptureExclusions().titles,
+					cleanSurfaceTitle: boardCaptureExclusions().cleanSurfaceTitle,
 					outputPath,
 					capturesSystemAudio,
 					capturesMicrophone,

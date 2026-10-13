@@ -39,6 +39,7 @@ export function BoardCanvas({
 	const [assets, setAssets] = useState(false);
 	const current = useRef(initial);
 	const applying = useRef(false);
+	const interacted = useRef(false);
 	const pending = useRef<{ mode: "screen" | "board"; scene: BoardScene } | null>(null);
 	const saving = useRef(false);
 	const inFlight = useRef<Promise<void>>();
@@ -116,6 +117,7 @@ export function BoardCanvas({
 				return;
 			if (!clean && (saving.current || pending.current) && mode === modeRef.current) return;
 			applying.current = true;
+			interacted.current = false;
 			modeRef.current = mode;
 			last.current = signature;
 			api.addFiles(Object.values(scene.files) as BinaryFileData[]);
@@ -190,6 +192,7 @@ export function BoardCanvas({
 	}
 	function placeImage(fileId: string, width = 320, height = 240) {
 		if (!api) return;
+		interacted.current = true;
 		const view = api.getAppState();
 		const w = Math.min(width, 600);
 		const element = convertToExcalidrawElements([
@@ -210,6 +213,15 @@ export function BoardCanvas({
 	return (
 		<div
 			ref={stage}
+			onPointerDownCapture={() => {
+				interacted.current = true;
+			}}
+			onWheelCapture={() => {
+				interacted.current = true;
+			}}
+			onKeyDownCapture={() => {
+				interacted.current = true;
+			}}
 			className={`board-stage ${clean ? "board-clean" : ""} ${tablet ? "board-tablet" : ""}`}
 		>
 			{background && <div className="board-video">{background}</div>}
@@ -246,7 +258,7 @@ export function BoardCanvas({
 						},
 					}}
 					onChange={(elements, view, files) => {
-						if (clean || applying.current || !api) return;
+						if (clean || applying.current || !interacted.current || !api) return;
 						const scene: BoardScene = {
 							elements: elements as unknown as BoardElement[],
 							files: files as BoardScene["files"],

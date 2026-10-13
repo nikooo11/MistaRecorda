@@ -17,6 +17,7 @@ struct CaptureConfig: Codable {
 	let zoomOverlayOwnerPID: Int32?
 	let zoomOverlayTitle: String?
 	let presenterWindowTitles: [String]?
+	let cleanSurfaceTitle: String?
 }
 
 let targetCaptureFPS = 60
@@ -132,7 +133,16 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 				throw NSError(domain: "RecordlyCapture", code: 4, userInfo: [NSLocalizedDescriptionKey: "Display not found"])
 			}
 
-			filter = SCContentFilter(display: display, excludingWindows: zoomOverlays)
+			if let cleanTitle = config.cleanSurfaceTitle, let ownerPID = config.zoomOverlayOwnerPID {
+                guard let owner = availableContent.applications.first(where: { $0.processID == ownerPID }),
+                      let cleanSurface = availableContent.windows.first(where: { $0.owningApplication?.processID == ownerPID && $0.title == cleanTitle }) else {
+                    throw NSError(domain: "RecordlyCapture", code: 7, userInfo: [NSLocalizedDescriptionKey: "The clean drawing surface is not ready. Reopen the Drawing board before recording."])
+                }
+                // Exclude all presenter windows, including any opened after capture starts.
+                filter = SCContentFilter(display: display, excludingApplications: [owner], exceptingWindows: [cleanSurface])
+            } else {
+                filter = SCContentFilter(display: display, excludingWindows: zoomOverlays)
+            }
 			let displayBounds = CGDisplayBounds(display.displayID)
 			let scaleFactor = ScreenCaptureRecorder.scaleFactor(for: display.displayID)
 			outputWidth = max(2, Int(displayBounds.width) * scaleFactor)
