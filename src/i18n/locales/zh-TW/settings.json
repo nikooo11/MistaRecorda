@@ -379,5 +379,26 @@
 		"selectedVoice": "Selected voice",
 		"manualProcessing": "After recording, click Process voice to change only your microphone audio. Computer sounds stay local and receive no voice effects.",
 		"singleFavorite": "If exactly one voice is favorited, it is selected automatically now and each time the app starts. With multiple favorites, your last selection is kept."
+	},
+	"recordingZoom": {
+		"title": "Hold to zoom",
+		"description": "Point at the area you want to highlight. Hold your shortcut while recording; release it to end the zoom.",
+		"enable": "Enable recording zoom shortcut",
+		"key": "Hold key",
+		"amount": "Zoom amount",
+		"meta": "Cmd / Windows",
+		"save": "Save shortcut",
+		"preview": "Target outline preview",
+		"locked": "The target locks around the cursor when you press the key. Move, resize, retime or delete each zoom later in the editor.",
+		"exclusion": "The target outline is a separate window, excluded by native macOS capture and supported Windows capture. If exclusion is unavailable, the outline stays hidden and zoom markers still work.",
+		"keyPassThrough": "The shortcut is observed, not blocked: the focused app still receives the key. Use a modifier combination to avoid typing letters into the app you are recording.",
+		"shortLabel": "Zoom",
+		"holding": "Zooming",
+		"off": "Off",
+		"saved": "Shortcut saved.",
+		"invalidSettings": "Could not save the shortcut. Try again.",
+		"recordingActive": "Stop recording before changing this shortcut.",
+		"hookUnavailable": "Global keyboard input is unavailable. On Mac, grant Accessibility and Input Monitoring permissions, then restart.",
+		"outlineHidden": "The outline is hidden for this capture backend to keep it out of your recording."
 	}
 }

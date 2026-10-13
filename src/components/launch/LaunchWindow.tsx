@@ -1,4 +1,5 @@
 import { QuickVoicePreset } from "../voice/QuickVoicePreset";
+import { RecordingZoomControl } from "../recording-zoom/RecordingZoomSettings";
 import {
 	ArrowClockwiseIcon,
 	CaretUpIcon,
@@ -208,6 +209,7 @@ function LaunchWindowContent() {
 	};
 
 	const recordingControls = (
+		<><RecordingZoomControl />
 		<RecordingControls
 			paused={paused}
 			microphoneEnabled={microphoneEnabled}
@@ -219,10 +221,12 @@ function LaunchWindowContent() {
 			onCancelRecording={cancelRecording}
 			formatTime={formatTime}
 		/>
+		</>
 	);
 
 	const idleControls = (
 		<>
+			<RecordingZoomControl />
 			<QuickVoicePreset />
 			<button
 				type="button"

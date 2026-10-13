@@ -1,5 +1,6 @@
 import { VoiceNotifications } from "./components/voice/VoiceNotifications";
 import { VoicePanel } from "./components/voice/VoicePanel";
+import { RecordingZoomSettingsPanel } from "./components/recording-zoom/RecordingZoomSettings";
 import { useEffect, useState } from "react";
 import { CountdownOverlay } from "./components/countdown/CountdownOverlay";
 import { LaunchWindow } from "./components/launch/LaunchWindow";
@@ -59,6 +60,7 @@ export default function App() {
 	}, [windowType, t]);
 
 	switch (windowType) {
+		case "zoom-settings": return <RecordingZoomSettingsPanel />;
 		case "voice": return <><VoiceNotifications /><VoicePanel /><Toaster /></>;
 		case "hud-overlay":
 			return (

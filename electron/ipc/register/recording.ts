@@ -18,6 +18,8 @@ import { getMonitorHandles } from "../monitorResolver";
 import { ALLOW_RECORDLY_WINDOW_CAPTURE } from "../constants";
 import { startWindowBoundsCapture, stopWindowBoundsCapture } from "../cursor/bounds";
 import { startInteractionCapture, stopInteractionCapture } from "../cursor/interaction";
+import { getCursorCaptureElapsedMs, getRecordingBoundsInDips } from "../cursor/telemetry";
+import { ZOOM_OVERLAY_TITLE, prepareZoomOutline, confirmMacZoomExclusion, loadZoomSettings, startZoomCapture, stopZoomCapture, closeHeldZoom } from "../zoom/capture";
 import { startNativeCursorMonitor, stopNativeCursorMonitor } from "../cursor/monitor";
 import {
 	normalizeCursorTelemetrySamples,
@@ -398,6 +400,7 @@ export function registerRecordingHandlers(
 	ipcMain.handle(
 		"start-native-screen-recording",
 		async (_, source: SelectedSource, options?: NativeMacRecordingOptions) => {
+			await prepareZoomOutline();
 			// Windows native capture path
 			if (process.platform === "win32") {
 				const windowsCaptureAvailable = await isNativeWindowsCaptureAvailable();
@@ -715,6 +718,8 @@ export function registerRecordingHandlers(
 					: null;
 				const config: Record<string, unknown> = {
 					fps: 60,
+					zoomOverlayOwnerPID: process.pid,
+					zoomOverlayTitle: ZOOM_OVERLAY_TITLE,
 					outputPath,
 					capturesSystemAudio,
 					capturesMicrophone,
@@ -768,6 +773,7 @@ export function registerRecordingHandlers(
 				});
 
 				await waitForNativeCaptureStart(captProc);
+				confirmMacZoomExclusion(nativeCaptureOutputBuffer.includes("ZOOM_OVERLAY_EXCLUDED"));
 				setNativeScreenRecordingActive(true);
 
 				// If the native helper reported MICROPHONE_CAPTURE_UNAVAILABLE, it started
@@ -1821,8 +1827,10 @@ export function registerRecordingHandlers(
 		}
 	});
 
-	ipcMain.handle("set-recording-state", (_, recording: boolean) => {
+	ipcMain.handle("set-recording-state", async (_, recording: boolean) => {
 		if (recording) {
+			await loadZoomSettings();
+			if (!nativeScreenRecordingActive) await prepareZoomOutline();
 			stopCursorCapture();
 			stopInteractionCapture();
 			startWindowBoundsCapture();
@@ -1832,12 +1840,14 @@ export function registerRecordingHandlers(
 			setPendingCursorSamples([]);
 			setCursorCaptureStartTimeMs(Date.now());
 			resetCursorCaptureClock();
+			startZoomCapture(getRecordingBoundsInDips);
 			setLinuxCursorScreenPoint(null);
 			setLastLeftClick(null);
 			sampleCursorPoint();
 			startCursorSampling();
 			void startInteractionCapture();
 		} else {
+			stopZoomCapture(getCursorCaptureElapsedMs());
 			setIsCursorCaptureActive(false);
 			stopCursorCapture();
 			stopInteractionCapture();
@@ -1866,6 +1876,7 @@ export function registerRecordingHandlers(
 	});
 
 	ipcMain.handle("pause-cursor-capture", (_, pausedAtMs?: unknown) => {
+		closeHeldZoom(getCursorCaptureElapsedMs(normalizeRendererTimestampMs(pausedAtMs)));
 		pauseCursorCaptureAtBoundary(normalizeRendererTimestampMs(pausedAtMs));
 		return { success: true };
 	});

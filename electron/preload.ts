@@ -1,4 +1,5 @@
 import type { VoiceAPI, VoiceProgress } from "../src/types/voice";
+import type { RecordingZoomAPI } from "../src/types/recordingZoom";
 import { contextBridge, ipcRenderer } from "electron";
 import type { RecordingSessionData } from "./ipc/types";
 
@@ -165,6 +166,17 @@ function settleNativeVideoExportPendingRequests(
 }
 
 contextBridge.exposeInMainWorld("electronAPI", {
+	recordingZoom: {
+		getStatus: () => ipcRenderer.invoke("recording-zoom:status"),
+		saveSettings: (settings) => ipcRenderer.invoke("recording-zoom:save", settings),
+		openSettings: () => ipcRenderer.invoke("recording-zoom:open"),
+		getRegions: (videoPath) => ipcRenderer.invoke("recording-zoom:regions", videoPath),
+		onStatus: (callback) => {
+			const listener = (_event: Electron.IpcRendererEvent, status: Parameters<typeof callback>[0]) => callback(status);
+			ipcRenderer.on("recording-zoom:status", listener);
+			return () => ipcRenderer.removeListener("recording-zoom:status", listener);
+		},
+	} satisfies RecordingZoomAPI,
 	voice: {
 		onSettingsChanged: (callback) => {
 			const listener = () => callback();

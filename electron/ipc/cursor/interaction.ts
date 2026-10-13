@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { setZoomHookReady, zoomKeyEvent } from "../zoom/capture";
 import { createRequire } from "node:module";
 import path from "node:path";
 import type { HookMouseEvent, UiohookLike, UiohookModuleNamespace, CursorInteractionType } from "../types";
@@ -14,6 +15,7 @@ import {
 } from "../state";
 import {
 	getNormalizedCursorPoint,
+	getRecordingCursorInDips,
 	getCursorCaptureElapsedMs,
 	getHookCursorScreenPoint,
 	isCursorCapturePaused,
@@ -272,20 +274,29 @@ export async function startInteractionCapture() {
 		};
 
 		hook.on("mousedown", onMouseDown);
+		const onKeyDown = (event: HookMouseEvent) => zoomKeyEvent(true, event, getCursorCaptureElapsedMs(), isCursorCapturePaused(), getRecordingCursorInDips());
+		const onKeyUp = (event: HookMouseEvent) => zoomKeyEvent(false, event, getCursorCaptureElapsedMs(), isCursorCapturePaused());
+		hook.on("keydown", onKeyDown);
+		hook.on("keyup", onKeyUp);
 		hook.on("mouseup", onMouseUp);
 		if (process.platform === "linux") {
 			hook.on("mousemove", onMouseMove);
 		}
 
 		setInteractionCaptureCleanup(() => {
+			setZoomHookReady(false);
 			try {
 				if (typeof hook.off === "function") {
+					hook.off("keydown", onKeyDown);
+					hook.off("keyup", onKeyUp);
 					hook.off("mousedown", onMouseDown);
 					hook.off("mouseup", onMouseUp);
 					if (process.platform === "linux") {
 						hook.off("mousemove", onMouseMove);
 					}
 				} else if (typeof hook.removeListener === "function") {
+					hook.removeListener("keydown", onKeyDown);
+					hook.removeListener("keyup", onKeyUp);
 					hook.removeListener("mousedown", onMouseDown);
 					hook.removeListener("mouseup", onMouseUp);
 					if (process.platform === "linux") {
@@ -306,6 +317,7 @@ export async function startInteractionCapture() {
 		});
 
 		hook.start();
+		setZoomHookReady(true);
 	} catch (error) {
 		if (!hasLoggedInteractionHookFailure) {
 			setHasLoggedInteractionHookFailure(true);

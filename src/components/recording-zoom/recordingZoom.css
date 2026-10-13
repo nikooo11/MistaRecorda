@@ -1,0 +1,135 @@
+.recording-zoom-control {
+	font-size: 12px;
+	white-space: nowrap;
+	padding: 5px 8px;
+	border: 1px solid #64748b66;
+	border-radius: 6px;
+}
+.recording-zoom-settings {
+	height: 100vh;
+	overflow: auto;
+	box-sizing: border-box;
+	padding: 30px 40px;
+	background: #101722;
+	color: #e2e8f0;
+	font:
+		14px / 1.5 system-ui,
+		sans-serif;
+}
+.recording-zoom-settings h1 {
+	font-size: 28px;
+	font-weight: 650;
+	margin: 5px 0 10px;
+}
+.recording-zoom-settings p {
+	margin: 8px 0 16px;
+}
+.zoom-eyebrow {
+	color: #5eead4;
+	font-weight: 600;
+	font-size: 12px;
+	letter-spacing: 0.06em;
+}
+.recording-zoom-settings fieldset {
+	border: 1px solid #334155;
+	border-radius: 12px;
+	padding: 18px;
+	margin: 20px 0;
+}
+.recording-zoom-settings fieldset:disabled {
+	opacity: 0.55;
+}
+.recording-zoom-settings input[type="checkbox"] {
+	accent-color: #2dd4bf;
+	margin-right: 8px;
+}
+.zoom-setting-row {
+	display: flex;
+	gap: 32px;
+	margin: 18px 0;
+}
+.zoom-setting-row label {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+.recording-zoom-settings select {
+	background: #1e293b;
+	color: #f1f5f9;
+	border: 1px solid #475569;
+	border-radius: 6px;
+	padding: 6px 14px;
+}
+.zoom-modifiers {
+	display: flex;
+	gap: 20px;
+}
+.zoom-save {
+	background: #2dd4bf;
+	color: #082f2c;
+	border-radius: 6px;
+	padding: 8px 20px;
+	margin-top: 18px;
+	font-weight: 650;
+}
+.zoom-preview {
+	position: relative;
+	height: 150px;
+	border: 1px solid #334155;
+	border-radius: 10px;
+	overflow: hidden;
+	background: #172332;
+}
+.zoom-preview-bar {
+	height: 28px;
+	background: #263548;
+	display: flex;
+	gap: 5px;
+	align-items: center;
+	padding: 0 10px;
+}
+.zoom-preview-bar > span {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: #64748b;
+}
+.zoom-preview-bar small {
+	margin-left: 10px;
+	color: #94a3b8;
+}
+.zoom-preview-content {
+	padding: 16px;
+	display: grid;
+	gap: 12px;
+}
+.zoom-preview-content div {
+	width: 75%;
+	height: 12px;
+	background: #334155;
+	border-radius: 4px;
+}
+.zoom-preview-content div:nth-child(2) {
+	width: 58%;
+}
+.zoom-preview-target {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	border: 2px solid #2dd4bf;
+	border-radius: 8px;
+	box-sizing: border-box;
+}
+.zoom-preview-target span {
+	position: absolute;
+	bottom: 5px;
+	right: 8px;
+	font-size: 11px;
+	color: #99f6e4;
+}
+.recording-zoom-settings .zoom-help {
+	font-size: 12px;
+	color: #a9b8cb;
+	margin: 10px 0;
+}
