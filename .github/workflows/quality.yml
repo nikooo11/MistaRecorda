@@ -39,6 +39,9 @@ jobs:
         id: install
         run: npm ci --ignore-scripts
 
+      - name: Install bundled FFmpeg for audio tests
+        run: node scripts/install-ffmpeg-static.mjs
+
       - name: Typecheck
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npx tsc --noEmit
