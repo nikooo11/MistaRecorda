@@ -9,15 +9,15 @@ Personal-use fork of [Recordly](https://github.com/webadderallorg/Recordly) (AGP
 ## Phase 0 — Recon (no code changes)
 Read and document in `docs/architecture-notes.md`:
 - `electron/main.ts`, `electron/preload.ts`, `electron/ipc/register/*.ts`
-- `electron/ipc/recording/{library,diagnostics,windowsFallbacks}.ts`
+- `electron/ipc/recording/{mac,diagnostics,windowsFallbacks}.ts` and `electron/ipc/register/project.ts` (there is no recording/library.ts)
 - `src/hooks/useScreenRecorder.ts`, `src/hooks/useMicrophoneDevices.ts`
 - `src/components/launch/RecordingControls.tsx`, `src/components/launch/popovers/MicPopover.tsx`
-- `electron/ipc/captions/{generate,audioCandidates,mergeSources}.ts` (already extracts mic audio — reuse)
+- `electron/ipc/captions/generate.ts` (candidate selection and extraction live together; extend it to prefer isolated original mic)
 - i18n system, settings storage, export pipeline, ffmpeg-static usage
 
 Answer: Is mic stored separately or mixed with system audio? Where are recording files written? How does export pick audio sources?
 
-**Done when:** notes file committed; `npm install && npm run typecheck && npm test` pass on untouched code.
+**Done when:** notes file committed; locked `npm ci`, CI-equivalent `npx tsc --noEmit`, and `npm test` pass on untouched code. The baseline has no typecheck script; add it in Phase 1. See architecture notes for the failed unlocked install diagnosis.
 
 ## Phase 1 — Branding (local only)
 - `package.json`: `productName` → `MistaRecorda`, `name` → `mistarecorda`, appId → `com.nikooo11.mistarecorda`.
