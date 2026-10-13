@@ -1,8 +1,21 @@
-
 name: Build Electron App
 
 on:
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: Installers to build
+        type: choice
+        default: desktop
+        options:
+          - desktop
+          - windows
+          - macos
+          - all
+
+# These development installers do not require publishing or signing credentials.
+env:
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
 permissions:
   contents: read
@@ -12,6 +25,8 @@ permissions:
 
 jobs:
   build-windows:
+    if: inputs.platforms != 'macos'
+    timeout-minutes: 60
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -26,7 +41,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Install bundled FFmpeg binary
-        run: node node_modules/ffmpeg-static/install.js
+        run: node scripts/install-ffmpeg-static.mjs
 
       - name: Verify bundled FFmpeg binary
         run: |
@@ -43,6 +58,10 @@ jobs:
           npx tsc
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npx vite build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run normalize:electron-main-cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run smoke:electron-main-cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npx electron-builder --win dir nsis --x64 --publish never
 
@@ -70,6 +89,8 @@ jobs:
           retention-days: 30
 
   build-macos:
+    if: inputs.platforms != 'windows'
+    timeout-minutes: 60
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -99,7 +120,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Install bundled FFmpeg binary
-        run: node node_modules/ffmpeg-static/install.js
+        run: node scripts/install-ffmpeg-static.mjs
 
       - name: Verify bundled FFmpeg binary
         run: |
@@ -113,7 +134,9 @@ jobs:
           npm run build:platform-native-helpers
           npx tsc
           npx vite build
-          npx electron-builder --mac dir dmg zip --${{ matrix.arch }} --publish never
+          npm run normalize:electron-main-cjs
+          npm run smoke:electron-main-cjs
+          npx electron-builder --mac dir dmg zip --${{ matrix.arch }} --config.mac.identity=- --publish never
 
       - name: Smoke test packaged macOS paths
         env:
@@ -142,6 +165,8 @@ jobs:
           retention-days: 30
 
   build-linux:
+    if: inputs.platforms == 'all'
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -156,7 +181,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Install bundled FFmpeg binary
-        run: node node_modules/ffmpeg-static/install.js
+        run: node scripts/install-ffmpeg-static.mjs
 
       - name: Verify bundled FFmpeg binary
         run: |
@@ -178,6 +203,8 @@ jobs:
           npm run build:platform-native-helpers
           npx tsc
           npx vite build
+          npm run normalize:electron-main-cjs
+          npm run smoke:electron-main-cjs
           npx electron-builder --linux dir AppImage --x64 --publish never
 
       - name: Smoke test packaged Linux paths

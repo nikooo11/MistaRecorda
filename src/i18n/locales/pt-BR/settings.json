@@ -378,7 +378,12 @@
 		"process": "Process voice",
 		"selectedVoice": "Selected voice",
 		"manualProcessing": "After recording, click Process voice to change only your microphone audio. Computer sounds stay local and receive no voice effects.",
-		"singleFavorite": "If exactly one voice is favorited, it is selected automatically now and each time the app starts. With multiple favorites, your last selection is kept."
+		"singleFavorite": "If exactly one voice is favorited, it is selected automatically now and each time the app starts. With multiple favorites, your last selection is kept.",
+		"sharedPresetName": "Preset name (shown to recipients)",
+		"sharedNameHelp": "This name is saved inside the exported preset. The next person who imports it sees the same name.",
+		"saveAndExport": "Save and export",
+		"saveAndMakePreset": "Save and create preset",
+		"customVoiceNameHelp": "Save updates the name of your owned voice. To share it under that name, choose Save and create preset, then enter the creator and save/export the preset. Existing presets keep their own names."
 	},
 	"recordingZoom": {
 		"title": "Recording zoom",

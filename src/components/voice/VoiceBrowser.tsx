@@ -118,6 +118,7 @@ export function VoiceBrowser() {
 			else refresh();
 		});
 	const makePreset = (voice: VoiceInfo) => {
+		setTrained(null);
 		const now = new Date().toISOString();
 		const {
 			modelId,
@@ -325,7 +326,10 @@ export function VoiceBrowser() {
 								<button
 									type="button"
 									disabled={!v.canEdit}
-									onClick={() => setTrained(v)}
+									onClick={() => {
+										setEditing(null);
+										setTrained(v);
+									}}
 								>
 									{t("voice.editTrainedVoice")}
 								</button>
@@ -463,6 +467,13 @@ export function VoiceBrowser() {
 				<TrainedVoiceEditor
 					key={trained.voiceId}
 					voice={trained}
+					onSaved={(updated) => {
+						setVoices((current) =>
+							current.map((v) => (v.voiceId === updated.voiceId ? updated : v)),
+						);
+						setTrained(updated);
+					}}
+					onMakePreset={makePreset}
 					onClose={() => setTrained(null)}
 				/>
 			)}

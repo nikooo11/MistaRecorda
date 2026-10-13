@@ -168,3 +168,25 @@ test("concurrent writes keep newest update and favorites are not lost", async ()
 	await Promise.all([store.favorite("a", true), store.favorite("b", true)]);
 	expect(await store.favorites()).toEqual(["a", "b"]);
 });
+
+test("saved renamed presets retain their exact shared name in single and pack imports", async () => {
+	const sender = await makeStore();
+	const original = preset();
+	await sender.save(original);
+	const renamed = await sender.save({
+		...original,
+		name: "Mista — Narrator É",
+		updatedAt: "2026-02-01T00:00:00.000Z",
+	});
+	const reopened = await sender.get(renamed.id);
+	expect(reopened?.name).toBe("Mista — Narrator É");
+	const singleRecipient = await makeStore();
+	const packRecipient = await makeStore();
+	const single = await singleRecipient.import(decodePreset(encodePreset(reopened)));
+	const packed = await packRecipient.import(unpackPresets(packPresets([renamed]))[0]);
+	for (const imported of [single, packed]) {
+		expect(imported.name).toBe("Mista — Narrator É");
+		expect(imported.voice).toEqual(original.voice);
+		expect(imported.settings).toEqual(original.settings);
+	}
+});

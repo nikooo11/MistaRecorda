@@ -11,14 +11,14 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 
 if (-not $AppPath) {
-	$packagedAppPath = Join-Path $repoRoot "release\win-unpacked\Recordly.exe"
-	$installedAppPath = Join-Path $env:LOCALAPPDATA "Programs\recordly\Recordly.exe"
+	$packagedAppPath = Join-Path $repoRoot "release\win-unpacked\MistaRecorda.exe"
+	$installedAppPath = Join-Path $env:LOCALAPPDATA "Programs\mistarecorda\MistaRecorda.exe"
 	if (Test-Path $packagedAppPath) {
 		$AppPath = $packagedAppPath
 	} elseif (Test-Path $installedAppPath) {
 		$AppPath = $installedAppPath
 	} else {
-		throw "Recordly.exe was not found. Build the Windows package first or pass -AppPath."
+		throw "MistaRecorda.exe was not found. Build the Windows package first or pass -AppPath."
 	}
 }
 
@@ -27,22 +27,22 @@ if (-not $CudaScriptPath) {
 }
 
 if (-not (Test-Path $AppPath)) {
-	throw "Recordly app not found: $AppPath"
+	throw "MistaRecorda app not found: $AppPath"
 }
 
 if (-not (Test-Path $CudaScriptPath)) {
 	throw "NVIDIA CUDA/NVENC wrapper script not found: $CudaScriptPath"
 }
 
-$existingRecordly = @(Get-Process -Name "Recordly" -ErrorAction SilentlyContinue)
-if ($existingRecordly.Count -gt 0) {
+$existingMistaRecorda = @(Get-Process -Name "MistaRecorda" -ErrorAction SilentlyContinue)
+if ($existingMistaRecorda.Count -gt 0) {
 	if (-not $CloseExisting) {
-		Write-Host "Recordly is already running. Close it first, or rerun with -CloseExisting so the CUDA env is inherited by the new app process."
-		$existingRecordly | Select-Object Id, ProcessName, Path | Format-Table -AutoSize
+		Write-Host "MistaRecorda is already running. Close it first, or rerun with -CloseExisting so the CUDA env is inherited by the new app process."
+		$existingMistaRecorda | Select-Object Id, ProcessName, Path | Format-Table -AutoSize
 		exit 2
 	}
 
-	$existingRecordly | Stop-Process -Force
+	$existingMistaRecorda | Stop-Process -Force
 	Start-Sleep -Milliseconds 500
 }
 
@@ -73,7 +73,7 @@ if ($AllowCudaAudio) {
 	$cudaAudioMode = "CUDA video-only, then shared app audio mux"
 }
 
-Write-Host "Launching Recordly with guarded NVIDIA CUDA/NVENC auto export enabled:"
+Write-Host "Launching MistaRecorda with guarded NVIDIA CUDA/NVENC auto export enabled:"
 Write-Host "  App: $resolvedAppPath"
 Write-Host "  CUDA wrapper: $env:RECORDLY_NVIDIA_CUDA_EXPORT_SCRIPT"
 Write-Host "  Force CUDA video-only: $($env:RECORDLY_NVIDIA_CUDA_FORCE_VIDEO_ONLY -eq '1')"
