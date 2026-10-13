@@ -1,7 +1,7 @@
 {
 	"app": {
-		"name": "Recordly",
-		"editorTitle": "Recordly Editor",
+		"name": "MistaRecorda",
+		"editorTitle": "MistaRecorda — based on Recordly",
 		"subtitle": "Schermopname en bewerking",
 		"language": "Taal",
 		"manageRecordings": "Opnamemap openen"

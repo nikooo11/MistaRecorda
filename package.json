@@ -1,6 +1,6 @@
 {
-	"name": "recordly",
-	"productName": "Recordly",
+	"name": "mistarecorda",
+	"productName": "MistaRecorda",
 	"description": "A free, creator-focused screen recorder with auto-zoom, cursor effects, backgrounds, annotations, and more - built for polished videos out of the box.",
 	"author": "webadderall",
 	"homepage": "https://github.com/webadderallorg/Recordly",
@@ -42,7 +42,8 @@
 		"checksums:release": "node scripts/write-release-checksums.mjs",
 		"release:create": "node scripts/create-release.mjs",
 		"test": "vitest --run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@phosphor-icons/react": "^2.1.10",
