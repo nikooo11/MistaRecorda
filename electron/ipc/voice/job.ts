@@ -1,3 +1,4 @@
+import { mixArgs } from "./mix";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { app, BrowserWindow } from "electron";
@@ -176,9 +177,21 @@ async function run(
 		await fs.copyFile(output, mic, 1);
 		created.push(mic);
 		controller.signal.throwIfAborted();
-		await writeAudioMetadata({ ...metadata, changedMicPath: mic });
+		const video = `${base}.voice${suffix}.mp4`;
+		await ffmpeg(
+			mixArgs(
+				metadata,
+				mic,
+				video,
+				await audioDuration(metadata.videoPath, controller.signal),
+			),
+			controller.signal,
+		);
+		created.push(video);
+		controller.signal.throwIfAborted();
+		await writeAudioMetadata({ ...metadata, changedMicPath: mic, voiceVideoPath: video });
 		committed = true;
-		Object.assign(progress, { state: "done", outputPath: mic });
+		Object.assign(progress, { state: "done", outputPath: video });
 	} catch (e) {
 		Object.assign(progress, {
 			state: controller.signal.aborted ? "cancelled" : "error",

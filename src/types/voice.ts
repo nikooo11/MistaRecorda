@@ -59,6 +59,8 @@ export interface VoiceRecording {
 	micSelection?: "original" | "changed";
 }
 export interface VoiceRequests {
+	recording: { input: string; output: VoiceRecording | null };
+	selectMic: { input: { videoPath: string; selection: "original" | "changed" }; output: boolean };
 	start: { input: string; output: string };
 	cancel: { input: string; output: boolean };
 	progress: { input: undefined; output: VoiceProgress[] };
@@ -70,6 +72,7 @@ export interface VoiceRequests {
 	open: { input: undefined; output: boolean };
 }
 export interface VoiceAPI {
+	onAudioChanged(callback: (videoPath: string) => void): () => void;
 	request<K extends keyof VoiceRequests>(
 		method: K,
 		input: VoiceRequests[K]["input"],

@@ -1,3 +1,4 @@
+import { readAudioMetadata, writeAudioMetadata } from "../recording/library";
 import { resolveApprovedLocalMediaPath } from "../project/manager";
 import { startVoiceJob, cancelJob, jobProgress } from "./job";
 import path from "node:path";
@@ -65,6 +66,23 @@ export function voiceHandle<K extends keyof VoiceRequests>(
 	);
 }
 export function registerVoiceHandlers() {
+	voiceHandle("recording", async (input) => {
+		const p = typeof input === "string" ? await resolveApprovedLocalMediaPath(input) : null;
+		if (!p) throw new Error("noAccess");
+		return readAudioMetadata(p);
+	});
+	voiceHandle("selectMic", async (input) => {
+		if (!input || !["original", "changed"].includes(input.selection))
+			throw new Error("invalidSettings");
+		const p = await resolveApprovedLocalMediaPath(input.videoPath);
+		if (!p) throw new Error("noAccess");
+		const meta = await readAudioMetadata(p);
+		if (!meta || (input.selection === "changed" && !meta.changedMicPath))
+			throw new Error("missingMic");
+		await writeAudioMetadata({ ...meta, micSelection: input.selection });
+		for (const w of BrowserWindow.getAllWindows()) w.webContents.send("voice:audioChanged", p);
+		return true;
+	});
 	voiceHandle("start", async (input) => {
 		if (typeof input !== "string") throw new Error("invalidAudio");
 		const video = await resolveApprovedLocalMediaPath(input);

@@ -1,3 +1,4 @@
+import { VoiceRecordingControls } from "../voice/VoiceRecordingControls";
 import {
 	BookmarkSimple,
 	Check,
@@ -5778,7 +5779,8 @@ export default function VideoEditor() {
 				{projectSaveDialog}
 				{unsavedChangesDialog}
 				{nativeCaptureUnavailableDialog}
-				<Toaster className="pointer-events-auto" />
+				<div className="fixed top-0 left-1/2 -translate-x-1/2 z-50"><VoiceRecordingControls videoPath={currentSourcePath} /></div>
+			<Toaster className="pointer-events-auto" />
 			</div>
 		);
 	}
@@ -5800,7 +5802,8 @@ export default function VideoEditor() {
 				{projectSaveDialog}
 				{unsavedChangesDialog}
 				{nativeCaptureUnavailableDialog}
-				<Toaster className="pointer-events-auto" />
+				<div className="fixed top-0 left-1/2 -translate-x-1/2 z-50"><VoiceRecordingControls videoPath={currentSourcePath} /></div>
+			<Toaster className="pointer-events-auto" />
 			</div>
 		);
 	}
@@ -6953,6 +6956,7 @@ export default function VideoEditor() {
 			{unsavedChangesDialog}
 			{nativeCaptureUnavailableDialog}
 
+			<div className="fixed top-0 left-1/2 -translate-x-1/2 z-50"><VoiceRecordingControls videoPath={currentSourcePath} /></div>
 			<Toaster className="pointer-events-auto" />
 		</div>
 	);
