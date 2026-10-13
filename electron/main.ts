@@ -1,3 +1,4 @@
+import { openVoiceWindow } from "./ipc/voice/register";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -30,10 +31,7 @@ import {
 import { ensureMediaServer } from "./mediaServer";
 import { shouldGrantDisplayCapture, shouldGrantMediaPermission } from "./permissionPolicy";
 import { ensurePackagedRendererServer, getPackagedRendererBaseUrl } from "./rendererServer";
-import {
-	hardenWebContentsNavigation,
-	shouldHardenWebContentsType,
-} from "./navigationPolicy";
+import { hardenWebContentsNavigation, shouldHardenWebContentsType } from "./navigationPolicy";
 import type { UpdateToastPayload } from "./updater";
 import {
 	checkForAppUpdates,
@@ -413,7 +411,18 @@ function setupApplicationMenu() {
 	template.push({
 		label: app.name,
 		submenu: [
-			{ label: "About MistaRecorda", click: () => { app.setAboutPanelOptions({ applicationName: "MistaRecorda", applicationVersion: app.getVersion(), copyright: "Based on Recordly — AGPLv3", credits: "Recordly contributors" }); app.showAboutPanel(); } },
+			{
+				label: "About MistaRecorda",
+				click: () => {
+					app.setAboutPanelOptions({
+						applicationName: "MistaRecorda",
+						applicationVersion: app.getVersion(),
+						copyright: "Based on Recordly — AGPLv3",
+						credits: "Recordly contributors",
+					});
+					app.showAboutPanel();
+				},
+			},
 			{ type: "separator" },
 			{ role: "services" },
 			{ type: "separator" },
@@ -429,6 +438,12 @@ function setupApplicationMenu() {
 		{
 			label: "File",
 			submenu: [
+				{
+					label: "Import Voice Preset…",
+					click: () => {
+						openVoiceWindow(true);
+					},
+				},
 				{
 					label: "Open Projects…",
 					accelerator: "CmdOrCtrl+O",

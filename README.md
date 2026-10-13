@@ -2,6 +2,10 @@
 
 Personal and internal-team fork, based on [Recordly](https://github.com/webadderallorg/Recordly). Adds private microphone voice conversion and portable voice presets. Licensed under AGPLv3; original Recordly attribution and license are retained.
 
+See [Voice Change setup and Mac verification](docs/voice-change.md).
+
+## Upstream Recordly documentation
+
 Language: EN | [简中](README.zh-CN.md)
 
 <p align="center">

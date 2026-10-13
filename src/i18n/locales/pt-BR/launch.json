@@ -53,7 +53,8 @@
 			"upToDateTitle": "Recordly {{version}} está atualizado.",
 			"availableTitle": "Recordly {{version}} está disponível.",
 			"availableGenericTitle": "Há uma atualização disponível."
-		}
+		},
+		"isolatedAudioFailed": "Could not save isolated audio; the original recording will still be saved."
 	},
 	"sourceSelector": {
 		"loadingSources": "Carregando fontes...",

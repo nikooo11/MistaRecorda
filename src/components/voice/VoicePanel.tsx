@@ -1,3 +1,5 @@
+import { VoiceBrowser } from "./VoiceBrowser";
+import "./voice.css";
 import { VoiceLibrary } from "./VoiceLibrary";
 import { useEffect, useState } from "react";
 import { useScopedT } from "@/contexts/I18nContext";
@@ -23,13 +25,17 @@ export function VoicePanel() {
 		}
 	};
 	useEffect(() => {
-		void request("getSettings", undefined)
-			.then((r) => {
-				const s = unwrapVoice(r);
-				setSettings(s);
-				setHasKey(s.hasKey);
-			})
-			.catch(() => setMessage("operationFailed"));
+		const load = () => {
+			void request("getSettings", undefined)
+				.then((r) => {
+					const next = unwrapVoice(r);
+					setSettings(next);
+					setHasKey(next.hasKey);
+				})
+				.catch(() => setMessage("operationFailed"));
+		};
+		load();
+		return window.electronAPI.voice.onSettingsChanged(load);
 	}, [request]);
 	return (
 		<main className="h-screen overflow-auto bg-editor-bg text-foreground p-6 space-y-4">
@@ -176,6 +182,7 @@ export function VoicePanel() {
 				{t("voice.save")}
 			</button>
 			<p role="status">{message ? t(`voice.${message}`) : ""}</p>
+			<VoiceBrowser />
 			<VoiceLibrary />
 		</main>
 	);

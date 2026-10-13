@@ -53,7 +53,8 @@
 			"upToDateTitle": "Recordly {{version}} 已是最新版本。",
 			"availableTitle": "Recordly {{version}} 可更新。",
 			"availableGenericTitle": "有可用更新。"
-		}
+		},
+		"isolatedAudioFailed": "Could not save isolated audio; the original recording will still be saved."
 	},
 	"sourceSelector": {
 		"loadingSources": "正在加载源...",

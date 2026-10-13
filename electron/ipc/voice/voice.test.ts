@@ -137,6 +137,14 @@ describe("ElevenLabs", () => {
 		expect(
 			mapVoice({ voice_id: "a", name: "A", category: "cloned", is_owner: true }).canEdit,
 		).toBe(true);
+		const publicVoice = mapVoice({
+			voice_id: "public",
+			name: "Public voice",
+			category: "professional",
+			sharing: { public_owner_id: "owner" },
+		});
+		expect(publicVoice.source).toBe("library");
+		expect(publicVoice.canEdit).toBe(false);
 	});
 });
 describe("settings and secrets", () => {

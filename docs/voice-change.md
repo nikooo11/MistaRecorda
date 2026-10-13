@@ -49,6 +49,8 @@ No isolated mic: enable microphone recording and verify permissions. MistaRecord
 
 Linux cloud validation covers strict TypeScript, Biome lint, unit tests, and a real FFmpeg encode/decode/duration test with mocked ElevenLabs responses. The user's later instruction limits live API checks to key readiness; no real conversion is required. Mac capture and packaging remain manual. New UI keys are present in all locale resources with English fallback wording; translation review is welcome.
 
+Final cloud verification: 1,038 tests across 110 files passed; TypeScript, Biome lint (21 existing warnings), locale consistency, Vite production build and Electron main-process smoke checks passed. A running Electron app opened the Voice Change window, round-tripped a preset through typed IPC, rejected a credential field, and exposed only `hasKey` to its renderer. The read-only ElevenLabs `GET /v1/user` key test succeeded. No audio was uploaded during verification.
+
 ## Verification on macOS
 
 These checks require a real Mac. They were not run in the Linux cloud environment.
@@ -67,3 +69,17 @@ These checks require a real Mac. They were not run in the Linux cloud environmen
 ## Team and preset manual checks
 
 After Phase 10, use two separate ElevenLabs accounts in a multi-seat workspace. Share an owned voice as viewer, then editor, and check permissions. Export/import a preset with non-default values: voice reference, every setting, favorite and embedded preview must survive. Try an inaccessible private voice (ask-owner guidance), a library voice requiring add-to-account, a future schema version, duplicate name, a malformed/oversized file, a preset pack, and a concurrent edit in the synced team folder. Confirm newest updatedAt wins with a .bak and that no export contains credentials. Samples may be included only with explicit consent. A preset is not a downloadable voice model.
+
+## Voice Browser and portable presets
+
+Open Voice Browser and select My Voices, Library, Favorites or Presets. Search the library by text, gender, accent and use case. Stars are local favorites; a public library row separately offers **Add to my ElevenLabs account**, which bookmarks the voice. Remote voice editing is enabled only when ElevenLabs affirmatively reports ownership; category alone never grants permission. Rename/description/labels and extra consented samples update the remote voice, while preset sliders and local effects never modify it.
+
+**Make preset** opens an editor with the voice reference, all STS settings, local loudness/EQ/pitch, tags, creator and favorite state. Enter your name/email so teammates know whom to ask for access. Generate preview explicitly converts a bundled 4.7-second synthetic sample and embeds the resulting WAV. The sample text was authored for MistaRecorda and synthesized locally using eSpeak NG; it is not a real person's voice sample. Save, Save as new, Use, Export, Delete, Share voice with team, and Copy preset to team folder are separate actions. Quick presets in the recording toolbar sort favorites first.
+
+Single exports use strict version-1 `mistarecorda.voice-preset` JSON (`.mpvoice`). Export all makes a ZIP `.mpvoice-pack`. If Include samples and the consent checkbox are both selected, export makes a pack and lets you select sample files (10 maximum, 25 MB each, 50 MB total). Samples are not automatically cloned on import or included without explicit selection. Pack import reads preset JSON without extracting archive paths. Unknown fields (including credentials), invalid settings, future versions and oversized archives are rejected.
+
+Import from the File menu, the browser button, or drag/drop. Embedded previews are available immediately. The app checks voice access, adds accessible public-library references to the account when needed, and asks the named creator to share inaccessible private/workspace voices. Authentication/network failures are shown separately from missing voice access. On duplicate names, supply a new name and Retry. Every voice setting and post-effect survives import unchanged; favorited imports remain favorites.
+
+Local presets live in `userData/presets/*.mpvoice.json`; voice IDs are starred in `userData/favorites.json`. Choose a shared synced folder with **Team presets folder**; use **Copy preset to team folder** to publish a preset there. The app watches preset JSON changes, shows Mine and Team, and resolves matching-ID conflicts by newest `updatedAt`, retaining the replaced file as `.bak`. File writes are serialized and atomic. A folder does not grant ElevenLabs voice access: use **Share voice with team** with email/group and viewer/editor/admin role in a multi-seat workspace. Each teammate supplies their own key.
+
+Browser capture fallback now records cloned microphone and system tracks independently as well as preserving the original recording. The personal fork disables upstream auto-updates to avoid replacing MistaRecorda with a Recordly release. Original optional platform entries in the lockfile are retained so native Mac dependencies remain reproducible.

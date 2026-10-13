@@ -88,6 +88,11 @@ export class VoiceSettingsStore {
 	async key() {
 		const injected = this.environmentKey();
 		if (injected) return injected;
+		if (
+			!this.storage.isEncryptionAvailable() ||
+			this.storage.getSelectedStorageBackend?.() === "basic_text"
+		)
+			return undefined;
 		try {
 			return this.storage.decryptString(
 				await fs.readFile(path.join(this.dir, "voice-key.enc")),

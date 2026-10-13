@@ -1,3 +1,8 @@
+import { ffmpeg } from "./chunker";
+import { prepareRecordingAudio, recordingBase } from "../recording/library";
+import { pathToFileURL } from "node:url";
+import { getPackagedRendererBaseUrl } from "../../rendererServer";
+import { registerPresetHandlers } from "./presetHandlers";
 import fs from "node:fs/promises";
 import { shell } from "electron";
 import { getRecordingsDir } from "../utils";
@@ -10,10 +15,11 @@ import type { VoiceRequests, VoiceResult } from "../../../src/types/voice";
 import { ElevenLabs } from "./elevenlabs";
 import { VoiceSettingsStore } from "./settings";
 let voiceWindow: BrowserWindow | null = null;
-export function openVoiceWindow() {
+export function openVoiceWindow(importRequested = false) {
 	if (voiceWindow && !voiceWindow.isDestroyed()) {
 		voiceWindow.show();
 		voiceWindow.focus();
+		if (importRequested) voiceWindow.webContents.send("voice:importRequested");
 		return true;
 	}
 	voiceWindow = new BrowserWindow({
@@ -27,22 +33,57 @@ export function openVoiceWindow() {
 			sandbox: true,
 		},
 	});
+	voiceWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+	voiceWindow.webContents.on("will-navigate", (event) => event.preventDefault());
 	voiceWindow.on("closed", () => {
 		voiceWindow = null;
 	});
 	if (process.env.VITE_DEV_SERVER_URL)
-		void voiceWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}?windowType=voice`);
+		void voiceWindow.loadURL(
+			`${process.env.VITE_DEV_SERVER_URL}?windowType=voice${importRequested ? "&importPreset=1" : ""}`,
+		);
+	else if (getPackagedRendererBaseUrl())
+		void voiceWindow.loadURL(
+			`${getPackagedRendererBaseUrl()}?windowType=voice${importRequested ? "&importPreset=1" : ""}`,
+		);
 	else
 		void voiceWindow.loadFile(path.join(app.getAppPath(), "dist/index.html"), {
-			query: { windowType: "voice" },
+			query: { windowType: "voice", ...(importRequested ? { importPreset: "1" } : {}) },
 		});
 	return true;
+}
+export function notifyVoiceSettings() {
+	for (const win of BrowserWindow.getAllWindows())
+		if (!win.isDestroyed()) win.webContents.send("voice:settingsChanged");
 }
 export const voiceStore = () => new VoiceSettingsStore(app.getPath("userData"), safeStorage);
 export async function voiceClient() {
 	const key = await voiceStore().key();
 	if (!key) throw new Error("missingKey");
 	return new ElevenLabs(key);
+}
+function isTrustedVoiceDocument(value: string) {
+	try {
+		const url = new URL(value);
+		url.search = "";
+		url.hash = "";
+		const expected = [
+			process.env.VITE_DEV_SERVER_URL,
+			getPackagedRendererBaseUrl(),
+			pathToFileURL(path.join(app.getAppPath(), "dist/index.html")).href,
+		].filter((x): x is string => Boolean(x));
+		return expected.some((base) => {
+			const u = new URL(base);
+			return (
+				url.href === u.href ||
+				(url.origin !== "null" &&
+					url.origin === u.origin &&
+					["/", "/index.html"].includes(url.pathname))
+			);
+		});
+	} catch {
+		return false;
+	}
 }
 export function voiceHandle<K extends keyof VoiceRequests>(
 	method: K,
@@ -56,7 +97,8 @@ export function voiceHandle<K extends keyof VoiceRequests>(
 		async (event, input): Promise<VoiceResult<VoiceRequests[K]["output"]>> => {
 			if (
 				event.senderFrame !== event.sender.mainFrame ||
-				!BrowserWindow.fromWebContents(event.sender)
+				!BrowserWindow.fromWebContents(event.sender) ||
+				!isTrustedVoiceDocument(event.senderFrame?.url ?? "")
 			)
 				return { ok: false, error: "noAccess" };
 			try {
@@ -69,6 +111,47 @@ export function voiceHandle<K extends keyof VoiceRequests>(
 	);
 }
 export function registerVoiceHandlers() {
+	registerPresetHandlers();
+	voiceHandle("storeBrowserAudio", async (input) => {
+		if (
+			!input ||
+			!["mic", "system"].includes(input.kind) ||
+			!(input.bytes instanceof ArrayBuffer) ||
+			input.bytes.byteLength > 1024 * 1024 * 1024 ||
+			!Number.isFinite(input.offsetMs) ||
+			input.offsetMs < 0
+		)
+			throw new Error("invalidAudio");
+		const video = await resolveApprovedLocalMediaPath(input.videoPath);
+		if (!video) throw new Error("noAccess");
+		const temp = await fs.mkdtemp(path.join(app.getPath("temp"), "mistarecorda-sidecar-"));
+		try {
+			const source = path.join(temp, "input");
+			const output = path.join(temp, "output.wav");
+			await fs.writeFile(source, Buffer.from(input.bytes));
+			await ffmpeg([
+				"-i",
+				source,
+				"-vn",
+				"-ac",
+				input.kind === "mic" ? "1" : "2",
+				"-ar",
+				"48000",
+				"-af",
+				input.kind === "mic"
+					? "asetpts=PTS-STARTPTS"
+					: `adelay=${Math.round(input.offsetMs)}:all=1`,
+				"-c:a",
+				"pcm_s16le",
+				output,
+			]);
+			await fs.copyFile(output, `${recordingBase(video)}.${input.kind}.wav`, 1);
+			await prepareRecordingAudio(video, input.kind === "mic" ? input.offsetMs : undefined);
+			return true;
+		} finally {
+			await fs.rm(temp, { recursive: true, force: true });
+		}
+	});
 	voiceHandle("recordings", async () => {
 		const dir = await getRecordingsDir();
 		const names = await fs.readdir(dir).catch(() => []);
@@ -143,8 +226,16 @@ export function registerVoiceHandlers() {
 	voiceHandle("cancel", (input) => cancelJob(input));
 	voiceHandle("progress", () => jobProgress());
 	voiceHandle("getSettings", () => voiceStore().publicSettings());
-	voiceHandle("saveSettings", (input) => voiceStore().save(input));
-	voiceHandle("setKey", (input) => voiceStore().setKey(input));
+	voiceHandle("saveSettings", async (input) => {
+		const result = await voiceStore().save(input);
+		notifyVoiceSettings();
+		return result;
+	});
+	voiceHandle("setKey", async (input) => {
+		const result = await voiceStore().setKey(input);
+		notifyVoiceSettings();
+		return result;
+	});
 	voiceHandle("testKey", async () => (await voiceClient()).testKey());
 	voiceHandle("listVoices", async () => (await voiceClient()).voices());
 	voiceHandle("open", () => openVoiceWindow());

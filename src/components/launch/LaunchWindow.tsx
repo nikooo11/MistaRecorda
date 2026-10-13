@@ -1,3 +1,4 @@
+import { QuickVoicePreset } from "../voice/QuickVoicePreset";
 import {
 	ArrowClockwiseIcon,
 	CaretUpIcon,
@@ -222,7 +223,13 @@ function LaunchWindowContent() {
 
 	const idleControls = (
 		<>
-			<button type="button" onClick={() => void window.electronAPI.voice.request("open", undefined)}>{t("voiceChange")}</button>
+			<QuickVoicePreset />
+			<button
+				type="button"
+				onClick={() => void window.electronAPI.voice.request("open", undefined)}
+			>
+				{t("voiceChange")}
+			</button>
 			{platform !== "linux" && (
 				<>
 					<SourcePopover

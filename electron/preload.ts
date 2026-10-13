@@ -166,7 +166,34 @@ function settleNativeVideoExportPendingRequests(
 
 contextBridge.exposeInMainWorld("electronAPI", {
 	voice: {
- onAudioChanged: (callback) => {const listener = (_event: Electron.IpcRendererEvent, path: string) => callback(path); ipcRenderer.on("voice:audioChanged", listener);return () => ipcRenderer.removeListener("voice:audioChanged", listener);}, request: (method, input) => ipcRenderer.invoke(`voice:${method}`, input), onProgress: (callback) => { const listener = (_event: Electron.IpcRendererEvent, progress: VoiceProgress) => callback(progress); ipcRenderer.on("voice:progress", listener); return () => ipcRenderer.removeListener("voice:progress", listener); } } satisfies VoiceAPI,
+		onSettingsChanged: (callback) => {
+			const listener = () => callback();
+			ipcRenderer.on("voice:settingsChanged", listener);
+			return () => ipcRenderer.removeListener("voice:settingsChanged", listener);
+		},
+		onPresetsChanged: (callback) => {
+			const listener = () => callback();
+			ipcRenderer.on("voice:presetsChanged", listener);
+			return () => ipcRenderer.removeListener("voice:presetsChanged", listener);
+		},
+		onImportRequested: (callback) => {
+			const listener = () => callback();
+			ipcRenderer.on("voice:importRequested", listener);
+			return () => ipcRenderer.removeListener("voice:importRequested", listener);
+		},
+		onAudioChanged: (callback) => {
+			const listener = (_event: Electron.IpcRendererEvent, path: string) => callback(path);
+			ipcRenderer.on("voice:audioChanged", listener);
+			return () => ipcRenderer.removeListener("voice:audioChanged", listener);
+		},
+		request: (method, input) => ipcRenderer.invoke(`voice:${method}`, input),
+		onProgress: (callback) => {
+			const listener = (_event: Electron.IpcRendererEvent, progress: VoiceProgress) =>
+				callback(progress);
+			ipcRenderer.on("voice:progress", listener);
+			return () => ipcRenderer.removeListener("voice:progress", listener);
+		},
+	} satisfies VoiceAPI,
 	hudOverlaySetIgnoreMouse: (ignore: boolean) => {
 		ipcRenderer.send("hud-overlay-set-ignore-mouse", ignore);
 	},

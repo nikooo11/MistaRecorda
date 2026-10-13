@@ -1,0 +1,21 @@
+.voice-input {
+	background: hsl(var(--foreground) / 0.06);
+	border: 1px solid hsl(var(--foreground) / 0.18);
+	border-radius: 0.375rem;
+	padding: 0.4rem 0.6rem;
+	margin: 0.25rem 0.5rem;
+	max-width: 100%;
+}
+main button {
+	cursor: pointer;
+}
+main button:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+main input[type="checkbox"] {
+	margin-right: 0.5rem;
+}
+main audio {
+	max-width: 100%;
+}

@@ -1,3 +1,4 @@
+import type { VoicePreset, PresetEntry } from "./voicePreset";
 export interface VoiceSettings {
 	enabled: boolean;
 	noticeAccepted: boolean;
@@ -36,6 +37,10 @@ export interface VoiceInfo {
 	source: "owned" | "library" | "workspace-shared";
 	publicOwnerId: string | null;
 	canEdit: boolean;
+	defaultSettings?: Pick<
+		VoiceSettings,
+		"stability" | "similarityBoost" | "style" | "useSpeakerBoost"
+	>;
 	description?: string;
 	labels?: Record<string, string>;
 }
@@ -59,6 +64,61 @@ export interface VoiceRecording {
 	micSelection?: "original" | "changed";
 }
 export interface VoiceRequests {
+	storeBrowserAudio: {
+		input: { videoPath: string; kind: "mic" | "system"; offsetMs: number; bytes: ArrayBuffer };
+		output: boolean;
+	};
+	browse: {
+		input: {
+			tab: "mine" | "library" | "favorites";
+			search?: string;
+			gender?: string;
+			accent?: string;
+			useCase?: string;
+		};
+		output: VoiceInfo[];
+	};
+	favorites: { input: undefined; output: string[] };
+	favorite: { input: { voiceId: string; enabled: boolean }; output: string[] };
+	addVoice: { input: { owner: string; voiceId: string; name: string }; output: boolean };
+	presets: { input: undefined; output: PresetEntry[] };
+	savePreset: { input: VoicePreset; output: VoicePreset };
+	deletePreset: { input: string; output: boolean };
+	usePreset: { input: VoicePreset; output: VoiceSettings & { hasKey: boolean } };
+	previewPreset: { input: VoicePreset; output: VoicePreset };
+	exportPreset: {
+		input: { preset: VoicePreset | null; includeSamples: boolean; consent: boolean };
+		output: boolean;
+	};
+	inspectImport: { input: { name: string; bytes: number[] } | undefined; output: VoicePreset[] };
+	importPreset: {
+		input: { preset: VoicePreset; rename?: string };
+		output: { status: "ready" | "askShare"; preset: VoicePreset };
+	};
+	teamFolder: { input: undefined; output: string };
+	copyToTeam: { input: VoicePreset; output: VoicePreset };
+	editVoice: {
+		input: {
+			voiceId: string;
+			name: string;
+			description: string;
+			labels: Record<string, string>;
+			settings: VoiceSettings;
+			addSamples: boolean;
+			consent: boolean;
+		};
+		output: boolean;
+	};
+	shareVoice: {
+		input: {
+			voiceId: string;
+			role: "viewer" | "editor" | "admin";
+			recipient: string;
+			kind: "email" | "group";
+		};
+		output: boolean;
+	};
+
 	recordings: { input: undefined; output: VoiceRecording[] };
 	afterRecording: { input: string; output: string | null };
 	outputAction: { input: { videoPath: string; action: "open" | "reveal" }; output: boolean };
@@ -75,6 +135,9 @@ export interface VoiceRequests {
 	open: { input: undefined; output: boolean };
 }
 export interface VoiceAPI {
+	onSettingsChanged(callback: () => void): () => void;
+	onPresetsChanged(callback: () => void): () => void;
+	onImportRequested(callback: () => void): () => void;
 	onAudioChanged(callback: (videoPath: string) => void): () => void;
 	request<K extends keyof VoiceRequests>(
 		method: K,

@@ -52,6 +52,10 @@ export class ElevenLabs {
 				...init,
 				headers: { ...init.headers, "xi-api-key": this.key },
 				redirect: "error",
+				signal: AbortSignal.any([
+					...(init.signal ? [init.signal] : []),
+					AbortSignal.timeout(60000),
+				]),
 			});
 			if (response.ok) return response;
 			const status = response.status;
@@ -78,6 +82,91 @@ export class ElevenLabs {
 		const data = await (await this.request("/voices")).json();
 		return (data.voices ?? []).map(mapVoice);
 	}
+	async getVoice(id: string): Promise<VoiceInfo> {
+		return mapVoice(await (await this.request(`/voices/${encodeURIComponent(id)}`)).json());
+	}
+	async library(filters: {
+		search?: string;
+		gender?: string;
+		accent?: string;
+		useCase?: string;
+	}): Promise<VoiceInfo[]> {
+		const query = new URLSearchParams({ page_size: "100" });
+		for (const [key, value] of Object.entries({
+			search: filters.search,
+			gender: filters.gender,
+			accent: filters.accent,
+			use_cases: filters.useCase,
+		})) {
+			if (value) query.set(key, value.slice(0, 200));
+		}
+		const data = await (await this.request(`/shared-voices?${query}`)).json();
+		return (data.voices ?? []).map((v: Record<string, unknown>) => ({
+			...mapVoice(v),
+			source: "library" as const,
+			publicOwnerId: typeof v.public_owner_id === "string" ? v.public_owner_id : null,
+			canEdit: false,
+		}));
+	}
+	async addLibraryVoice(owner: string, id: string, name: string) {
+		return (
+			await this.request(
+				`/voices/add/${encodeURIComponent(owner)}/${encodeURIComponent(id)}`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ new_name: name, bookmarked: true }),
+				},
+			)
+		).json();
+	}
+	async editVoice(
+		id: string,
+		values: {
+			name: string;
+			description: string;
+			labels: Record<string, string>;
+			settings: VoiceSettings;
+		},
+		samples: Array<{ name: string; bytes: Uint8Array }>,
+	) {
+		if (!(await this.getVoice(id)).canEdit) throw new Error("voiceNotOwned");
+		const form = new FormData();
+		form.set("name", values.name);
+		form.set("description", values.description);
+		form.set("labels", JSON.stringify(values.labels));
+		for (const sample of samples)
+			form.append("files", new Blob([new Uint8Array(sample.bytes)]), sample.name);
+		await this.request(`/voices/${encodeURIComponent(id)}/edit`, {
+			method: "POST",
+			body: form,
+		});
+		await this.request(`/voices/${encodeURIComponent(id)}/settings/edit`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				stability: values.settings.stability,
+				similarity_boost: values.settings.similarityBoost,
+				style: values.settings.style,
+				use_speaker_boost: values.settings.useSpeakerBoost,
+			}),
+		});
+		return true;
+	}
+	async shareVoice(
+		id: string,
+		role: "viewer" | "editor" | "admin",
+		recipient: { user_email?: string; group_id?: string },
+	) {
+		if (!(await this.getVoice(id)).canEdit) throw new Error("voiceNotOwned");
+		await this.request(`/workspace/resources/${encodeURIComponent(id)}/share`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ resource_type: "voice", role, ...recipient }),
+		});
+		return true;
+	}
+
 	async speech(
 		audio: Uint8Array,
 		settings: VoiceSettings,
@@ -109,6 +198,7 @@ export function mapVoice(v: Record<string, unknown>): VoiceInfo {
 	const sharing = v.sharing as Record<string, unknown> | undefined;
 	// Only affirmative ownership metadata permits editing; category alone is insufficient.
 	const owned = v.is_owner === true || sharing?.is_owner === true;
+	const defaults = v.settings as Record<string, unknown> | undefined;
 	return {
 		voiceId: String(v.voice_id),
 		name: String(v.name),
@@ -117,10 +207,26 @@ export function mapVoice(v: Record<string, unknown>): VoiceInfo {
 			typeof v.preview_url === "string" && v.preview_url.startsWith("https://")
 				? v.preview_url
 				: null,
-		source: owned ? "owned" : "workspace-shared",
+		source: owned
+			? "owned"
+			: typeof sharing?.public_owner_id === "string"
+				? "library"
+				: "workspace-shared",
 		publicOwnerId:
 			typeof sharing?.public_owner_id === "string" ? sharing.public_owner_id : null,
 		canEdit: owned,
+		defaultSettings:
+			defaults &&
+			[defaults.stability, defaults.similarity_boost, defaults.style].every(
+				(x) => typeof x === "number" && x >= 0 && x <= 1,
+			)
+				? {
+						stability: defaults.stability as number,
+						similarityBoost: defaults.similarity_boost as number,
+						style: defaults.style as number,
+						useSpeakerBoost: defaults.use_speaker_boost === true,
+					}
+				: undefined,
 		description: typeof v.description === "string" ? v.description : "",
 		labels: (v.labels ?? {}) as Record<string, string>,
 	};
