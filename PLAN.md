@@ -105,3 +105,91 @@ Real-time/live voice changing, Windows/Linux voice features, distribution/signin
 - Only upload mic audio; never video or system audio.
 - Only use voices you own or have permission to use.
 - Small commits per phase on branch `feature/voice-change`; open a PR to `main` at the end with a summary of files changed.
+
+---
+
+# Phase 10 — Voice Favorites, Presets, Team Sharing, Import/Export
+
+## What's possible (verified against ElevenLabs API docs)
+| Want | Possible? | How |
+|---|---|---|
+| Browse ElevenLabs voices | ✅ | `GET /v1/voices` (my voices), `GET /v1/shared-voices` (public Voice Library, with search/filters) |
+| Favorite voices, saved | ✅ | Local favorites in MistaRecorda + optionally add library voice to account: `POST /v1/voices/add/{public_user_id}/{voice_id}` (`bookmarked: true`) |
+| Use my trained/cloned voices | ✅ | They appear in `GET /v1/voices` (category `cloned`/`professional`/`generated`) |
+| Edit trained voices | ✅ (owned voices only) | `POST /v1/voices/{voice_id}/edit` (name, description, labels, add samples) + `POST /v1/voices/{voice_id}/settings/edit` (default stability/similarity/style/speaker boost) |
+| Team uses same voice | ✅ with multi-seat workspace | `POST /v1/workspace/resources/{voice_id}/share` `{resource_type:"voice", role:"viewer"|"editor"|"admin", user_email|group_id}` |
+| Export a voice as a file another user loads | ✅ as a **preset file** | The file stores voice reference + settings + preview, NOT the voice model itself (ElevenLabs doesn't allow exporting voice models). Importer must have access to the voice (same workspace share, or public library voice auto-added, or re-clone from included samples if they own consent). |
+
+**Key limitation:** a voice "lives" in an ElevenLabs account. A preset file works on another person's machine only if their API key can access that `voice_id`. MistaRecorda resolves this automatically on import (see Import flow).
+
+## Data model
+`VoicePreset` (JSON, schema-versioned):
+```json
+{
+  "schema": "mistarecorda.voice-preset",
+  "version": 1,
+  "id": "uuid",
+  "name": "Narrator Deep - calm",
+  "createdBy": "user email or name",
+  "createdAt": "ISO",
+  "updatedAt": "ISO",
+  "voice": {
+    "voiceId": "21m00T...",
+    "source": "library | owned | workspace-shared",
+    "publicOwnerId": "for library voices, else null",
+    "originalName": "Adam",
+    "category": "premade | cloned | professional | generated"
+  },
+  "settings": {
+    "modelId": "eleven_multilingual_sts_v2",
+    "stability": 0.5,
+    "similarityBoost": 0.75,
+    "style": 0,
+    "useSpeakerBoost": true,
+    "removeBackgroundNoise": true,
+    "postFx": { "loudnessLufs": -16, "eqPreset": "none", "pitchSemitones": 0 }
+  },
+  "preview": { "format": "mp3", "base64": "...", "text": "sample line" },
+  "tags": ["team", "youtube"],
+  "isFavorite": true
+}
+```
+- Edited = any preset whose settings differ from the voice's defaults; presets are always editable and re-saveable ("Save" / "Save as new").
+- `postFx` is applied locally with ffmpeg after conversion, so edits work even on voices the user can't edit in ElevenLabs.
+
+## Storage
+- Local: `app.getPath('userData')/presets/*.mpvoice.json` + `favorites.json` (list of voiceIds).
+- Team: shared preset folder setting ("Team presets folder"), e.g. a Google Drive / Dropbox / iCloud / network folder synced to all teammates. MistaRecorda watches it (chokidar) and shows "Team" presets alongside "Mine". Conflict rule: `updatedAt` wins, keep `.bak` of overwritten file.
+- Optional later: store team presets in the GitHub repo or a small backend; out of scope for v1.
+
+## Export / Import
+- **Export:** any preset (edited or not) → single file `<name>.mpvoice` (JSON above, preview embedded). Also "Export all" → `.mpvoice-pack` (zip of presets).
+- **Import (drag-drop or File > Import):**
+  1. Validate schema/version (reject unknown future versions with a clear message).
+  2. Check access: `GET /v1/voices/{voiceId}` with the importer's key.
+  3. If no access and `source = library` → auto-add via `POST /v1/voices/add/{publicOwnerId}/{voiceId}` then retry.
+  4. If no access and voice is workspace-owned → show "Ask <createdBy> to share this voice" + button that copies their email/voiceId; owner's MistaRecorda has "Share with team" which calls the workspace share endpoint.
+  5. On success, save preset locally (prompt rename on name clash), mark favorite if it was.
+- Imported preset loads selected voice + all settings exactly; the preview plays immediately even before access is resolved.
+
+## UI
+- **Voice Browser** tab: My Voices / Library (search, gender/accent/use-case filters) / Favorites / Presets (Mine, Team). Each row: play preview, ★ favorite, "Use", "Make preset".
+- **Preset Editor:** sliders for stability, similarity, style, speaker boost, noise removal, model, post-FX; "Generate preview" (runs a short built-in sample through STS); Save / Save as new / Export / Share with team / Delete.
+- **Trained voice editor** (owned voices only): rename, description, labels, add samples, set default settings → calls ElevenLabs edit endpoints; disabled with tooltip for voices you don't own.
+- Recording toolbar: quick preset dropdown (favorites first).
+
+## Team setup (requires an ElevenLabs plan with multiple seats / workspace)
+1. Admin creates voices or adds library voices, then "Share with team" (role viewer, or editor for people allowed to edit the voice).
+2. Admin sets Team presets folder; teammates point MistaRecorda to the same synced folder.
+3. Each teammate uses their own API key (stored with safeStorage); never put keys in preset files.
+
+## Security
+- Preset files never contain API keys or account secrets.
+- Only include voice samples in an export if the user explicitly checks "Include samples" and confirms they have consent to clone that voice.
+
+## Tests
+- Schema validation + migration (v1)
+- Import access-resolution flow (mocked API: owned / library / workspace no-access)
+- Export → import roundtrip produces identical settings
+- Team folder watcher conflict handling
+- Edit endpoints only offered for owned voices
