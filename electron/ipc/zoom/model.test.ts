@@ -12,7 +12,8 @@ test("holds become editable manual intervals; repeat keydown cannot move the loc
 	const capture = new HeldZoomCapture();
 	capture.press(150, { cx: 0.4, cy: 0.6 }, 3);
 	capture.press(800, { cx: 0.8, cy: 0.2 }, 6);
-	capture.release(1400);
+	expect(capture.target({ cx: 0.7, cy: 0.3 })).toMatchObject({ cx: 0.4, cy: 0.6 });
+	capture.releaseKey(1400);
 	expect(capture.regions).toEqual([
 		{
 			id: expect.stringMatching(/^held-/),
@@ -27,7 +28,7 @@ test("holds become editable manual intervals; repeat keydown cannot move the loc
 		capture.regions,
 	);
 });
-test("short taps are ignored; pause/stop close an interval and resumed holds use media time", () => {
+test("pause/stop close an interval without latching; resumed holds use media time", () => {
 	const capture = new HeldZoomCapture();
 	capture.press(0, { cx: 0.5, cy: 0.5 }, 3);
 	capture.release(50);
@@ -41,6 +42,30 @@ test("short taps are ignored; pause/stop close an interval and resumed holds use
 		[100, 600],
 		[700, 1100],
 	]);
+});
+test("a tap latches cursor-follow, moves its target and preserves auto mode through sidecar loading", () => {
+	const capture = new HeldZoomCapture();
+	capture.press(100, { cx: 0.4, cy: 0.6 }, 3);
+	capture.releaseKey(180);
+	expect(capture.active?.mode).toBe("auto");
+	expect(capture.regions).toEqual([]);
+	expect(capture.target({ cx: 0.6, cy: 0.4 })).toMatchObject({ cx: 0.6, cy: 0.4 });
+	capture.release(2000);
+	expect(capture.active).toBeNull();
+	expect(capture.regions[0]).toMatchObject({ startMs: 100, endMs: 2000, mode: "auto" });
+	expect(normalizeRecordedZooms(JSON.parse(JSON.stringify(capture.regions)))).toEqual(
+		capture.regions,
+	);
+});
+test("the tap/hold boundary is deterministic", () => {
+	const capture = new HeldZoomCapture();
+	capture.press(100, { cx: 0.5, cy: 0.5 }, 3);
+	capture.releaseKey(350);
+	expect(capture.active).toBeNull();
+	expect(capture.regions[0]?.mode).toBe("manual");
+	capture.press(400, { cx: 0.5, cy: 0.5 }, 3);
+	capture.releaseKey(649);
+	expect(capture.active?.mode).toBe("auto");
 });
 test("outline bounds and normalized focus remain inside capture even at screen edges", () => {
 	const target = zoomTarget({ cx: 0, cy: 1 }, 6);

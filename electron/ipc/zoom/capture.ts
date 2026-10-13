@@ -7,7 +7,7 @@ import {
 	defaultRecordingZoomSettings,
 	type RecordingZoomStatus,
 } from "../../../src/types/recordingZoom";
-import { HeldZoomCapture, canShowZoomOutline, validateZoomSettings, zoomTarget } from "./model";
+import { HeldZoomCapture, canShowZoomOutline, validateZoomSettings } from "./model";
 
 export const ZOOM_OVERLAY_TITLE = "MistaRecorda Zoom Target";
 let settings = { ...defaultRecordingZoomSettings };
@@ -15,11 +15,13 @@ let capture = new HeldZoomCapture();
 let recording = false;
 let hookReady = false;
 let pressed = false;
+let pendingRelease = false;
 let nativeMacExcluded = false;
 let savedPath: string | null = null;
 let outline: BrowserWindow | null = null;
 let outlineTimer: ReturnType<typeof setInterval> | undefined;
 let getBounds: (() => Electron.Rectangle | null) | undefined;
+let getCursor = () => screen.getCursorScreenPoint();
 const keyCodes: Record<string, number> = Object.fromEntries([
 	...Object.entries({
 		A: 30,
@@ -58,6 +60,7 @@ export function zoomStatus(): RecordingZoomStatus {
 		settings,
 		recording,
 		holding: Boolean(capture.active),
+		following: capture.active?.mode === "auto",
 		count: capture.regions.length,
 		hookReady,
 		outlineAvailable: canShowZoomOutline(process.platform, os.release(), nativeMacExcluded),
@@ -145,7 +148,12 @@ function updateOutline() {
 		hideOutline();
 		return;
 	}
-	const target = zoomTarget(capture.active.focus, capture.active.depth);
+	const point = getCursor();
+	const target = capture.target({
+		cx: (point.x - bounds.x) / bounds.width,
+		cy: (point.y - bounds.y) / bounds.height,
+	});
+	if (!target) return;
 	outline.setBounds({
 		x: Math.round(bounds.x + target.x * bounds.width),
 		y: Math.round(bounds.y + target.y * bounds.height),
@@ -154,15 +162,20 @@ function updateOutline() {
 	});
 	outline.showInactive();
 }
-export function startZoomCapture(bounds: () => Electron.Rectangle | null) {
+export function startZoomCapture(
+	bounds: () => Electron.Rectangle | null,
+	cursor = () => screen.getCursorScreenPoint(),
+) {
 	capture = new HeldZoomCapture();
 	recording = true;
 	pressed = false;
+	pendingRelease = false;
 	hookReady = false;
 	savedPath = null;
 	getBounds = bounds;
+	getCursor = cursor;
 	clearInterval(outlineTimer);
-	outlineTimer = setInterval(updateOutline, 250);
+	outlineTimer = setInterval(updateOutline, 1000 / 30);
 	notify();
 }
 export function setZoomHookReady(ready: boolean) {
@@ -170,6 +183,7 @@ export function setZoomHookReady(ready: boolean) {
 	notify();
 }
 export function closeHeldZoom(timeMs: number) {
+	pendingRelease = false;
 	capture.release(timeMs);
 	hideOutline();
 	notify();
@@ -191,7 +205,10 @@ export function zoomKeyEvent(
 	if (event.keycode !== keyCodes[settings.key]) return;
 	if (!down) {
 		pressed = false;
-		closeHeldZoom(timeMs);
+		if (pendingRelease && recording && !paused) capture.releaseKey(timeMs);
+		pendingRelease = false;
+		updateOutline();
+		notify();
 		return;
 	}
 	if (pressed) return;
@@ -206,6 +223,12 @@ export function zoomKeyEvent(
 		Boolean(event.metaKey) !== settings.meta
 	)
 		return;
+	// End a latched zoom even if the cursor has left the recorded display/window.
+	// Its key-up must not start another zoom, nor may OS key-repeat restart it.
+	if (capture.active?.mode === "auto") {
+		closeHeldZoom(timeMs);
+		return;
+	}
 	const bounds = getBounds?.();
 	const point = cursor ?? screen.getCursorScreenPoint();
 	if (
@@ -221,6 +244,7 @@ export function zoomKeyEvent(
 		{ cx: (point.x - bounds.x) / bounds.width, cy: (point.y - bounds.y) / bounds.height },
 		settings.depth,
 	);
+	pendingRelease = Boolean(capture.active);
 	updateOutline();
 	notify();
 }

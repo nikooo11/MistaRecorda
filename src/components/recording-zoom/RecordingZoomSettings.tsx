@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useScopedT } from "@/contexts/I18nContext";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
 	defaultRecordingZoomSettings,
 	RECORDING_ZOOM_KEYS,
@@ -39,7 +40,11 @@ export function RecordingZoomControl() {
 			onClick={() => void window.electronAPI.recordingZoom.openSettings()}
 			title={t("recordingZoom.title")}
 		>
-			{status?.holding ? t("recordingZoom.holding") : t("recordingZoom.shortLabel")}{" "}
+			{status?.following
+				? t("recordingZoom.following")
+				: status?.holding
+					? t("recordingZoom.holding")
+					: t("recordingZoom.shortLabel")}{" "}
 			{status?.settings.enabled
 				? recordingZoomShortcut(status.settings)
 				: t("recordingZoom.off")}
@@ -65,7 +70,38 @@ export function RecordingZoomSettingsPanel() {
 	return (
 		<main className="recording-zoom-settings">
 			<div className="zoom-eyebrow">MistaRecorda</div>
-			<h1>{t("recordingZoom.title")}</h1>
+			<div className="zoom-heading">
+				<h1>{t("recordingZoom.title")}</h1>
+				<Popover>
+					<PopoverTrigger asChild>
+						<button
+							type="button"
+							className="zoom-info-button"
+							aria-label={t("recordingZoom.infoTitle")}
+						>
+							i
+						</button>
+					</PopoverTrigger>
+					<PopoverContent
+						className="zoom-info-bubble"
+						aria-label={t("recordingZoom.infoTitle")}
+					>
+						<strong>{t("recordingZoom.infoTitle")}</strong>
+						<p>
+							{t("recordingZoom.infoHold", undefined, {
+								shortcut: recordingZoomShortcut(settings),
+							})}
+						</p>
+						<p>
+							{t("recordingZoom.infoTap", undefined, {
+								shortcut: recordingZoomShortcut(settings),
+							})}
+						</p>
+						<p>{t("recordingZoom.infoCapture")}</p>
+						<p>{t("recordingZoom.infoEdit")}</p>
+					</PopoverContent>
+				</Popover>
+			</div>
 			<p>{t("recordingZoom.description")}</p>
 			<fieldset disabled={status?.recording}>
 				<label className="zoom-toggle">

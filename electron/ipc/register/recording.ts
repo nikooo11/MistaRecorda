@@ -18,7 +18,7 @@ import { getMonitorHandles } from "../monitorResolver";
 import { ALLOW_RECORDLY_WINDOW_CAPTURE } from "../constants";
 import { startWindowBoundsCapture, stopWindowBoundsCapture } from "../cursor/bounds";
 import { startInteractionCapture, stopInteractionCapture } from "../cursor/interaction";
-import { getCursorCaptureElapsedMs, getRecordingBoundsInDips } from "../cursor/telemetry";
+import { getCursorCaptureElapsedMs, getRecordingBoundsInDips, getRecordingCursorInDips } from "../cursor/telemetry";
 import { ZOOM_OVERLAY_TITLE, prepareZoomOutline, confirmMacZoomExclusion, loadZoomSettings, startZoomCapture, stopZoomCapture, closeHeldZoom } from "../zoom/capture";
 import { startNativeCursorMonitor, stopNativeCursorMonitor } from "../cursor/monitor";
 import {
@@ -1840,7 +1840,7 @@ export function registerRecordingHandlers(
 			setPendingCursorSamples([]);
 			setCursorCaptureStartTimeMs(Date.now());
 			resetCursorCaptureClock();
-			startZoomCapture(getRecordingBoundsInDips);
+			startZoomCapture(getRecordingBoundsInDips, getRecordingCursorInDips);
 			setLinuxCursorScreenPoint(null);
 			setLastLeftClick(null);
 			sampleCursorPoint();
