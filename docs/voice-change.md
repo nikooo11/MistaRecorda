@@ -1,4 +1,55 @@
-# Voice Change verification on macOS
+# MistaRecorda Voice Change
+
+MistaRecorda is a personal/internal fork based on Recordly, licensed under AGPLv3. Voice Change processes only the isolated microphone recording after capture. Use voices you own or have permission to use.
+
+## Setup
+
+Install with `npm ci`, start with `npm run dev`, and open **Voice Change** on the recording toolbar. Enter an ElevenLabs key, click **Save key**, then **Test key**. An injected `ELEVENLABS_API_KEY` is also supported by the main process and takes precedence over a stored key. Test key performs only `GET /v1/user`; it does not spend conversion credits or prove a particular voice is accessible. Choose an authorized voice and an ElevenLabs plan with Speech-to-Speech access, accept the mic-only upload notice, and optionally enable automatic conversion.
+
+Stored keys are encrypted with Electron safeStorage in `userData/voice-key.enc`; keys never return through IPC to the renderer. Unavailable keychain encryption and Linux basic_text storage are rejected. An empty saved-key input removes the stored key (an injected key still applies). Never place keys in presets, project files, logs or a synced team folder.
+
+## Pipeline
+
+```mermaid
+flowchart LR
+  Capture[ScreenCaptureKit recording] --> Video[Original video]
+  Capture --> System[Original system audio]
+  Capture --> Mic[Isolated 48 kHz mono mic WAV]
+  Mic --> Split[Silence-aware chunks up to 4 min]
+  Split --> STS[ElevenLabs STS: at most 2 requests]
+  STS --> Join[Decode, duration-fit and join]
+  Join --> FX[Local post-FX and loudness]
+  FX --> Changed[New voice-mic WAV]
+  Changed --> Mix[Mic offset and unnormalized mix]
+  System --> Mix
+  Video --> Mix
+  Mix --> Output[New voice MP4: copied video]
+  Mic --> Captions[Original-mic captions]
+```
+
+Silence cuts use concatenation; hard cuts have 50 ms overlap/crossfade so they do not accumulate drift. Every returned chunk is fitted to its input interval before joining; the final WAV is padded/trimmed to the original mic length within 50 ms. The measured mic start delay is applied once in playback/export. System audio is never uploaded or processed with mic effects. Mixing necessarily encodes the combined output audio; “unchanged system audio” means unchanged source file and no voice conversion, gain normalization or post-FX on its signal, not bit-identical compressed packets in the final mix.
+
+Original files are retained. First outputs are `<id>.voice-mic.wav` and `<id>.voice.mp4`; re-runs use unique suffixed names and retain prior outputs. Temporary uploads/responses are under the application temp directory and removed after success, failure or cancellation. The library offers Change voice/Re-run, progress, Cancel, Open and Show in Finder. In the editor, **Mic audio: Original / Changed voice** controls the existing edited-video export pipeline. Captions prefer the original mic and apply its offset.
+
+## Settings
+
+- Automatic conversion defaults off; upload consent is required.
+- Models: `eleven_multilingual_sts_v2` (default) or `eleven_english_sts_v2`.
+- Stability 0.5, similarity 0.75, style 0, speaker boost on; each numeric voice control ranges from 0 to 1.
+- Noise removal defaults on. Output requests PCM 44.1 kHz; unsupported PCM responses fall back to MP3 44.1 kHz/192 kbps.
+- Local post-FX defaults: −16 LUFS, no EQ, zero pitch shift. Effects are applied only to converted mic audio. Presets expose EQ and pitch independently of permission to edit the remote voice.
+
+## Troubleshooting and privacy
+
+401: replace/test the key. 402: replenish credits or change plan. 403/404: request voice/workspace access. 422: check mic input and supported settings. 429 and 5xx retry four times with 1/2/4/8-second backoff; Cancel interrupts the wait. Connection failures do not reveal raw request headers or response bodies. A cloud key cannot be verified while its network policy blocks `api.elevenlabs.io`.
+
+No isolated mic: enable microphone recording and verify permissions. MistaRecorda deliberately refuses to upload mixed or system audio as a fallback. For drift, inspect micOffsetMs and follow the delayed-mic and pause/resume Mac tests below. Preserve sidecars beside the video. For keychain failures, unlock the OS keychain and restart the app. Voice conversion uploads microphone audio to ElevenLabs under their account/privacy terms; previews also upload the built-in short sample when explicitly generated. System audio and video stay local.
+
+## Validation status
+
+Linux cloud validation covers strict TypeScript, Biome lint, unit tests, and a real FFmpeg encode/decode/duration test with mocked ElevenLabs responses. The user's later instruction limits live API checks to key readiness; no real conversion is required. Mac capture and packaging remain manual. New UI keys are present in all locale resources with English fallback wording; translation review is welcome.
+
+## Verification on macOS
 
 These checks require a real Mac. They were not run in the Linux cloud environment.
 
