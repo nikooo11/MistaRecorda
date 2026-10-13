@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useScopedT } from "@/contexts/I18nContext";
 import { unwrapVoice, type VoiceProgress, type VoiceRecording } from "@/types/voice";
+import { useVoiceSettings } from "./useVoiceSettings";
 export function VoiceLibrary() {
 	const t = useScopedT("settings");
+	const settings = useVoiceSettings();
 	const [records, setRecords] = useState<VoiceRecording[]>([]);
 	const [jobs, setJobs] = useState<VoiceProgress[]>([]);
 	const [error, setError] = useState("");
@@ -18,14 +20,23 @@ export function VoiceLibrary() {
 			.request("progress", undefined)
 			.then((r) => setJobs(unwrapVoice(r)))
 			.catch(() => setError("operationFailed"));
-		return window.electronAPI.voice.onProgress((p) => {
+		const stopProgress = window.electronAPI.voice.onProgress((p) => {
 			setJobs((previous) => [...previous.filter((j) => j.videoPath !== p.videoPath), p]);
 			if (p.state !== "running") load();
 		});
+		const stopAudio = window.electronAPI.voice.onAudioChanged(load);
+		return () => {
+			stopProgress();
+			stopAudio();
+		};
 	}, [load]);
 	return (
 		<section className="border-t pt-4 space-y-3">
 			<h2>{t("voice.recordings")}</h2>
+			<p>
+				{t("voice.selectedVoice")}:{" "}
+				{settings?.voiceName || settings?.voiceId || t("voice.chooseVoice")}
+			</p>
 			<button type="button" onClick={load}>
 				{t("voice.refresh")}
 			</button>
@@ -46,7 +57,7 @@ export function VoiceLibrary() {
 									.catch((e) => setError(e.message));
 							}}
 						>
-							{t(r.changedMicPath ? "voice.rerun" : "voice.change")}
+							{t(r.changedMicPath ? "voice.rerun" : "voice.process")}
 						</button>
 						{job?.state === "running" && (
 							<>

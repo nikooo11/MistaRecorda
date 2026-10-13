@@ -1394,7 +1394,13 @@ export function registerRecordingHandlers(
 		try {
 			const metadata = await readAudioMetadata(videoPath);
 			const selectedMic = metadata?.micSelection === "changed" && metadata.changedMicPath ? metadata.changedMicPath : metadata?.micPath;
-			const { paths, startDelayMsByPath } = selectedMic ? { paths: [metadata?.systemAudioPath, selectedMic].filter((p): p is string => Boolean(p)), startDelayMsByPath: { [selectedMic]: metadata?.micOffsetMs ?? 0 } } : await getCompanionAudioFallbackInfo(videoPath);
+			const { paths, startDelayMsByPath } = selectedMic ? {
+				paths: [metadata?.systemAudioPath, selectedMic].filter((p): p is string => Boolean(p)),
+				startDelayMsByPath: {
+					...(metadata?.systemAudioPath ? { [metadata.systemAudioPath]: metadata.systemOffsetMs ?? 0 } : {}),
+					[selectedMic]: metadata?.micOffsetMs ?? 0,
+				},
+			} : await getCompanionAudioFallbackInfo(videoPath);
 			await Promise.all([
 				rememberApprovedLocalReadPath(videoPath),
 				...paths.map((fallbackPath) => rememberApprovedLocalReadPath(fallbackPath)),

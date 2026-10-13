@@ -2,7 +2,7 @@ import { ffmpeg } from "./chunker";
 import { prepareRecordingAudio, recordingBase } from "../recording/library";
 import { pathToFileURL } from "node:url";
 import { getPackagedRendererBaseUrl } from "../../rendererServer";
-import { registerPresetHandlers } from "./presetHandlers";
+import { registerPresetHandlers, synchronizeFavoriteVoice } from "./presetHandlers";
 import fs from "node:fs/promises";
 import { shell } from "electron";
 import { getRecordingsDir } from "../utils";
@@ -15,6 +15,7 @@ import type { VoiceRequests, VoiceResult } from "../../../src/types/voice";
 import { ElevenLabs } from "./elevenlabs";
 import { VoiceSettingsStore } from "./settings";
 let voiceWindow: BrowserWindow | null = null;
+let startupSelection: Promise<void> = Promise.resolve();
 export function openVoiceWindow(importRequested = false) {
 	if (voiceWindow && !voiceWindow.isDestroyed()) {
 		voiceWindow.show();
@@ -102,6 +103,7 @@ export function voiceHandle<K extends keyof VoiceRequests>(
 			)
 				return { ok: false, error: "noAccess" };
 			try {
+				await startupSelection;
 				return { ok: true, data: await handler(input, event) };
 			} catch (error) {
 				const code = error instanceof Error ? error.message : "unknown";
@@ -111,6 +113,7 @@ export function voiceHandle<K extends keyof VoiceRequests>(
 	);
 }
 export function registerVoiceHandlers() {
+	startupSelection = synchronizeFavoriteVoice().catch(() => undefined);
 	registerPresetHandlers();
 	voiceHandle("storeBrowserAudio", async (input) => {
 		if (
@@ -165,26 +168,12 @@ export function registerVoiceHandlers() {
 		return records.filter((r): r is NonNullable<typeof r> => Boolean(r));
 	});
 	voiceHandle("afterRecording", async (input) => {
-		const settings = await voiceStore().read();
-		if (!settings.enabled) return null;
 		const p = typeof input === "string" ? await resolveApprovedLocalMediaPath(input) : null;
 		if (!p) throw new Error("noAccess");
-		try {
-			return await startVoiceJob(p, settings, await voiceClient());
-		} catch (e) {
-			const error =
-				e instanceof Error && /^[a-zA-Z]+$/.test(e.message) ? e.message : "operationFailed";
-			for (const w of BrowserWindow.getAllWindows())
-				w.webContents.send("voice:progress", {
-					jobId: crypto.randomUUID(),
-					videoPath: p,
-					state: "error",
-					completed: 0,
-					total: 0,
-					error,
-				});
-			return null;
-		}
+		// Recording completion only refreshes local controls. Processing requires a click.
+		for (const w of BrowserWindow.getAllWindows())
+			if (!w.isDestroyed()) w.webContents.send("voice:audioChanged", p);
+		return null;
 	});
 	voiceHandle("outputAction", async (input) => {
 		if (!input || !["open", "reveal"].includes(input.action))

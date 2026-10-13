@@ -2,10 +2,22 @@ import { useEffect, useState } from "react";
 import { useScopedT } from "@/contexts/I18nContext";
 import { unwrapVoice } from "@/types/voice";
 import type { VoicePreset } from "@/types/voicePreset";
+import { useVoiceSettings } from "./useVoiceSettings";
 export function QuickVoicePreset() {
 	const t = useScopedT("settings");
 	const [presets, setPresets] = useState<VoicePreset[]>([]);
-	const [selected, setSelected] = useState("");
+	const settings = useVoiceSettings();
+	const selected =
+		presets.find(
+			(p) =>
+				p.voice.voiceId === settings?.voiceId &&
+				p.name === settings.voiceName &&
+				Object.entries(p.settings).every(
+					([key, value]) =>
+						JSON.stringify(value) ===
+						JSON.stringify(settings[key as keyof typeof settings]),
+				),
+		)?.id ?? "";
 	const [error, setError] = useState("");
 	useEffect(() => {
 		const load = () => {
@@ -39,13 +51,14 @@ export function QuickVoicePreset() {
 						.request("usePreset", p)
 						.then((r) => {
 							unwrapVoice(r);
-							setSelected(p.id);
 							setError("");
 						})
 						.catch((e) => setError(e.message));
 				}}
 			>
-				<option value="">{t("voice.quickPreset")}</option>
+				<option value="">
+					{settings?.voiceName || settings?.voiceId || t("voice.quickPreset")}
+				</option>
 				{presets.map((p) => (
 					<option value={p.id} key={p.id}>
 						{p.isFavorite ? "★ " : ""}

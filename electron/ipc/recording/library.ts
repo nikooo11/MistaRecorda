@@ -11,6 +11,7 @@ export interface RecordingAudioMetadata {
 	micPath: string | null;
 	systemAudioPath: string | null;
 	micOffsetMs: number;
+	systemOffsetMs?: number;
 	changedMicPath?: string;
 	voiceVideoPath?: string;
 	micSelection?: "original" | "changed";
@@ -27,7 +28,9 @@ export async function readAudioMetadata(videoPath: string): Promise<RecordingAud
 		if (
 			data.version !== 1 ||
 			data.videoPath !== videoPath ||
-			!Number.isFinite(data.micOffsetMs)
+			!Number.isFinite(data.micOffsetMs) ||
+			(data.systemOffsetMs !== undefined &&
+				(!Number.isFinite(data.systemOffsetMs) || data.systemOffsetMs < 0))
 		)
 			return null;
 		// Never trust a metadata file to redirect uploads outside its recording's sidecars.
@@ -88,7 +91,12 @@ export async function prepareRecordingAudio(videoPath: string, measuredOffsetMs?
 	const previous = await readAudioMetadata(videoPath);
 	const base = recordingBase(videoPath);
 	const micPath = `${base}.mic.wav`;
-	const source = await firstExisting([micPath, `${base}.mic.m4a`, `${base}.mic.webm`]);
+	const source = await firstExisting([
+		micPath,
+		`${base}.mic.source.wav`,
+		`${base}.mic.m4a`,
+		`${base}.mic.webm`,
+	]);
 	let micOffsetMs = previous?.micOffsetMs ?? 0;
 	if (source && source !== micPath) {
 		const { stdout } = await exec(getFfprobeBinaryPath(), [
@@ -125,7 +133,7 @@ export async function prepareRecordingAudio(videoPath: string, measuredOffsetMs?
 	}
 	if (measuredOffsetMs !== undefined && Number.isFinite(measuredOffsetMs))
 		micOffsetMs = Math.max(0, Math.round(measuredOffsetMs));
-	else if (source === micPath) {
+	else if (source) {
 		try {
 			const timing = JSON.parse(await fs.readFile(`${micPath}.json`, "utf8"));
 			if (Number.isFinite(timing.startDelayMs))
@@ -134,16 +142,28 @@ export async function prepareRecordingAudio(videoPath: string, measuredOffsetMs?
 			/* Native WAV starts at the measured/default offset. */
 		}
 	}
+	const systemAudioPath = await firstExisting([
+		`${base}.system.m4a`,
+		`${base}.system.wav`,
+		`${base}.system.webm`,
+	]);
+	let systemOffsetMs = previous?.systemOffsetMs ?? 0;
+	if (systemAudioPath) {
+		try {
+			const timing = JSON.parse(await fs.readFile(`${systemAudioPath}.json`, "utf8"));
+			if (Number.isFinite(timing.startDelayMs))
+				systemOffsetMs = Math.max(0, Math.round(timing.startDelayMs));
+		} catch {
+			/* Browser sidecar delay is already baked in; native timing is optional. */
+		}
+	}
 	const metadata: RecordingAudioMetadata = {
 		...previous,
 		version: 1,
 		videoPath,
 		micPath: source ? micPath : null,
-		systemAudioPath: await firstExisting([
-			`${base}.system.m4a`,
-			`${base}.system.wav`,
-			`${base}.system.webm`,
-		]),
+		systemAudioPath,
+		systemOffsetMs,
 		micOffsetMs,
 	};
 	await writeAudioMetadata(metadata);

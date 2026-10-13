@@ -285,6 +285,7 @@ export function VoiceBrowser() {
 											unwrapVoice(
 												await window.electronAPI.voice.request("favorite", {
 													voiceId: v.voiceId,
+													name: v.name,
 													enabled: !favorites.includes(v.voiceId),
 												}),
 											),

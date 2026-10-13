@@ -9,7 +9,8 @@ vi.mock("electron", () => ({
 }));
 import { audioDuration, durationFilter, ffmpeg, joinFilter, planChunks } from "./chunker";
 import { ElevenLabs, errorCode, mapVoice, voiceForm } from "./elevenlabs";
-import { convertMicrophone } from "./job";
+import { convertMicrophone, startVoiceJob, jobProgress } from "./job";
+import { prepareRecordingAudio, readAudioMetadata } from "../recording/library";
 import { mixArgs } from "./mix";
 import { validateSettings, VoiceSettingsStore } from "./settings";
 const dirs: string[] = [];
@@ -244,3 +245,121 @@ test("actual ffmpeg conversion normalizes and fits a mocked PCM response within 
 	expect(await fs.readFile(mic)).toEqual(original);
 	expect(progress).toHaveBeenLastCalledWith(1, 1);
 }, 20000);
+
+test.each([
+	{ platform: "Windows", micSuffix: ".mic.source.wav", systemSuffix: ".system.wav" },
+	{ platform: "macOS", micSuffix: ".mic.m4a", systemSuffix: ".system.m4a" },
+])("$platform job uploads only normalized microphone samples and preserves system/video sources", async ({
+	micSuffix,
+	systemSuffix,
+}) => {
+	const dir = await temp();
+	const base = path.join(dir, "recording-123");
+	const video = `${base}.mp4`;
+	const source = base + micSuffix;
+	const system = base + systemSuffix;
+	await ffmpeg([
+		"-f",
+		"lavfi",
+		"-i",
+		"color=black:size=64x64:rate=10:duration=1",
+		"-c:v",
+		"libx264",
+		video,
+	]);
+	await ffmpeg([
+		"-f",
+		"lavfi",
+		"-i",
+		"sine=frequency=440:duration=1",
+		"-ar",
+		"44100",
+		"-ac",
+		"2",
+		source,
+	]);
+	await ffmpeg([
+		"-f",
+		"lavfi",
+		"-i",
+		"sine=frequency=1700:duration=1",
+		"-ar",
+		"48000",
+		"-ac",
+		"2",
+		system,
+	]);
+	await fs.writeFile(`${base}.mic.wav.json`, JSON.stringify({ startDelayMs: 25 }));
+	await fs.writeFile(`${system}.json`, JSON.stringify({ startDelayMs: 40 }));
+	const originalMic = await fs.readFile(source);
+	const originalSystem = await fs.readFile(system);
+	const originalVideo = await fs.readFile(video);
+	const metadata = await prepareRecordingAudio(video);
+	expect(metadata.micOffsetMs).toBe(25);
+	expect(metadata.systemOffsetMs).toBe(40);
+	const canonicalWav = await fs.readFile(metadata.micPath!);
+	const fmt = canonicalWav.indexOf("fmt ");
+	expect(canonicalWav.readUInt16LE(fmt + 10)).toBe(1);
+	expect(canonicalWav.readUInt32LE(fmt + 12)).toBe(48000);
+	expect(canonicalWav.readUInt16LE(fmt + 22)).toBe(16);
+	const graph = mixArgs(metadata, "changed.wav", "out.mp4", 1);
+	expect(graph[graph.indexOf("-filter_complex") + 1]).toContain(
+		"[2:a]adelay=40:all=1[system];[1:a]adelay=25:all=1",
+	);
+	const expected = path.join(dir, "expected.pcm");
+	await ffmpeg(["-i", metadata.micPath!, "-f", "s16le", "-ar", "48000", "-ac", "1", expected]);
+	const response = path.join(dir, "response.pcm");
+	await ffmpeg([
+		"-f",
+		"lavfi",
+		"-i",
+		"sine=frequency=880:duration=1",
+		"-f",
+		"s16le",
+		"-ar",
+		"44100",
+		"-ac",
+		"1",
+		response,
+	]);
+	const uploaded = path.join(dir, "uploaded.wav");
+	const fetcher = vi.fn<typeof fetch>(async (_url, init) => {
+		const audio = (init?.body as FormData).get("audio") as Blob;
+		await fs.writeFile(uploaded, Buffer.from(await audio.arrayBuffer()));
+		return new Response(await fs.readFile(response));
+	});
+	const id = await startVoiceJob(
+		video,
+		{ ...defaultVoiceSettings, noticeAccepted: true, voiceId: "favorite" },
+		new ElevenLabs("mock", fetcher),
+	);
+	await vi.waitFor(() => expect(jobProgress().find((p) => p.jobId === id)?.state).toBe("done"), {
+		timeout: 15000,
+		interval: 50,
+	});
+	expect(fetcher).toHaveBeenCalledTimes(1);
+	const decoded = path.join(dir, "uploaded.pcm");
+	await ffmpeg(["-i", uploaded, "-f", "s16le", "-ar", "48000", "-ac", "1", decoded]);
+	// Exact PCM equality excludes the distinctly different system tone from the upload.
+	expect(await fs.readFile(decoded)).toEqual(await fs.readFile(expected));
+	expect(await fs.readFile(source)).toEqual(originalMic);
+	expect(await fs.readFile(system)).toEqual(originalSystem);
+	expect(await fs.readFile(video)).toEqual(originalVideo);
+	expect((await readAudioMetadata(video))?.voiceVideoPath).toBe(`${base}.voice.mp4`);
+}, 20000);
+
+test("system-only recording cannot be uploaded as a microphone fallback", async () => {
+	const dir = await temp();
+	const video = path.join(dir, "recording-456.mp4");
+	await fs.writeFile(path.join(dir, "recording-456.system.wav"), "system-only");
+	await prepareRecordingAudio(video);
+	const fetcher = vi.fn();
+	await expect(
+		startVoiceJob(
+			video,
+			{ ...defaultVoiceSettings, noticeAccepted: true, voiceId: "favorite" },
+			new ElevenLabs("mock", fetcher),
+		),
+	).rejects.toThrow("missingMic");
+	expect(fetcher).not.toHaveBeenCalled();
+});

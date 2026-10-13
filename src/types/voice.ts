@@ -1,6 +1,5 @@
 import type { VoicePreset, PresetEntry } from "./voicePreset";
 export interface VoiceSettings {
-	enabled: boolean;
 	noticeAccepted: boolean;
 	voiceId: string;
 	voiceName: string;
@@ -15,7 +14,6 @@ export interface VoiceSettings {
 	teamFolder: string;
 }
 export const defaultVoiceSettings: VoiceSettings = {
-	enabled: false,
 	noticeAccepted: false,
 	voiceId: "",
 	voiceName: "",
@@ -59,6 +57,7 @@ export interface VoiceRecording {
 	micPath: string | null;
 	systemAudioPath: string | null;
 	micOffsetMs: number;
+	systemOffsetMs?: number;
 	changedMicPath?: string;
 	voiceVideoPath?: string;
 	micSelection?: "original" | "changed";
@@ -79,7 +78,7 @@ export interface VoiceRequests {
 		output: VoiceInfo[];
 	};
 	favorites: { input: undefined; output: string[] };
-	favorite: { input: { voiceId: string; enabled: boolean }; output: string[] };
+	favorite: { input: { voiceId: string; enabled: boolean; name?: string }; output: string[] };
 	addVoice: { input: { owner: string; voiceId: string; name: string }; output: boolean };
 	presets: { input: undefined; output: PresetEntry[] };
 	savePreset: { input: VoicePreset; output: VoicePreset };

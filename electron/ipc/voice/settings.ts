@@ -11,12 +11,7 @@ export function validateSettings(value: unknown): VoiceSettings {
 	if (!value || typeof value !== "object") throw new Error("invalidSettings");
 	const x = value as Record<string, unknown>;
 	const result = { ...defaultVoiceSettings };
-	for (const key of [
-		"enabled",
-		"noticeAccepted",
-		"useSpeakerBoost",
-		"removeBackgroundNoise",
-	] as const) {
+	for (const key of ["noticeAccepted", "useSpeakerBoost", "removeBackgroundNoise"] as const) {
 		if (typeof x[key] !== "boolean") throw new Error("invalidSettings");
 		result[key] = x[key];
 	}

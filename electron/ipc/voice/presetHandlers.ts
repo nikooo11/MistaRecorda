@@ -15,7 +15,12 @@ import {
 } from "./presets";
 import { notifyVoiceSettings, voiceClient, voiceHandle, voiceStore } from "./register";
 import { validateSettings } from "./settings";
+import { selectSingleFavorite } from "./favoriteSelection";
 const store = () => new PresetStore(path.join(app.getPath("userData"), "presets"));
+export async function synchronizeFavoriteVoice(hint?: { voiceId: string; name?: string }) {
+	await selectSingleFavorite(voiceStore(), store(), hint);
+	notifyVoiceSettings();
+}
 let watcher: FSWatcher | undefined;
 let watcherQueue = Promise.resolve();
 function notify() {
@@ -92,7 +97,13 @@ export function registerPresetHandlers() {
 	});
 	voiceHandle("favorites", () => store().favorites());
 	voiceHandle("favorite", async (input) => {
+		if (
+			input.name !== undefined &&
+			(typeof input.name !== "string" || input.name.length > 4096)
+		)
+			throw new Error("invalidSettings");
 		const ids = await store().favorite(input.voiceId, input.enabled);
+		await synchronizeFavoriteVoice(input);
 		notify();
 		return ids;
 	});
@@ -111,6 +122,7 @@ export function registerPresetHandlers() {
 	voiceHandle("savePreset", async (input) => {
 		const p = await store().save(input);
 		if (p.isFavorite) await store().favorite(p.voice.voiceId, true);
+		await synchronizeFavoriteVoice();
 		notify();
 		return p;
 	});
@@ -231,6 +243,7 @@ export function registerPresetHandlers() {
 		if (status === "askShare") return { status, preset: p };
 		const saved = await store().import(p, input.rename);
 		if (saved.isFavorite) await store().favorite(saved.voice.voiceId, true);
+		await synchronizeFavoriteVoice();
 		notify();
 		return { status, preset: saved };
 	});

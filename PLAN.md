@@ -2,7 +2,7 @@
 
 Personal-use fork of [Recordly](https://github.com/webadderallorg/Recordly) (AGPLv3). Keep `LICENSE.md` and Recordly attribution intact. Not distributed.
 
-**Goal:** record screen + system (Mac) audio normally, record mic on its own track, and after recording stops, convert ONLY the mic track into a chosen ElevenLabs voice ("Voice Change"), then produce a synced final video. Originals are never overwritten.
+**Goal:** record screen + system audio on macOS and Windows normally, record mic on its own track, and after recording stops and the user clicks Process voice, convert ONLY the mic track into a chosen ElevenLabs voice ("Voice Change"), then produce a synced final video. Originals are never overwritten.
 
 ---
 
@@ -36,7 +36,6 @@ Answer: Is mic stored separately or mixed with system audio? Where are recording
 New settings section "Voice Change":
 | Setting | Type | Default |
 |---|---|---|
-| enabled (auto-run after recording) | bool | false |
 | apiKey | secret (Electron `safeStorage`) | — |
 | voiceId / voiceName | string | — |
 | modelId | `eleven_multilingual_sts_v2` \| `eleven_english_sts_v2` | multilingual |
@@ -73,9 +72,10 @@ Pipeline:
 - Captions: regenerate from original mic (better transcription) but apply to changed-voice export.
 
 ## Phase 6 — UI
-- Auto-run after stop when enabled; "Change voice" / "Re-run" button in library.
+- Processing is manual: after stop, show "Process voice" / "Process voice again" in the editor and library. Never upload on recording completion; discard the old auto-run setting.
+- Exactly one favorited voice is selected immediately and on every startup, without an API call; zero/multiple favorites retain the last selection. Show the selected voice before processing.
 - Progress: "Converting voice: chunk 3/7", percent bar, Cancel (aborts fetch via AbortController, deletes temp).
-- Done toast: Open, Show in Finder. Error toast with Retry.
+- Done toast: Open, Show in folder. Error toast with Retry.
 - Badge on library items with a changed voice.
 - All strings via i18n (`npm run i18n:check`).
 

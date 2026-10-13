@@ -84,14 +84,8 @@ export function VoicePanel() {
 			>
 				{t("voice.testKey")}
 			</button>
-			<label className="block">
-				<input
-					type="checkbox"
-					checked={settings.enabled}
-					onChange={(e) => setSettings({ ...settings, enabled: e.target.checked })}
-				/>
-				{t("voice.autoRun")}
-			</label>
+			<p>{t("voice.manualProcessing")}</p>
+			<p>{t("voice.singleFavorite")}</p>
 			<button
 				type="button"
 				onClick={() =>
@@ -115,6 +109,11 @@ export function VoicePanel() {
 				}
 			>
 				<option value="">{t("voice.chooseVoice")}</option>
+				{settings.voiceId && !voices.some((v) => v.voiceId === settings.voiceId) && (
+					<option value={settings.voiceId}>
+						{settings.voiceName || settings.voiceId}
+					</option>
+				)}
 				{voices.map((v) => (
 					<option key={v.voiceId} value={v.voiceId}>
 						{v.name}
