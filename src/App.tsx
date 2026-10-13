@@ -1,3 +1,4 @@
+import { VoicePanel } from "./components/voice/VoicePanel";
 import { useEffect, useState } from "react";
 import { CountdownOverlay } from "./components/countdown/CountdownOverlay";
 import { LaunchWindow } from "./components/launch/LaunchWindow";
@@ -57,6 +58,7 @@ export default function App() {
 	}, [windowType, t]);
 
 	switch (windowType) {
+		case "voice": return <VoicePanel />;
 		case "hud-overlay":
 			return (
 				<>

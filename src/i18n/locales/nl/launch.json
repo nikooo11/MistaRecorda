@@ -76,5 +76,6 @@
 		"microphoneDenied": "Microfoontoegang is geweigerd. De opname gaat verder zonder microfoonaudio.",
 		"failedToStart": "Opname starten mislukt: {{error}}",
 		"failedToStartGeneric": "Opname starten mislukt"
-	}
+	},
+	"voiceChange": "Voice Change"
 }

@@ -76,5 +76,6 @@
 		"microphoneDenied": "Нет доступа к микрофону. Запись продолжится без вашего голоса.",
 		"failedToStart": "Не удалось начать запись: {{error}}",
 		"failedToStartGeneric": "Не удалось начать запись"
-	}
+	},
+	"voiceChange": "Voice Change"
 }

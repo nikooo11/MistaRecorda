@@ -76,5 +76,6 @@
 		"microphoneDenied": "Se denegó el acceso al micrófono. La grabación continuará sin audio del micrófono.",
 		"failedToStart": "Error al iniciar la grabación: {{error}}",
 		"failedToStartGeneric": "Error al iniciar la grabación"
-	}
+	},
+	"voiceChange": "Voice Change"
 }

@@ -76,5 +76,6 @@
 		"microphoneDenied": "마이크 접근이 거부되었습니다. 마이크 오디오 없이 녹화를 계속합니다.",
 		"failedToStart": "녹화 시작에 실패했습니다: {{error}}",
 		"failedToStartGeneric": "녹화 시작에 실패했습니다"
-	}
+	},
+	"voiceChange": "Voice Change"
 }

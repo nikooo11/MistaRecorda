@@ -76,5 +76,6 @@
 		"microphoneDenied": "麦克风访问被拒绝。将继续录制但不包含麦克风音频。",
 		"failedToStart": "录制启动失败：{{error}}",
 		"failedToStartGeneric": "录制启动失败"
-	}
+	},
+	"voiceChange": "Voice Change"
 }

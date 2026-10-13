@@ -76,5 +76,6 @@
 		"microphoneDenied": "L'accesso al microfono è stato negato. La registrazione continuerà senza audio del microfono.",
 		"failedToStart": "Avvio della registrazione non riuscito: {{error}}",
 		"failedToStartGeneric": "Avvio della registrazione non riuscito"
-	}
+	},
+	"voiceChange": "Voice Change"
 }

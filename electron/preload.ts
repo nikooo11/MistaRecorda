@@ -1,3 +1,4 @@
+import type { VoiceAPI, VoiceProgress } from "../src/types/voice";
 import { contextBridge, ipcRenderer } from "electron";
 import type { RecordingSessionData } from "./ipc/types";
 
@@ -164,6 +165,7 @@ function settleNativeVideoExportPendingRequests(
 }
 
 contextBridge.exposeInMainWorld("electronAPI", {
+	voice: { request: (method, input) => ipcRenderer.invoke(`voice:${method}`, input), onProgress: (callback) => { const listener = (_event: Electron.IpcRendererEvent, progress: VoiceProgress) => callback(progress); ipcRenderer.on("voice:progress", listener); return () => ipcRenderer.removeListener("voice:progress", listener); } } satisfies VoiceAPI,
 	hudOverlaySetIgnoreMouse: (ignore: boolean) => {
 		ipcRenderer.send("hud-overlay-set-ignore-mouse", ignore);
 	},
