@@ -16,6 +16,7 @@ struct CaptureConfig: Codable {
 	let microphoneOutputPath: String?
 	let zoomOverlayOwnerPID: Int32?
 	let zoomOverlayTitle: String?
+	let presenterWindowTitles: [String]?
 }
 
 let targetCaptureFPS = 60
@@ -72,7 +73,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		let availableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
 		let zoomOverlays = availableContent.windows.filter {
 			config.zoomOverlayOwnerPID != nil && $0.owningApplication?.processID == config.zoomOverlayOwnerPID &&
-			config.zoomOverlayTitle != nil && $0.title == config.zoomOverlayTitle
+			((config.zoomOverlayTitle != nil && $0.title == config.zoomOverlayTitle) || (config.presenterWindowTitles ?? []).contains($0.title ?? ""))
 		}
 		let streamConfig = SCStreamConfiguration()
 		capturesSystemAudio = config.capturesSystemAudio ?? false

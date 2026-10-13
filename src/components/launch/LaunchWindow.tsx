@@ -203,24 +203,63 @@ function LaunchWindowContent() {
 		};
 	}, [syncSelectedSource]);
 
+	useEffect(
+		() =>
+			window.electronAPI.board.on("control", (action) => {
+				if (action === "record") void toggleRecording();
+				if (action === "pause" && recording) {
+					if (paused) resumeRecording();
+					else pauseRecording();
+				}
+				if (action === "webcam") setWebcamEnabled(!webcamEnabled);
+			}),
+		[
+			recording,
+			paused,
+			webcamEnabled,
+			toggleRecording,
+			pauseRecording,
+			resumeRecording,
+			setWebcamEnabled,
+		],
+	);
+	useEffect(() => {
+		void window.electronAPI.board.request("status", {
+			recording,
+			paused,
+			elapsed,
+			webcam: webcamEnabled,
+			webcamDeviceId,
+			sourceName: selectedSource,
+		});
+	}, [recording, paused, elapsed, webcamEnabled, webcamDeviceId, selectedSource]);
+
 	const hudStateTransition = {
 		duration: 0.24,
 		ease: [0.22, 1, 0.36, 1] as const,
 	};
 
 	const recordingControls = (
-		<><RecordingZoomControl />
-		<RecordingControls
-			paused={paused}
-			microphoneEnabled={microphoneEnabled}
-			elapsed={elapsed}
-			onToggleMicrophone={() => setMicrophoneEnabled(!microphoneEnabled)}
-			onPauseResume={paused ? resumeRecording : pauseRecording}
-			onStopRecording={toggleRecording}
-			onHideHud={() => window.electronAPI?.hudOverlayHide?.()}
-			onCancelRecording={cancelRecording}
-			formatTime={formatTime}
-		/>
+		<>
+			<Button
+				variant="ghost"
+				title="Drawing board and iPad"
+				onClick={() => void window.electronAPI.board.request("open")}
+			>
+				Board
+			</Button>
+			<RecordingZoomControl />
+			<RecordingControls
+				paused={paused}
+				microphoneEnabled={microphoneEnabled}
+				elapsed={elapsed}
+				onToggleMicrophone={() => setMicrophoneEnabled(!microphoneEnabled)}
+				onPauseResume={paused ? resumeRecording : pauseRecording}
+				onStopRecording={toggleRecording}
+				onHideHud={() => window.electronAPI?.hudOverlayHide?.()}
+				onCancelRecording={cancelRecording}
+				formatTime={formatTime}
+			/>
 		</>
 	);
 
@@ -228,6 +267,13 @@ function LaunchWindowContent() {
 		<>
 			<RecordingZoomControl />
 			<QuickVoicePreset />
+			<Button
+				variant="ghost"
+				title="Drawing board and iPad"
+				onClick={() => void window.electronAPI.board.request("open")}
+			>
+				Board
+			</Button>
 			<button
 				type="button"
 				onClick={() => void window.electronAPI.voice.request("open", undefined)}

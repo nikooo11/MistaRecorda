@@ -959,7 +959,10 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	 * has started so both begin at approximately the same time.
 	 */
 	const prepareWebcamRecorder = useCallback(async () => {
-		if (!webcamEnabled) {
+		const boardCapture = await window.electronAPI.board.request<{ enabled: boolean }>(
+			"captureConfig",
+		);
+		if (!webcamEnabled || boardCapture.enabled) {
 			resolvedWebcamPath.current = null;
 			pendingWebcamPathPromise.current = Promise.resolve(null);
 			webcamStartTime.current = null;
@@ -1408,6 +1411,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 				}
 			}
 
+			await window.electronAPI.board.request("validateCapture", selectedSource);
 			const permissionsReady = await preparePermissions();
 			if (!permissionsReady) {
 				return;
@@ -1594,6 +1598,15 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 				}
 			}
 
+			if (
+				platform === "darwin" &&
+				(await window.electronAPI.board.request<{ enabled: boolean }>("captureConfig"))
+					.enabled
+			) {
+				throw new Error(
+					"Drawing-board recording requires native Mac capture. Check Screen Recording permission and restart the app.",
+				);
+			}
 			const browserCursorPolicy = resolveBrowserCaptureCursorPolicy({
 				nativeWindowsCaptureStartFailed,
 			});

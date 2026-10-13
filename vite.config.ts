@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import react from "@vitejs/plugin-react";
@@ -57,6 +58,36 @@ function electronMainCjsGuardPlugin(): Plugin {
 // https://vitejs.dev/config/
 export default defineConfig({
 	plugins: [
+		{
+			name: "local-excalidraw-fonts",
+			configureServer(server) {
+				server.middlewares.use("/excalidraw/", (req, res, next) => {
+					const root = path.resolve(
+						__dirname,
+						"node_modules/@excalidraw/excalidraw/dist/prod",
+					);
+					const target = path.resolve(root, `.${req.url?.split("?")[0] || "/"}`);
+					if (
+						!target.startsWith(root + path.sep) ||
+						!fs.existsSync(target) ||
+						!fs.statSync(target).isFile()
+					)
+						return next();
+					res.setHeader(
+						"Content-Type",
+						target.endsWith(".woff2") ? "font/woff2" : "application/octet-stream",
+					);
+					fs.createReadStream(target).pipe(res);
+				});
+			},
+			closeBundle() {
+				fs.cpSync(
+					path.resolve(__dirname, "node_modules/@excalidraw/excalidraw/dist/prod/fonts"),
+					path.resolve(__dirname, "dist/excalidraw/fonts"),
+					{ recursive: true },
+				);
+			},
+		},
 		react(),
 		electron({
 			main: {
@@ -124,6 +155,10 @@ export default defineConfig({
 			},
 		},
 		rollupOptions: {
+			input: {
+				main: path.resolve(__dirname, "index.html"),
+				tablet: path.resolve(__dirname, "tablet.html"),
+			},
 			output: {
 				manualChunks: {
 					pixi: ["pixi.js"],

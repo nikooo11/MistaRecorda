@@ -68,6 +68,7 @@
       "NSCameraUsageDescription": "MistaRecorda needs camera access to record webcam video.",
       "NSMicrophoneUsageDescription": "MistaRecorda needs microphone access to record voice audio.",
       "NSCameraUseContinuityCameraDeviceType": true,
+      "NSLocalNetworkUsageDescription": "MistaRecorda connects to your approved iPad to share the screen and synchronize drawings.",
       "com.apple.security.device.audio-input": true,
       "CFBundleDocumentTypes": [
         {

@@ -1,6 +1,6 @@
 # MistaRecorda
 
-Personal and internal-team fork, based on [Recordly](https://github.com/webadderallorg/Recordly). Adds private microphone voice conversion and portable voice presets. Licensed under AGPLv3; original Recordly attribution and license are retained.
+Personal and internal-team fork, based on [Recordly](https://github.com/webadderallorg/Recordly). Adds private microphone voice conversion, portable voice presets, an Excalidraw drawing board, iPad companion and Codex drawing tools. Licensed under AGPLv3; original Recordly attribution and license are retained.
 
 ## Download MistaRecorda
 
@@ -15,6 +15,8 @@ Sign in to GitHub to download, then unzip the downloaded archive and open the in
 These downloads expire on **November 12, 2026**. For newer builds or expired links, open [Build Electron App](https://github.com/nikooo11/MistaRecorda/actions/workflows/build.yml) and download the artifacts from a successful run. Repository maintainers can use **Run workflow** to build fresh installers.
 
 For installation steps and editable source, start with [Run or edit MistaRecorda](docs/run-and-edit.md).
+
+Start with the [Drawing board, iPad and Codex guide](docs/drawing-board.md), including the [Codex drawing skill](docs/skills/mistarecorda-board/SKILL.md).
 
 See the [Voice Change guide](docs/voice-change.md) and the illustrated [Hold-to-zoom guide](docs/hold-to-zoom.md).
 

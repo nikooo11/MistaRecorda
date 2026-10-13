@@ -1,0 +1,240 @@
+html[data-window-type^="board-"] body,
+html[data-window-type^="board-"] #root {
+	background: transparent !important;
+	margin: 0;
+	overflow: hidden;
+}
+.board-stage {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	background: transparent;
+	color: #172526;
+	font: 14px system-ui;
+	touch-action: none;
+}
+.board-paper {
+	position: absolute;
+	left: 0;
+	top: 0;
+	transform-origin: top left;
+}
+.board-paper .excalidraw {
+	background: transparent;
+}
+.board-clean .excalidraw .layer-ui__wrapper,
+.board-clean .excalidraw .HelpDialog,
+.board-clean .excalidraw .Toast {
+	display: none !important;
+}
+.board-actions {
+	position: absolute;
+	z-index: 10;
+	bottom: 10px;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	gap: 6px;
+	padding: 8px;
+	background: #fffefaf2;
+	border: 1px solid #ccd4ce;
+	border-radius: 14px;
+	box-shadow: 0 3px 20px #0002;
+	white-space: nowrap;
+}
+.board-stage button,
+.board-panel button,
+.board-import {
+	font: inherit;
+	padding: 7px 10px;
+	border: 1px solid #bcc9c4;
+	border-radius: 8px;
+	background: #fff;
+	color: #173b32;
+	cursor: pointer;
+}
+.board-stage button:hover,
+.board-panel button:hover {
+	background: #dcfce7;
+}
+.board-import input {
+	display: none;
+}
+.board-assets {
+	position: absolute;
+	right: 12px;
+	top: 90px;
+	width: 220px;
+	max-height: 65%;
+	overflow: auto;
+	background: #fffefaf5;
+	padding: 12px;
+	border-radius: 12px;
+	border: 1px solid #ccd4ce;
+	z-index: 10;
+}
+.board-assets button {
+	width: 90px;
+	height: 80px;
+	margin: 3px;
+	background: repeating-conic-gradient(#eee 0% 25%, white 0% 50%) 0 / 16px 16px;
+}
+.board-assets img {
+	max-width: 100%;
+	max-height: 100%;
+	object-fit: contain;
+}
+.board-error {
+	position: absolute;
+	bottom: 65px;
+	left: 20px;
+	right: 20px;
+	background: #fff3d1;
+	padding: 12px;
+	border-radius: 12px;
+	z-index: 30;
+	color: #552b00;
+}
+.board-video {
+	position: absolute;
+	inset: 0;
+}
+.board-video video {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+.board-panel {
+	height: 100vh;
+	overflow: auto;
+	background: #f5f7f4;
+	color: #172526;
+	padding: 20px;
+	font: 14px / 1.45 system-ui;
+	box-sizing: border-box;
+	border: 1px solid #b4c9be;
+	border-radius: 14px;
+}
+.board-panel h1 {
+	font-size: 22px;
+	margin: 0;
+}
+.board-panel h2 {
+	font-size: 16px;
+	margin: 18px 0 8px;
+}
+.board-panel p {
+	margin: 8px 0;
+	color: #435950;
+}
+.board-panel label {
+	display: block;
+	margin: 8px 0;
+}
+.board-panel select,
+.board-panel input,
+.board-panel textarea {
+	max-width: 100%;
+	padding: 7px;
+	border: 1px solid #b9c8c0;
+	border-radius: 6px;
+	background: white;
+	color: #172526;
+}
+.board-panel textarea {
+	width: 100%;
+	font: 12px monospace;
+}
+.board-panel button {
+	margin: 3px;
+}
+.board-panel header {
+	-webkit-app-region: drag;
+	display: flex;
+	justify-content: space-between;
+}
+.board-panel header button {
+	-webkit-app-region: no-drag;
+}
+.board-qr {
+	width: 220px;
+	height: 220px;
+	display: block;
+	background: white;
+	margin: 10px auto;
+}
+.board-status {
+	padding: 10px;
+	border-radius: 8px;
+	background: #e6eee8;
+	font-weight: 600;
+}
+.board-status[data-recording="true"] {
+	background: #fce6e6;
+}
+.board-hint {
+	margin: 0;
+	background: #374151c9;
+	color: #e5e7eb;
+	padding: 12px;
+	border-radius: 0 8px 8px 0;
+	font: 14px system-ui;
+}
+.companion-shell {
+	height: 100dvh;
+	background: #dae5de;
+	font: 14px system-ui;
+	display: flex;
+	flex-direction: column;
+}
+.companion-header {
+	padding: 8px;
+	display: flex;
+	gap: 12px;
+	align-items: center;
+}
+.companion-main {
+	flex: 1;
+	min-height: 0;
+	position: relative;
+	overflow: hidden;
+}
+.companion-header button {
+	padding: 5px 9px;
+}
+.board-stage .excalidraw .App-menu_top {
+	top: 10px;
+}
+
+@keyframes deploy-board {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(0);
+	}
+}
+.board-deployed {
+	animation: deploy-board 220ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+	.board-deployed {
+		animation: none;
+	}
+}
+@media (max-width: 760px) {
+	.board-actions {
+		max-width: 96%;
+		flex-wrap: wrap;
+		white-space: normal;
+	}
+	.companion-header {
+		flex-wrap: wrap;
+	}
+}
+
+/* The live screen already contains clean ink; avoid drawing it twice on the tablet. */
+.board-streamed-ink .excalidraw__canvas.static {
+	visibility: hidden;
+}
