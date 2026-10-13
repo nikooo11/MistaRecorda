@@ -101,11 +101,11 @@ export function BoardCanvas({
 				return;
 			current.current = next;
 			setState(next);
+			if (!api) return;
 			if (clean)
 				requestAnimationFrame(() => {
 					document.documentElement.dataset.boardRevision = String(next.revision);
 				});
-			if (!api) return;
 			const mode = clean && next.output === "board" ? "board" : next.mode;
 			const scene = next.scenes[mode];
 			const signature = JSON.stringify(scene);

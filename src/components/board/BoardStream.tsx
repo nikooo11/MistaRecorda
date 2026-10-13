@@ -8,6 +8,7 @@ export function BoardStream({ transport }: { transport: BoardAPI }) {
 		let stream: MediaStream | undefined;
 		let acquisition: Promise<MediaStream> | undefined;
 		let disposed = false;
+		let generation = 0;
 		const video = document.createElement("video");
 		video.muted = true;
 		video.playsInline = true;
@@ -18,6 +19,7 @@ export function BoardStream({ transport }: { transport: BoardAPI }) {
 		async function capture() {
 			if (stream?.getVideoTracks()[0]?.readyState === "live") return stream;
 			if (acquisition) return acquisition;
+			const expectedGeneration = generation;
 			acquisition = (async () => {
 				const id = await transport.request<string>("captureSource");
 				const captured = await navigator.mediaDevices.getUserMedia({
@@ -32,7 +34,7 @@ export function BoardStream({ transport }: { transport: BoardAPI }) {
 						},
 					} as MediaTrackConstraints,
 				});
-				if (disposed) {
+				if (disposed || generation !== expectedGeneration) {
 					captured.getTracks().forEach((t) => t.stop());
 					throw Error("Sharing stopped");
 				}
@@ -46,6 +48,7 @@ export function BoardStream({ transport }: { transport: BoardAPI }) {
 			return acquisition;
 		}
 		function stop() {
+			generation++;
 			for (const peer of peers.values()) peer.close();
 			peers.clear();
 			candidates.clear();

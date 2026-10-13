@@ -90,3 +90,11 @@ test("overlapping drawing and signaling requests are processed in arrival order"
 	await complete;
 	expect(received).toEqual([1, 2, 3]);
 });
+
+test("malformed WebSocket frames close the client while the companion server stays usable", async () => {
+	await connect();
+	const closed = new Promise<number>((resolve) => socket.once("close", resolve));
+	socket.send(Buffer.from([0xff]), { binary: false });
+	expect(await closed).toBe(1007);
+	expect((await fetch(`http://127.0.0.1:${server.port}/`)).status).toBe(200);
+});

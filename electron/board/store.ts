@@ -116,11 +116,11 @@ export class BoardStore {
 		if (!/^[\p{L}\p{N} _-]{1,80}$/u.test(name))
 			throw Error("Use a scene name with letters, numbers, spaces or dashes");
 		await fs.mkdir(path.join(this.root, "scenes"), { recursive: true });
-		await fs.writeFile(
-			path.join(this.root, "scenes", `${name}.json`),
-			JSON.stringify(this.state.scenes[this.state.mode]),
-			{ mode: 0o600 },
-		);
+		const temporary = path.join(this.root, "scenes", `${randomUUID()}.tmp`);
+		await fs.writeFile(temporary, JSON.stringify(this.state.scenes[this.state.mode]), {
+			mode: 0o600,
+		});
+		await fs.rename(temporary, path.join(this.root, "scenes", `${name}.json`));
 	}
 	async listScenes() {
 		return (await fs.readdir(path.join(this.root, "scenes")).catch(() => []))

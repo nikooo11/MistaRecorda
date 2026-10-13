@@ -5,7 +5,7 @@ Validation performed in a Linux cloud desktop with Electron and a separate Chrom
 ## Passed
 
 - TypeScript typecheck and production Vite/Electron main build smoke.
-- 1,072 tests across 118 files. Board coverage includes scene persistence, named scenes and assets, stale revisions, malformed geometry/images, pairing approval and expiration, restricted companion operations, overlapping requests, MCP authentication and tool discovery, and capture-permission boundaries.
+- 1,073 tests across 118 files. Board coverage includes scene persistence, named scenes and assets, stale revisions, malformed geometry/images, pairing approval and expiration, restricted companion operations, overlapping requests, malformed-frame isolation, MCP authentication and tool discovery, and capture-permission boundaries.
 - Lint: no errors; 21 existing repository warnings.
 - Production Electron opens the Drawing board and compact presenter windows.
 - Real browser pairing waits for desktop approval, then connects; reconnect retains an approved session.

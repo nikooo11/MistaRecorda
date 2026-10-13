@@ -117,6 +117,8 @@ export class CompanionServer {
 		}));
 	}
 	private connect(socket: WebSocket) {
+		// Malformed frames and abrupt disconnects must not crash the desktop process.
+		socket.on("error", () => socket.close());
 		let device: ReturnType<typeof this.devices.get>;
 		let queue = Promise.resolve();
 		let queued = 0;
