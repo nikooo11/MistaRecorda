@@ -5,13 +5,13 @@ Validation performed in a Linux cloud desktop with Electron and a separate Chrom
 ## Passed
 
 - TypeScript typecheck and production Vite/Electron main build smoke.
-- 1,073 tests across 118 files. Board coverage includes scene persistence, named scenes and assets, stale revisions, malformed geometry/images, pairing approval and expiration, restricted companion operations, overlapping requests, malformed-frame isolation, MCP authentication and tool discovery, and capture-permission boundaries.
+- 1,075 tests across 118 files. Board coverage includes scene persistence, named scenes and assets, stale revisions, malformed geometry/images, pairing approval and expiration, restricted companion operations, overlapping requests, malformed-frame isolation, queued-operation revocation, MCP authentication and tool discovery, and capture-permission boundaries.
 - Lint: no errors; 21 existing repository warnings.
 - Production Electron opens the Drawing board and compact presenter windows.
 - Real browser pairing waits for desktop approval, then connects; reconnect retains an approved session.
 - Browser rectangle drawing appears in the desktop scene. Browser control-wheel zoom and a simulated two-finger pinch update the shared desktop viewport. Initial tablet fitting leaves the shared zoom unchanged.
 - PNG import through the browser file picker creates an image element and asset. Named scene save/load restores the diagram. App restart retains the board with the overlay initially disabled.
-- Authenticated MCP initializes, advertises instructions and tools, draws editable objects, saves a named scene and returns a clean screenshot after painting.
+- The official MCP SDK client connects, discovers 11 tools and reads the drawing guide. Authenticated MCP initializes, advertises instructions and tools, draws editable objects, saves a named scene and returns a clean screenshot after painting.
 - Screen capture produces a live 1280×900 desktop track. The companion receives the automatic JPEG preview at 1280 pixels wide when direct WebRTC is unavailable.
 - Captured screenshots are included in the how-to guide.
 

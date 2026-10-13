@@ -506,7 +506,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			return source.id;
 		}
 		case "signal":
-			stream?.webContents.send("board:signal", { deviceId: actor, ...data });
+			stream?.webContents.send("board:signal", { ...data, deviceId: actor });
 			return true;
 		case "signalToDevice":
 			companion.send(data.deviceId ?? "", "signal", data.signal);

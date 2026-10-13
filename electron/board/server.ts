@@ -139,6 +139,7 @@ export class CompanionServer {
 				try {
 					const message = JSON.parse(bytes.toString());
 					if (message.type === "pair") {
+						if (device) throw Error("This connection is already paired");
 						if (++tries > 3) throw Error("Pairing limit reached");
 						const existing = [...this.devices.values()].find(
 							(d) =>
@@ -187,7 +188,11 @@ export class CompanionServer {
 								}),
 							);
 					} else {
-						if (!device?.approved)
+						if (
+							!device?.approved ||
+							this.devices.get(device.id) !== device ||
+							device.socket !== socket
+						)
 							throw Error("Approve this iPad on the computer first");
 						if (
 							![
@@ -264,7 +269,9 @@ export class CompanionServer {
 		return this.pairing();
 	}
 	stop() {
-		for (const d of this.devices.values()) d.socket?.close();
+		for (const socket of this.sockets.clients) socket.close();
+		this.code = "";
+		this.expires = 0;
 		this.devices.clear();
 		this.server?.close();
 		this.server = undefined;

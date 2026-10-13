@@ -98,3 +98,41 @@ test("malformed WebSocket frames close the client while the companion server sta
 	expect(await closed).toBe(1007);
 	expect((await fetch(`http://127.0.0.1:${server.port}/`)).status).toBe(200);
 });
+
+test("stop sharing closes even clients that have not sent a pairing message", async () => {
+	await connect();
+	const closed = new Promise<void>((resolve) => socket.once("close", () => resolve()));
+	server.stop();
+	await closed;
+	expect(server.code).toBe("");
+	expect(server.list()).toEqual([]);
+});
+
+test("revocation prevents a queued operation from running", async () => {
+	const action = await connect();
+	const paired = message();
+	socket.send(JSON.stringify({ type: "pair", code: server.code }));
+	const device = await paired;
+	const approved = message();
+	await server.approve(device.deviceId);
+	await approved;
+	let release!: () => void;
+	let entered!: () => void;
+	const started = new Promise<void>((resolve) => {
+		entered = resolve;
+	});
+	action.mockImplementationOnce(async () => {
+		entered();
+		await new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		return { state: { revision: 2 } };
+	});
+	socket.send(JSON.stringify({ id: 1, method: "scene" }));
+	socket.send(JSON.stringify({ id: 2, method: "clear", input: { confirmed: true } }));
+	await started;
+	server.disconnect(device.deviceId);
+	release();
+	await new Promise((resolve) => setTimeout(resolve, 30));
+	expect(action.mock.calls.some((call) => call[0] === "clear")).toBe(false);
+});
