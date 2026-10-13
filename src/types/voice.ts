@@ -59,6 +59,9 @@ export interface VoiceRecording {
 	micSelection?: "original" | "changed";
 }
 export interface VoiceRequests {
+	start: { input: string; output: string };
+	cancel: { input: string; output: boolean };
+	progress: { input: undefined; output: VoiceProgress[] };
 	getSettings: { input: undefined; output: VoiceSettings & { hasKey: boolean } };
 	saveSettings: { input: VoiceSettings; output: VoiceSettings & { hasKey: boolean } };
 	setKey: { input: string; output: { hasKey: boolean } };

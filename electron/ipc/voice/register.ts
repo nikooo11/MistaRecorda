@@ -1,3 +1,5 @@
+import { resolveApprovedLocalMediaPath } from "../project/manager";
+import { startVoiceJob, cancelJob, jobProgress } from "./job";
 import path from "node:path";
 import { app, BrowserWindow, ipcMain, safeStorage, type IpcMainInvokeEvent } from "electron";
 import type { VoiceRequests, VoiceResult } from "../../../src/types/voice";
@@ -63,6 +65,14 @@ export function voiceHandle<K extends keyof VoiceRequests>(
 	);
 }
 export function registerVoiceHandlers() {
+	voiceHandle("start", async (input) => {
+		if (typeof input !== "string") throw new Error("invalidAudio");
+		const video = await resolveApprovedLocalMediaPath(input);
+		if (!video) throw new Error("noAccess");
+		return startVoiceJob(video, await voiceStore().read(), await voiceClient());
+	});
+	voiceHandle("cancel", (input) => cancelJob(input));
+	voiceHandle("progress", () => jobProgress());
 	voiceHandle("getSettings", () => voiceStore().publicSettings());
 	voiceHandle("saveSettings", (input) => voiceStore().save(input));
 	voiceHandle("setKey", (input) => voiceStore().setKey(input));
