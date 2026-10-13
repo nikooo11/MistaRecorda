@@ -928,6 +928,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			const webcamPath = await stopWebcamRecorder();
 			await storeMicrophoneSidecar(resolvedMicFallbackBlobPromise, result.path, startDelayMs);
 			await finalizeRecordingSession(result.path, webcamPath);
+			await window.electronAPI.voice.request("afterRecording", result.path);
 
 			if (typeof window.electronAPI?.hudOverlayClose === "function") {
 				window.electronAPI.hudOverlayClose();
@@ -1151,6 +1152,9 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 							fallbackStartDelayMs,
 							fallbackTrackSettings,
 						);
+
+						// Mic sidecars are now durable; conversion runs in the main process.
+						await window.electronAPI.voice.request("afterRecording", finalPath);
 
 						// Perform muxing/renaming if on Windows
 						if (isNativeWindows) {

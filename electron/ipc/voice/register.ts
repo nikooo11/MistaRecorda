@@ -1,3 +1,6 @@
+import fs from "node:fs/promises";
+import { shell } from "electron";
+import { getRecordingsDir } from "../utils";
 import { readAudioMetadata, writeAudioMetadata } from "../recording/library";
 import { resolveApprovedLocalMediaPath } from "../project/manager";
 import { startVoiceJob, cancelJob, jobProgress } from "./job";
@@ -66,6 +69,54 @@ export function voiceHandle<K extends keyof VoiceRequests>(
 	);
 }
 export function registerVoiceHandlers() {
+	voiceHandle("recordings", async () => {
+		const dir = await getRecordingsDir();
+		const names = await fs.readdir(dir).catch(() => []);
+		const records = await Promise.all(
+			names
+				.filter((n) => /^recording-\d+\.(mp4|webm)$/.test(n))
+				.sort()
+				.reverse()
+				.map((n) => readAudioMetadata(path.join(dir, n))),
+		);
+		return records.filter((r): r is NonNullable<typeof r> => Boolean(r));
+	});
+	voiceHandle("afterRecording", async (input) => {
+		const settings = await voiceStore().read();
+		if (!settings.enabled) return null;
+		const p = typeof input === "string" ? await resolveApprovedLocalMediaPath(input) : null;
+		if (!p) throw new Error("noAccess");
+		try {
+			return await startVoiceJob(p, settings, await voiceClient());
+		} catch (e) {
+			const error =
+				e instanceof Error && /^[a-zA-Z]+$/.test(e.message) ? e.message : "operationFailed";
+			for (const w of BrowserWindow.getAllWindows())
+				w.webContents.send("voice:progress", {
+					jobId: crypto.randomUUID(),
+					videoPath: p,
+					state: "error",
+					completed: 0,
+					total: 0,
+					error,
+				});
+			return null;
+		}
+	});
+	voiceHandle("outputAction", async (input) => {
+		if (!input || !["open", "reveal"].includes(input.action))
+			throw new Error("invalidSettings");
+		const p = await resolveApprovedLocalMediaPath(input.videoPath);
+		if (!p) throw new Error("noAccess");
+		const m = await readAudioMetadata(p);
+		if (!m?.voiceVideoPath) throw new Error("missingMic");
+		if (input.action === "reveal") shell.showItemInFolder(m.voiceVideoPath);
+		else {
+			const error = await shell.openPath(m.voiceVideoPath);
+			if (error) throw new Error("operationFailed");
+		}
+		return true;
+	});
 	voiceHandle("recording", async (input) => {
 		const p = typeof input === "string" ? await resolveApprovedLocalMediaPath(input) : null;
 		if (!p) throw new Error("noAccess");

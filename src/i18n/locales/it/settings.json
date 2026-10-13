@@ -293,6 +293,18 @@
 		"missingMic": "No isolated microphone track was saved for this recording.",
 		"noticeRequired": "Accept the mic upload notice before converting.",
 		"alreadyRunning": "A conversion is already running for this recording.",
-		"durationMismatch": "Converted audio could not be aligned to the original duration."
+		"durationMismatch": "Converted audio could not be aligned to the original duration.",
+		"done": "Voice conversion completed",
+		"open": "Open",
+		"reveal": "Show in Finder",
+		"retry": "Retry",
+		"recordings": "Recording library",
+		"refresh": "Refresh",
+		"noRecordings": "Record with microphone enabled to see recordings here.",
+		"changedBadge": "Changed voice available",
+		"rerun": "Re-run",
+		"change": "Change voice",
+		"progress": "Converting voice: chunk {completed}/{total}",
+		"cancel": "Cancel"
 	}
 }

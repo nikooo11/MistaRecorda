@@ -59,6 +59,9 @@ export interface VoiceRecording {
 	micSelection?: "original" | "changed";
 }
 export interface VoiceRequests {
+	recordings: { input: undefined; output: VoiceRecording[] };
+	afterRecording: { input: string; output: string | null };
+	outputAction: { input: { videoPath: string; action: "open" | "reveal" }; output: boolean };
 	recording: { input: string; output: VoiceRecording | null };
 	selectMic: { input: { videoPath: string; selection: "original" | "changed" }; output: boolean };
 	start: { input: string; output: string };

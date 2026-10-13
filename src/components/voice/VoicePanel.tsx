@@ -1,3 +1,4 @@
+import { VoiceLibrary } from "./VoiceLibrary";
 import { useEffect, useState } from "react";
 import { useScopedT } from "@/contexts/I18nContext";
 import {
@@ -175,6 +176,7 @@ export function VoicePanel() {
 				{t("voice.save")}
 			</button>
 			<p role="status">{message ? t(`voice.${message}`) : ""}</p>
+			<VoiceLibrary />
 		</main>
 	);
 }

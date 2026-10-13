@@ -14,7 +14,9 @@ export function VoiceRecordingControls({ videoPath }: { videoPath: string | null
 				.then((r) => {
 					if (!disposed) setRecording(unwrapVoice(r));
 				})
-				.catch(() => { if (!disposed) setError("operationFailed"); });
+				.catch(() => {
+					if (!disposed) setError("operationFailed");
+				});
 		};
 		load();
 		const stop = window.electronAPI.voice.onProgress((p) => {

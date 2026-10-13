@@ -1,3 +1,4 @@
+import { VoiceNotifications } from "./components/voice/VoiceNotifications";
 import { VoicePanel } from "./components/voice/VoicePanel";
 import { useEffect, useState } from "react";
 import { CountdownOverlay } from "./components/countdown/CountdownOverlay";
@@ -58,11 +59,11 @@ export default function App() {
 	}, [windowType, t]);
 
 	switch (windowType) {
-		case "voice": return <VoicePanel />;
+		case "voice": return <><VoiceNotifications /><VoicePanel /><Toaster /></>;
 		case "hud-overlay":
 			return (
 				<>
-					<LaunchWindow />
+					<VoiceNotifications /><LaunchWindow />
 					<Toaster className="pointer-events-auto" />
 				</>
 			);
@@ -75,7 +76,7 @@ export default function App() {
 		case "editor":
 			return (
 				<ShortcutsProvider>
-					<VideoEditor />
+					<VoiceNotifications /><VideoEditor />
 					<ShortcutsConfigDialog />
 				</ShortcutsProvider>
 			);
