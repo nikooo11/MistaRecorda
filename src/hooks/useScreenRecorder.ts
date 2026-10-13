@@ -1,3 +1,5 @@
+import { useScopedT } from "@/contexts/I18nContext";
+import { IsolatedAudioCapture } from "./isolatedAudioCapture";
 import { fixWebmDuration } from "@fix-webm-duration/fix";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -213,10 +215,7 @@ export function resolveBrowserCaptureCursorPolicy({
 export function shouldUseNativeWindowsCaptureForSource(
 	source: Pick<ProcessedDesktopSource, "id"> | null | undefined,
 ): boolean {
-	return (
-		source?.id?.startsWith("screen:") === true ||
-		source?.id?.startsWith("window:") === true
-	);
+	return source?.id?.startsWith("screen:") === true || source?.id?.startsWith("window:") === true;
 }
 
 export function createProcessedMicrophoneConstraints(
@@ -320,6 +319,7 @@ async function createAudioInputDeviceSnapshot(): Promise<
 }
 
 export function useScreenRecorder(): UseScreenRecorderReturn {
+	const t = useScopedT("launch");
 	const [recording, setRecording] = useState(false);
 	const [paused, setPaused] = useState(false);
 	const [starting, setStarting] = useState(false);
@@ -337,6 +337,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	const stream = useRef<MediaStream | null>(null);
 	const screenStream = useRef<MediaStream | null>(null);
 	const microphoneStream = useRef<MediaStream | null>(null);
+	const isolatedAudio = useRef<IsolatedAudioCapture | null>(null);
 	const webcamStream = useRef<MediaStream | null>(null);
 	const mixingContext = useRef<AudioContext | null>(null);
 	const chunks = useRef<Blob[]>([]);
@@ -554,6 +555,12 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	};
 
 	const cleanupCapturedMedia = useCallback(() => {
+		const isolated = isolatedAudio.current;
+		isolatedAudio.current = null;
+		if (isolated)
+			void isolated.stop().catch(() => {
+				/* Original recording cleanup must continue. */
+			});
 		if (stream.current) {
 			stream.current.getTracks().forEach((track) => track.stop());
 			stream.current = null;
@@ -764,6 +771,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	}, [appendMicFallbackChunk, closeMicFallbackPauseInterval]);
 
 	const pauseMicFallbackRecorder = useCallback(() => {
+		isolatedAudio.current?.pause();
 		const recorder = micFallbackRecorder.current;
 		if (recorder?.state !== "recording") {
 			return;
@@ -785,6 +793,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	}, []);
 
 	const resumeMicFallbackRecorder = useCallback(() => {
+		isolatedAudio.current?.resume();
 		const recorder = micFallbackRecorder.current;
 		if (recorder?.state !== "paused") {
 			return;
@@ -928,6 +937,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			const webcamPath = await stopWebcamRecorder();
 			await storeMicrophoneSidecar(resolvedMicFallbackBlobPromise, result.path, startDelayMs);
 			await finalizeRecordingSession(result.path, webcamPath);
+			await window.electronAPI.voice.request("afterRecording", result.path);
 
 			if (typeof window.electronAPI?.hudOverlayClose === "function") {
 				window.electronAPI.hudOverlayClose();
@@ -1151,6 +1161,9 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 							fallbackStartDelayMs,
 							fallbackTrackSettings,
 						);
+
+						// Mic sidecars are now durable; conversion runs in the main process.
+						await window.electronAPI.voice.request("afterRecording", finalPath);
 
 						// Perform muxing/renaming if on Windows
 						if (isNativeWindows) {
@@ -1821,6 +1834,13 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 				if (event.data && event.data.size > 0) chunks.current.push(event.data);
 			};
 			recorder.onstop = async () => {
+				let sidecars: Awaited<ReturnType<IsolatedAudioCapture["stop"]>> = [];
+				try {
+					sidecars = (await isolatedAudio.current?.stop()) ?? [];
+				} catch {
+					toast.error(t("recording.isolatedAudioFailed"));
+				}
+				isolatedAudio.current = null;
 				cleanupCapturedMedia();
 				if (chunks.current.length === 0) {
 					setFinalizing(false);
@@ -1857,6 +1877,19 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 
 					if (videoResult.path) {
 						const finalVideoPath = videoResult.path;
+						for (const sidecar of sidecars ?? []) {
+							const stored = await window.electronAPI.voice.request(
+								"storeBrowserAudio",
+								{
+									videoPath: finalVideoPath,
+									kind: sidecar.kind,
+									offsetMs: sidecar.offsetMs,
+									bytes: await sidecar.data.arrayBuffer(),
+								},
+							);
+							if (!stored.ok) throw new Error(stored.error);
+						}
+						await window.electronAPI.voice.request("afterRecording", finalVideoPath);
 						// 1. Launch editor immediately (Optimistic UI)
 						await finalizeRecordingSession(finalVideoPath, null);
 
@@ -1907,6 +1940,13 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			webcamTimeOffsetMs.current =
 				webcamStartTime.current === null ? 0 : webcamStartTime.current - mainStartedAt;
 			recorder.start(RECORDER_TIMESLICE_MS);
+			const audioStart = performance.now();
+			isolatedAudio.current = new IsolatedAudioCapture();
+			isolatedAudio.current.start(
+				microphoneStream.current?.getAudioTracks()[0],
+				screenStream.current?.getAudioTracks()[0],
+				audioStart,
+			);
 			setRecording(true);
 			try {
 				await window.electronAPI?.setRecordingState(true);
@@ -1966,6 +2006,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		}
 		if (mediaRecorder.current?.state === "recording") {
 			mediaRecorder.current.pause();
+			isolatedAudio.current?.pause();
 			if (webcamRecorder.current?.state === "recording") {
 				webcamRecorder.current.pause();
 			}
@@ -2012,6 +2053,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		}
 		if (mediaRecorder.current?.state === "paused") {
 			mediaRecorder.current.resume();
+			isolatedAudio.current?.resume();
 			if (webcamRecorder.current?.state === "paused") {
 				webcamRecorder.current.resume();
 			}

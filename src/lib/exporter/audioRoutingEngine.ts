@@ -31,7 +31,8 @@ export interface ResolvedAudioPlan {
 
 export function getSourceTrackIdFromPath(audioPath: string): SourceTrackId {
 	const normalized = audioPath.toLowerCase();
-	if (normalized.includes(".mic.")) return "mic";
+	if (normalized.includes(".mic.") || /\.voice(?:-[a-z0-9-]+)?-mic\.wav$/.test(normalized))
+		return "mic";
 	if (normalized.includes(".system.")) return "system";
 	return "mixed";
 }
@@ -68,8 +69,12 @@ export function buildResolvedAudioPlan(input: {
 	if (pathsByTrack.mic) playbackPaths.push(pathsByTrack.mic);
 	if (!hasDedicatedTracks && pathsByTrack.mixed) playbackPaths.push(pathsByTrack.mixed);
 
-	const includeEmbeddedInExport = !pathsByTrack.system && !pathsByTrack.mixed;
-	const resolvedRegions = (input.audioRegions ?? []).slice().sort((a, b) => a.startMs - b.startMs);
+	const canonicalMicOnly = !hasEmbeddedSourceAudio && Boolean(pathsByTrack.mic?.endsWith(".wav"));
+	const includeEmbeddedInExport =
+		!canonicalMicOnly && !pathsByTrack.system && !pathsByTrack.mixed;
+	const resolvedRegions = (input.audioRegions ?? [])
+		.slice()
+		.sort((a, b) => a.startMs - b.startMs);
 	const tracks: ResolvedAudioTrack[] = resolvedRegions.map((region) => ({
 		id: `user:${region.id}`,
 		kind: "user",

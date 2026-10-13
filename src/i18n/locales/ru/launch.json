@@ -53,7 +53,8 @@
 			"upToDateTitle": "У вас актуальная версия Recordly {{version}}.",
 			"availableTitle": "Доступна новая версия Recordly {{version}}.",
 			"availableGenericTitle": "Доступно обновление."
-		}
+		},
+		"isolatedAudioFailed": "Could not save isolated audio; the original recording will still be saved."
 	},
 	"sourceSelector": {
 		"loadingSources": "Загрузка источников...",
@@ -76,5 +77,6 @@
 		"microphoneDenied": "Нет доступа к микрофону. Запись продолжится без вашего голоса.",
 		"failedToStart": "Не удалось начать запись: {{error}}",
 		"failedToStartGeneric": "Не удалось начать запись"
-	}
+	},
+	"voiceChange": "Voice Change"
 }

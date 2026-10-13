@@ -1,7 +1,7 @@
 {
 	"app": {
-		"name": "Recordly",
-		"editorTitle": "Editor do Recordly",
+		"name": "MistaRecorda",
+		"editorTitle": "MistaRecorda — based on Recordly",
 		"subtitle": "Gravação e edição de tela",
 		"language": "Idioma",
 		"manageRecordings": "Abrir pasta de gravações"

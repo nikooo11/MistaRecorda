@@ -1,3 +1,4 @@
+import { openVoiceWindow } from "./ipc/voice/register";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -30,10 +31,7 @@ import {
 import { ensureMediaServer } from "./mediaServer";
 import { shouldGrantDisplayCapture, shouldGrantMediaPermission } from "./permissionPolicy";
 import { ensurePackagedRendererServer, getPackagedRendererBaseUrl } from "./rendererServer";
-import {
-	hardenWebContentsNavigation,
-	shouldHardenWebContentsType,
-} from "./navigationPolicy";
+import { hardenWebContentsNavigation, shouldHardenWebContentsType } from "./navigationPolicy";
 import type { UpdateToastPayload } from "./updater";
 import {
 	checkForAppUpdates,
@@ -239,7 +237,7 @@ let defaultTrayIcon: ReturnType<typeof getTrayIcon> | null = null;
 let recordingTrayIcon: ReturnType<typeof getTrayIcon> | null = null;
 
 function getPlatformAppIconFilename(size: 32 | 128 | 512) {
-	const baseName = process.platform === "darwin" ? "recordlymac" : "recordly";
+	const baseName = "mistarecorda";
 	return `app-icons/${baseName}-${size}.png`;
 }
 
@@ -413,7 +411,18 @@ function setupApplicationMenu() {
 	template.push({
 		label: app.name,
 		submenu: [
-			{ role: "about" },
+			{
+				label: "About MistaRecorda",
+				click: () => {
+					app.setAboutPanelOptions({
+						applicationName: "MistaRecorda",
+						applicationVersion: app.getVersion(),
+						copyright: "Based on Recordly — AGPLv3",
+						credits: "Recordly contributors",
+					});
+					app.showAboutPanel();
+				},
+			},
 			{ type: "separator" },
 			{ role: "services" },
 			{ type: "separator" },
@@ -429,6 +438,12 @@ function setupApplicationMenu() {
 		{
 			label: "File",
 			submenu: [
+				{
+					label: "Import Voice Preset…",
+					click: () => {
+						openVoiceWindow(true);
+					},
+				},
 				{
 					label: "Open Projects…",
 					accelerator: "CmdOrCtrl+O",
@@ -748,7 +763,7 @@ ipcMain.handle("check-for-app-updates", async () => {
 function updateTrayMenu(recording: boolean = false) {
 	if (!tray) return;
 	const trayIcon = recording ? getRecordingTrayIcon() : getDefaultTrayIcon();
-	const trayToolTip = recording ? `Recording: ${selectedSourceName}` : "Recordly";
+	const trayToolTip = recording ? `Recording: ${selectedSourceName}` : "MistaRecorda";
 	const menuTemplate = recording
 		? [
 				{

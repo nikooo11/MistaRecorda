@@ -1,3 +1,11 @@
+# MistaRecorda
+
+Personal and internal-team fork, based on [Recordly](https://github.com/webadderallorg/Recordly). Adds private microphone voice conversion and portable voice presets. Licensed under AGPLv3; original Recordly attribution and license are retained.
+
+See the [Voice Change guide](docs/voice-change.md) and the illustrated [Hold-to-zoom guide](docs/hold-to-zoom.md).
+
+## Upstream Recordly documentation
+
 Language: EN | [简中](README.zh-CN.md)
 
 <p align="center">

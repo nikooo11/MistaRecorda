@@ -2,22 +2,22 @@
 
 Personal-use fork of [Recordly](https://github.com/webadderallorg/Recordly) (AGPLv3). Keep `LICENSE.md` and Recordly attribution intact. Not distributed.
 
-**Goal:** record screen + system (Mac) audio normally, record mic on its own track, and after recording stops, convert ONLY the mic track into a chosen ElevenLabs voice ("Voice Change"), then produce a synced final video. Originals are never overwritten.
+**Goal:** record screen + system audio on macOS and Windows normally, record mic on its own track, and after recording stops and the user clicks Process voice, convert ONLY the mic track into a chosen ElevenLabs voice ("Voice Change"), then produce a synced final video. Originals are never overwritten.
 
 ---
 
 ## Phase 0 — Recon (no code changes)
 Read and document in `docs/architecture-notes.md`:
 - `electron/main.ts`, `electron/preload.ts`, `electron/ipc/register/*.ts`
-- `electron/ipc/recording/{library,diagnostics,windowsFallbacks}.ts`
+- `electron/ipc/recording/{mac,diagnostics,windowsFallbacks}.ts` and `electron/ipc/register/project.ts` (there is no recording/library.ts)
 - `src/hooks/useScreenRecorder.ts`, `src/hooks/useMicrophoneDevices.ts`
 - `src/components/launch/RecordingControls.tsx`, `src/components/launch/popovers/MicPopover.tsx`
-- `electron/ipc/captions/{generate,audioCandidates,mergeSources}.ts` (already extracts mic audio — reuse)
+- `electron/ipc/captions/generate.ts` (candidate selection and extraction live together; extend it to prefer isolated original mic)
 - i18n system, settings storage, export pipeline, ffmpeg-static usage
 
 Answer: Is mic stored separately or mixed with system audio? Where are recording files written? How does export pick audio sources?
 
-**Done when:** notes file committed; `npm install && npm run typecheck && npm test` pass on untouched code.
+**Done when:** notes file committed; locked `npm ci`, CI-equivalent `npx tsc --noEmit`, and `npm test` pass on untouched code. The baseline has no typecheck script; add it in Phase 1. See architecture notes for the failed unlocked install diagnosis.
 
 ## Phase 1 — Branding (local only)
 - `package.json`: `productName` → `MistaRecorda`, `name` → `mistarecorda`, appId → `com.nikooo11.mistarecorda`.
@@ -36,7 +36,6 @@ Answer: Is mic stored separately or mixed with system audio? Where are recording
 New settings section "Voice Change":
 | Setting | Type | Default |
 |---|---|---|
-| enabled (auto-run after recording) | bool | false |
 | apiKey | secret (Electron `safeStorage`) | — |
 | voiceId / voiceName | string | — |
 | modelId | `eleven_multilingual_sts_v2` \| `eleven_english_sts_v2` | multilingual |
@@ -73,9 +72,10 @@ Pipeline:
 - Captions: regenerate from original mic (better transcription) but apply to changed-voice export.
 
 ## Phase 6 — UI
-- Auto-run after stop when enabled; "Change voice" / "Re-run" button in library.
+- Processing is manual: after stop, show "Process voice" / "Process voice again" in the editor and library. Never upload on recording completion; discard the old auto-run setting.
+- Exactly one favorited voice is selected immediately and on every startup, without an API call; zero/multiple favorites retain the last selection. Show the selected voice before processing.
 - Progress: "Converting voice: chunk 3/7", percent bar, Cancel (aborts fetch via AbortController, deletes temp).
-- Done toast: Open, Show in Finder. Error toast with Retry.
+- Done toast: Open, Show in folder. Error toast with Retry.
 - Badge on library items with a changed voice.
 - All strings via i18n (`npm run i18n:check`).
 

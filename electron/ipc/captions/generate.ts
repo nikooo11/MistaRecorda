@@ -1,3 +1,4 @@
+import { readAudioMetadata } from "../recording/library";
 import { execFile, spawnSync } from "node:child_process";
 import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
@@ -96,6 +97,8 @@ export async function resolveCaptionAudioCandidates(videoPath: string) {
 		candidates.push({ path: normalizedCandidatePath, label });
 	};
 
+	const audio = await readAudioMetadata(videoPath);
+	pushCandidate(audio?.micPath, "original microphone");
 	pushCandidate(videoPath, "recording");
 
 	const requestedRecordingSession = await resolveRecordingSession(videoPath);
@@ -110,6 +113,7 @@ export async function extractCaptionAudioSource(options: {
 	wavPath: string;
 }) {
 	const candidates = await resolveCaptionAudioCandidates(options.videoPath);
+	const audio = await readAudioMetadata(options.videoPath);
 	const attemptedCandidates: Array<{
 		path: string;
 		label: string;
@@ -136,6 +140,8 @@ export async function extractCaptionAudioSource(options: {
 					"16000",
 					"-c:a",
 					"pcm_s16le",
+					"-af",
+					`adelay=${candidate.path === audio?.micPath ? audio.micOffsetMs : 0}:all=1`,
 					options.wavPath,
 				],
 				{ timeout: 5 * 60 * 1000, maxBuffer: 20 * 1024 * 1024 },

@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { closeHeldZoom, persistRecordedZooms } from "../zoom/capture";
 import {
 	CURSOR_SAMPLE_INTERVAL_MS,
 	CURSOR_TELEMETRY_VERSION,
@@ -216,6 +217,29 @@ export function getNormalizedCursorPoint() {
 	return { cx, cy };
 }
 
+export function getRecordingCursorInDips() {
+	// The hook cache is reset at capture start/stop. A stationary pointer remains valid;
+	// Electron's X11 pointer query can return a stale position on headless desktops.
+	if (process.platform === "linux" && linuxCursorScreenPoint) {
+		const scale = getScreen().getPrimaryDisplay().scaleFactor || 1;
+		return { x: linuxCursorScreenPoint.x / scale, y: linuxCursorScreenPoint.y / scale };
+	}
+	return getScreen().getCursorScreenPoint();
+}
+
+/** Capture rectangle in Electron DIP coordinates, shared by hotkey targeting and its outline. */
+export function getRecordingBoundsInDips(): Electron.Rectangle | null {
+	const screen = getScreen();
+	if (selectedSource?.id?.startsWith("window:")) {
+		if (!selectedWindowBounds) return null;
+		const primaryScale = process.platform === "darwin" ? 1 : screen.getPrimaryDisplay().scaleFactor || 1;
+		const scale = process.platform === "darwin" ? 1 : screen.getDisplayNearestPoint({ x: selectedWindowBounds.x / primaryScale, y: selectedWindowBounds.y / primaryScale }).scaleFactor || 1;
+		return { x: selectedWindowBounds.x / scale, y: selectedWindowBounds.y / scale, width: selectedWindowBounds.width / scale, height: selectedWindowBounds.height / scale };
+	}
+	const display = screen.getAllDisplays().find((d) => d.id === Number(selectedSource?.display_id));
+	return (display ?? screen.getDisplayNearestPoint(screen.getCursorScreenPoint())).bounds;
+}
+
 export function getHookCursorScreenPoint(
 	event: { x?: number; y?: number; data?: { x?: number; y?: number; screenX?: number; screenY?: number }; screenX?: number; screenY?: number } | null | undefined,
 ): { x: number; y: number } | null {
@@ -260,6 +284,8 @@ export function sampleCursorPoint() {
 }
 
 export async function persistPendingCursorTelemetry(videoPath: string) {
+	closeHeldZoom(getCursorCaptureElapsedMs());
+	await persistRecordedZooms(videoPath);
 	const telemetryPath = getTelemetryPathForVideo(videoPath);
 	if (pendingCursorSamples.length > 0) {
 		await fs.writeFile(

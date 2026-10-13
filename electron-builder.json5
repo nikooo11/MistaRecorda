@@ -1,7 +1,7 @@
 // @see - https://www.electron.build/configuration/configuration
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "dev.recordly.app",
+  "appId": "com.nikooo11.mistarecorda",
   "electronUpdaterCompatibility": ">=2.16",
   "asar": true,
   "asarUnpack": [
@@ -10,7 +10,7 @@
     "node_modules/uiohook-napi/**",
     "electron/native/**"
   ],
-  "productName": "Recordly",
+  "productName": "MistaRecorda",
   "npmRebuild": true,
   "buildDependenciesFromSource": true,
   "compression": "normal",
@@ -21,7 +21,6 @@
     "dist",
     "dist-electron",
     "electron/native",
-    "!node_modules/ffprobe-static/bin/darwin/**",
     "!node_modules/ffprobe-static/bin/linux/**",
     "!node_modules/ffprobe-static/bin/win32/ia32/**",
     "!electron/native/**/build/**",
@@ -62,7 +61,7 @@
         "arch": ["x64", "arm64"]
       }
     ],
-    "icon": "icons/icons/mac/icon.icns",
+    "icon": "branding/mistarecorda.png",
     "artifactName": "${productName}-${arch}.${ext}",
     "extendInfo": {
       "NSAudioCaptureUsageDescription": "Recordly needs audio capture permission to record system audio.",
@@ -77,12 +76,12 @@
           "CFBundleTypeExtensions": ["recordly"],
           "CFBundleTypeIconFile": "icon.icns",
           "LSHandlerRank": "Owner",
-          "LSItemContentTypes": ["dev.recordly.app.project"]
+          "LSItemContentTypes": ["com.nikooo11.mistarecorda.project"]
         }
       ],
       "UTExportedTypeDeclarations": [
         {
-          "UTTypeIdentifier": "dev.recordly.app.project",
+          "UTTypeIdentifier": "com.nikooo11.mistarecorda.project",
           "UTTypeDescription": "Recordly Project",
           "UTTypeConformsTo": ["public.json"],
           "UTTypeTagSpecification": {
@@ -97,7 +96,7 @@
     "target": [
       "AppImage"
     ],
-    "icon": "icons/icons/png",
+    "icon": "branding/mistarecorda.png",
     "artifactName": "${productName}-linux-x64.${ext}",
     "category": "AudioVideo"
   },
@@ -105,7 +104,7 @@
     "target": [
       "nsis"
     ],
-    "icon": "icons/icons/win/icon.ico"
+    "icon": "branding/mistarecorda.png"
     ,
     "executableName": "Recordly",
     "artifactName": "${productName}-windows-${arch}.${ext}"

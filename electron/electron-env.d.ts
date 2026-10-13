@@ -203,6 +203,8 @@ interface RendererNativeExportCapabilities {
 
 interface Window {
 	electronAPI: {
+		voice: import("../src/types/voice").VoiceAPI;
+		recordingZoom: import("../src/types/recordingZoom").RecordingZoomAPI;
 		hudOverlaySetIgnoreMouse: (ignore: boolean) => void;
 		hudOverlaySetSourceSelectionActive: (active: boolean) => void;
 		hudOverlayDrag: (phase: "start" | "move" | "end", screenX: number, screenY: number) => void;

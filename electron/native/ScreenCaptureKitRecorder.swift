@@ -14,6 +14,8 @@ struct CaptureConfig: Codable {
 	let microphoneDeviceId: String?
 	let microphoneLabel: String?
 	let microphoneOutputPath: String?
+	let zoomOverlayOwnerPID: Int32?
+	let zoomOverlayTitle: String?
 }
 
 let targetCaptureFPS = 60
@@ -66,7 +68,12 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 
 		let config = try JSONDecoder().decode(CaptureConfig.self, from: data)
-		let availableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+		// Include the pre-created, hidden target outline so it can be excluded before any frame is captured.
+		let availableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+		let zoomOverlays = availableContent.windows.filter {
+			config.zoomOverlayOwnerPID != nil && $0.owningApplication?.processID == config.zoomOverlayOwnerPID &&
+			config.zoomOverlayTitle != nil && $0.title == config.zoomOverlayTitle
+		}
 		let streamConfig = SCStreamConfiguration()
 		capturesSystemAudio = config.capturesSystemAudio ?? false
 		capturesMicrophone = config.capturesMicrophone ?? false
@@ -124,7 +131,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 				throw NSError(domain: "RecordlyCapture", code: 4, userInfo: [NSLocalizedDescriptionKey: "Display not found"])
 			}
 
-			filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
+			filter = SCContentFilter(display: display, excludingWindows: zoomOverlays)
 			let displayBounds = CGDisplayBounds(display.displayID)
 			let scaleFactor = ScreenCaptureRecorder.scaleFactor(for: display.displayID)
 			outputWidth = max(2, Int(displayBounds.width) * scaleFactor)
@@ -133,6 +140,11 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 			streamConfig.height = outputHeight
 		}
 
+		// Older helpers or a missing exclusion never authorize the app to show an outline.
+		if config.windowId != nil || !zoomOverlays.isEmpty {
+			print("ZOOM_OVERLAY_EXCLUDED")
+			fflush(stdout)
+		}
 		let destinationURL: URL
 		if let outputPath = config.outputPath, !outputPath.isEmpty {
 			destinationURL = URL(fileURLWithPath: outputPath)

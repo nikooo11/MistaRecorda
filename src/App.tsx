@@ -1,3 +1,6 @@
+import { VoiceNotifications } from "./components/voice/VoiceNotifications";
+import { VoicePanel } from "./components/voice/VoicePanel";
+import { RecordingZoomSettingsPanel } from "./components/recording-zoom/RecordingZoomSettings";
 import { useEffect, useState } from "react";
 import { CountdownOverlay } from "./components/countdown/CountdownOverlay";
 import { LaunchWindow } from "./components/launch/LaunchWindow";
@@ -14,7 +17,7 @@ export default function App() {
 	const [windowType, setWindowType] = useState("");
 	const { t } = useI18n();
 	const isMacOS = /mac/i.test(navigator.platform);
-	const appIconSrc = "/app-icons/recordly-128.png";
+	const appIconSrc = "/app-icons/mistarecorda-128.png";
 
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
@@ -57,10 +60,12 @@ export default function App() {
 	}, [windowType, t]);
 
 	switch (windowType) {
+		case "zoom-settings": return <RecordingZoomSettingsPanel />;
+		case "voice": return <><VoiceNotifications /><VoicePanel /><Toaster /></>;
 		case "hud-overlay":
 			return (
 				<>
-					<LaunchWindow />
+					<VoiceNotifications /><LaunchWindow />
 					<Toaster className="pointer-events-auto" />
 				</>
 			);
@@ -73,7 +78,7 @@ export default function App() {
 		case "editor":
 			return (
 				<ShortcutsProvider>
-					<VideoEditor />
+					<VoiceNotifications /><VideoEditor />
 					<ShortcutsConfigDialog />
 				</ShortcutsProvider>
 			);

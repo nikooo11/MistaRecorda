@@ -1,3 +1,5 @@
+import { QuickVoicePreset } from "../voice/QuickVoicePreset";
+import { RecordingZoomControl } from "../recording-zoom/RecordingZoomSettings";
 import {
 	ArrowClockwiseIcon,
 	CaretUpIcon,
@@ -207,6 +209,7 @@ function LaunchWindowContent() {
 	};
 
 	const recordingControls = (
+		<><RecordingZoomControl />
 		<RecordingControls
 			paused={paused}
 			microphoneEnabled={microphoneEnabled}
@@ -218,10 +221,19 @@ function LaunchWindowContent() {
 			onCancelRecording={cancelRecording}
 			formatTime={formatTime}
 		/>
+		</>
 	);
 
 	const idleControls = (
 		<>
+			<RecordingZoomControl />
+			<QuickVoicePreset />
+			<button
+				type="button"
+				onClick={() => void window.electronAPI.voice.request("open", undefined)}
+			>
+				{t("voiceChange")}
+			</button>
 			{platform !== "linux" && (
 				<>
 					<SourcePopover

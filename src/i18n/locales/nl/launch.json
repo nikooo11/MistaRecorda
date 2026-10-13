@@ -53,7 +53,8 @@
 			"upToDateTitle": "Recordly {{version}} is up-to-date.",
 			"availableTitle": "Recordly {{version}} is beschikbaar.",
 			"availableGenericTitle": "Er is een update beschikbaar."
-		}
+		},
+		"isolatedAudioFailed": "Could not save isolated audio; the original recording will still be saved."
 	},
 	"sourceSelector": {
 		"loadingSources": "Bronnen laden...",
@@ -76,5 +77,6 @@
 		"microphoneDenied": "Microfoontoegang is geweigerd. De opname gaat verder zonder microfoonaudio.",
 		"failedToStart": "Opname starten mislukt: {{error}}",
 		"failedToStartGeneric": "Opname starten mislukt"
-	}
+	},
+	"voiceChange": "Voice Change"
 }

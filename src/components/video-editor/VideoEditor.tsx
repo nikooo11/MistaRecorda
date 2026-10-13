@@ -1,3 +1,4 @@
+import { VoiceRecordingControls } from "../voice/VoiceRecordingControls";
 import {
 	BookmarkSimple,
 	Check,
@@ -541,6 +542,8 @@ export default function VideoEditor() {
 	);
 	const [resolvedWebcamVideoUrl, setResolvedWebcamVideoUrl] = useState<string | null>(null);
 	const [zoomRegions, setZoomRegions] = useState<ZoomRegion[]>([]);
+	const [recordedZoomsReadyPath, setRecordedZoomsReadyPath] = useState<string | null>(null);
+	const recordedZoomsImportedPath = useRef<string | null>(null);
 	const [cursorTelemetry, setCursorTelemetry] = useState<CursorTelemetryPoint[]>([]);
 	// Tracks the videoSourcePath for which the cursor telemetry IPC has already
 	// resolved. The smoke-export auto-trigger waits on this so long recordings
@@ -2294,6 +2297,8 @@ export default function VideoEditor() {
 	);
 
 	const resetSourceScopedEditorState = useCallback(() => {
+		recordedZoomsImportedPath.current = null;
+		setRecordedZoomsReadyPath(null);
 		setZoomRegions([]);
 		setTrimRegions([]);
 		setClipRegions([]);
@@ -3381,6 +3386,28 @@ export default function VideoEditor() {
 	}, [handleOpenProjectBrowser, handleSaveProject, handleSaveProjectAs]);
 
 	useEffect(() => {
+		if (!videoSourcePath || loading) return;
+		if (currentProjectPath || recordedZoomsImportedPath.current === videoSourcePath) {
+			setRecordedZoomsReadyPath(videoSourcePath);
+			return;
+		}
+		let disposed = false;
+		void window.electronAPI.recordingZoom.getRegions(videoSourcePath).then((result) => {
+			if (disposed) return;
+			recordedZoomsImportedPath.current = videoSourcePath;
+			if (result.success && result.regions.length) {
+				// Recorded holds are ordinary manual regions. Project saves (including deletions)
+				// take precedence over this one-time import from the original recording.
+				pendingFreshRecordingAutoZoomPathRef.current = null;
+				setZoomRegions((existing) => existing.length ? existing : result.regions);
+			}
+		}).catch(() => { /* Keep existing editor regions if sidecar loading is unavailable. */ }).finally(() => {
+			if (!disposed) setRecordedZoomsReadyPath(videoSourcePath);
+		});
+		return () => { disposed = true; };
+	}, [videoSourcePath, currentProjectPath, loading]);
+
+	useEffect(() => {
 		let mounted = true;
 		let retryAttempts = 0;
 
@@ -3894,6 +3921,7 @@ export default function VideoEditor() {
 		if (
 			!videoPath ||
 			loading ||
+			recordedZoomsReadyPath !== videoSourcePath ||
 			!isPreviewReady ||
 			duration <= 0 ||
 			zoomRegions.length > 0 ||
@@ -3947,6 +3975,8 @@ export default function VideoEditor() {
 		cursorTelemetry.length,
 		normalizedCursorTelemetry,
 		zoomRegions,
+		recordedZoomsReadyPath,
+		videoSourcePath,
 	]);
 
 	useEffect(() => {
@@ -5778,7 +5808,8 @@ export default function VideoEditor() {
 				{projectSaveDialog}
 				{unsavedChangesDialog}
 				{nativeCaptureUnavailableDialog}
-				<Toaster className="pointer-events-auto" />
+				<div className="fixed top-0 left-1/2 -translate-x-1/2 z-50"><VoiceRecordingControls videoPath={currentSourcePath} /></div>
+			<Toaster className="pointer-events-auto" />
 			</div>
 		);
 	}
@@ -5800,7 +5831,8 @@ export default function VideoEditor() {
 				{projectSaveDialog}
 				{unsavedChangesDialog}
 				{nativeCaptureUnavailableDialog}
-				<Toaster className="pointer-events-auto" />
+				<div className="fixed top-0 left-1/2 -translate-x-1/2 z-50"><VoiceRecordingControls videoPath={currentSourcePath} /></div>
+			<Toaster className="pointer-events-auto" />
 			</div>
 		);
 	}
@@ -6953,6 +6985,7 @@ export default function VideoEditor() {
 			{unsavedChangesDialog}
 			{nativeCaptureUnavailableDialog}
 
+			<div className="fixed top-0 left-1/2 -translate-x-1/2 z-50"><VoiceRecordingControls videoPath={currentSourcePath} /></div>
 			<Toaster className="pointer-events-auto" />
 		</div>
 	);
