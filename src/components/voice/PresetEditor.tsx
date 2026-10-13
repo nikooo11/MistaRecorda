@@ -20,7 +20,7 @@ export function PresetEditor({
 	const [recipient, setRecipient] = useState("");
 	const [kind, setKind] = useState<"email" | "group">("email");
 	const [role, setRole] = useState<"viewer" | "editor" | "admin">("viewer");
-	const run = async (action: () => Promise<void>) => {
+	const run = async (action: () => Promise<unknown>) => {
 		setBusy(true);
 		setMessage("");
 		try {
@@ -33,19 +33,19 @@ export function PresetEditor({
 	};
 	const save = async (copy: boolean) => {
 		const now = new Date().toISOString();
-		setPreset(
-			unwrapVoice(
-				await window.electronAPI.voice.request("savePreset", {
-					...preset,
-					id: copy ? crypto.randomUUID() : preset.id,
-					name: copy ? `${preset.name} (${t("voice.copy")})` : preset.name,
-					createdAt: copy ? now : preset.createdAt,
-					updatedAt: now,
-				}),
-			),
+		const saved = unwrapVoice(
+			await window.electronAPI.voice.request("savePreset", {
+				...preset,
+				id: copy ? crypto.randomUUID() : preset.id,
+				name: copy ? `${preset.name} (${t("voice.copy")})` : preset.name,
+				createdAt: copy ? now : preset.createdAt,
+				updatedAt: now,
+			}),
 		);
+		setPreset(saved);
 		onSaved();
 		setMessage("saved");
+		return saved;
 	};
 	const settings = preset.settings;
 	return (
@@ -60,13 +60,15 @@ export function PresetEditor({
 				</button>
 			</div>
 			<label className="block">
-				{t("voice.name")}
+				{t("voice.sharedPresetName")}
 				<input
 					className="voice-input"
+					maxLength={160}
 					value={preset.name}
 					onChange={(e) => setPreset({ ...preset, name: e.target.value })}
 				/>
 			</label>
+			<p className="text-sm">{t("voice.sharedNameHelp")}</p>
 			<label className="block">
 				{t("voice.createdBy")}
 				<input
@@ -305,9 +307,10 @@ export function PresetEditor({
 				disabled={busy || (includeSamples && !consent)}
 				onClick={() =>
 					void run(async () => {
+						const saved = await save(false);
 						unwrapVoice(
 							await window.electronAPI.voice.request("exportPreset", {
-								preset,
+								preset: saved,
 								includeSamples,
 								consent,
 							}),
@@ -315,7 +318,7 @@ export function PresetEditor({
 					})
 				}
 			>
-				{t("voice.export")}
+				{t("voice.saveAndExport")}
 			</button>
 			<fieldset className="border-t pt-3 space-y-2">
 				<legend>{t("voice.shareTeam")}</legend>

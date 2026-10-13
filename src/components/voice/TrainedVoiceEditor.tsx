@@ -1,7 +1,17 @@
 import { useState } from "react";
 import { useScopedT } from "@/contexts/I18nContext";
 import { defaultVoiceSettings, unwrapVoice, type VoiceInfo } from "@/types/voice";
-export function TrainedVoiceEditor({ voice, onClose }: { voice: VoiceInfo; onClose: () => void }) {
+export function TrainedVoiceEditor({
+	voice,
+	onSaved,
+	onMakePreset,
+	onClose,
+}: {
+	voice: VoiceInfo;
+	onSaved: (voice: VoiceInfo) => void;
+	onMakePreset: (voice: VoiceInfo) => void;
+	onClose: () => void;
+}) {
 	const t = useScopedT("settings");
 	const [name, setName] = useState(voice.name);
 	const [description, setDescription] = useState(voice.description ?? "");
@@ -10,6 +20,53 @@ export function TrainedVoiceEditor({ voice, onClose }: { voice: VoiceInfo; onClo
 	const [addSamples, setAddSamples] = useState(false);
 	const [consent, setConsent] = useState(false);
 	const [message, setMessage] = useState("");
+	const [busy, setBusy] = useState(false);
+	const save = async (makePreset: boolean) => {
+		if (busy) return;
+		setBusy(true);
+		setMessage("");
+		try {
+			const parsedLabels = JSON.parse(labels);
+			const savedName = name.trim();
+			unwrapVoice(
+				await window.electronAPI.voice.request("editVoice", {
+					voiceId: voice.voiceId,
+					name: savedName,
+					description,
+					labels: parsedLabels,
+					settings,
+					addSamples,
+					consent,
+				}),
+			);
+			const updated = {
+				...voice,
+				name: savedName,
+				description,
+				labels: parsedLabels,
+				defaultSettings: {
+					stability: settings.stability,
+					similarityBoost: settings.similarityBoost,
+					style: settings.style,
+					useSpeakerBoost: settings.useSpeakerBoost,
+				},
+			};
+			setName(savedName);
+			onSaved(updated);
+			setMessage("saved");
+			if (makePreset) onMakePreset(updated);
+		} catch (e) {
+			setMessage(
+				e instanceof SyntaxError
+					? "invalidSettings"
+					: e instanceof Error
+						? e.message
+						: "operationFailed",
+			);
+		} finally {
+			setBusy(false);
+		}
+	};
 	if (!voice.canEdit) return <p>{t("voice.voiceNotOwned")}</p>;
 	return (
 		<section className="border rounded p-4 space-y-3">
@@ -18,6 +75,7 @@ export function TrainedVoiceEditor({ voice, onClose }: { voice: VoiceInfo; onClo
 				{t("voice.name")}
 				<input
 					className="voice-input"
+					maxLength={160}
 					value={name}
 					onChange={(e) => setName(e.target.value)}
 				/>
@@ -79,42 +137,25 @@ export function TrainedVoiceEditor({ voice, onClose }: { voice: VoiceInfo; onClo
 					{t("voice.sampleConsent")}
 				</label>
 			)}
+			<p className="text-sm">{t("voice.customVoiceNameHelp")}</p>
 			<button
 				type="button"
-				disabled={addSamples && !consent}
-				onClick={() => {
-					void (async () => {
-						try {
-							unwrapVoice(
-								await window.electronAPI.voice.request("editVoice", {
-									voiceId: voice.voiceId,
-									name,
-									description,
-									labels: JSON.parse(labels),
-									settings,
-									addSamples,
-									consent,
-								}),
-							);
-							setMessage("saved");
-						} catch (e) {
-							setMessage(
-								e instanceof SyntaxError
-									? "invalidSettings"
-									: e instanceof Error
-										? e.message
-										: "operationFailed",
-							);
-						}
-					})();
-				}}
+				disabled={busy || !name.trim() || (addSamples && !consent)}
+				onClick={() => void save(false)}
 			>
 				{t("voice.save")}
 			</button>
-			<button type="button" onClick={onClose}>
+			<button
+				type="button"
+				disabled={busy || !name.trim() || (addSamples && !consent)}
+				onClick={() => void save(true)}
+			>
+				{t("voice.saveAndMakePreset")}
+			</button>
+			<button type="button" disabled={busy} onClick={onClose}>
 				{t("voice.close")}
 			</button>
-			<p role="status">{message ? t(`voice.${message}`) : ""}</p>
+			<p role="status">{busy ? t("voice.working") : message ? t(`voice.${message}`) : ""}</p>
 		</section>
 	);
 }

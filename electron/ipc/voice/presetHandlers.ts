@@ -285,12 +285,21 @@ export function registerPresetHandlers() {
 			throw new Error("invalidSettings");
 		if (input.addSamples && !input.consent) throw new Error("sampleConsentRequired");
 		const api = await voiceClient();
-		if (!(await api.getVoice(input.voiceId)).canEdit) throw new Error("voiceNotOwned");
-		return api.editVoice(
+		const previous = await api.getVoice(input.voiceId);
+		if (!previous.canEdit) throw new Error("voiceNotOwned");
+		const name = input.name.trim();
+		await api.editVoice(
 			input.voiceId,
-			{ ...input, settings: validateSettings(input.settings) },
+			{ ...input, name, settings: validateSettings(input.settings) },
 			input.addSamples ? await samples() : [],
 		);
+		const current = await voiceStore().read();
+		// Preserve a separately chosen preset label; refresh an actual voice name.
+		if (current.voiceId === input.voiceId && current.voiceName === previous.name) {
+			await voiceStore().save({ ...current, voiceName: name });
+			notifyVoiceSettings();
+		}
+		return true;
 	});
 	voiceHandle("shareVoice", async (input) => {
 		if (
