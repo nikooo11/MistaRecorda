@@ -55,6 +55,8 @@ Linux cloud playtesting used a real Electron recording of a sample task board an
 
 Automated verification: 1,052 tests in 114 files, TypeScript, locale consistency and Biome lint passed (21 existing lint warnings). Production renderer/Electron bundles and the Electron main-process smoke check passed. The API readiness check used a read-only ElevenLabs request; no real voice conversion or audio upload was needed.
 
+The additional full-video export smoke check did not pass in this headless host: the modern exporter selected WebGPU and failed to create its rendering resources; the compatibility smoke run did not complete. Editor playback and editing were verified, but successful full-video export is not claimed by this playtest.
+
 Mac and Windows native capture, overlay exclusion, permissions, HiDPI/multiple-monitor behavior and installers require real platform validation. They were not playtested on this Linux host. Before distributing a release on either platform:
 
 1. Build with `npm run build:mac` or `npm run build:win` and grant capture/input permissions.
