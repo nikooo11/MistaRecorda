@@ -2,7 +2,19 @@
 
 Personal and internal-team fork, based on [Recordly](https://github.com/webadderallorg/Recordly). Adds private microphone voice conversion and portable voice presets. Licensed under AGPLv3; original Recordly attribution and license are retained.
 
-For installers and editable source, start with [Run or edit MistaRecorda](docs/run-and-edit.md).
+## Download MistaRecorda
+
+| Your computer | Download | Installer inside |
+| --- | --- | --- |
+| Windows 10/11 — Intel or AMD 64-bit | [Download for Windows](https://github.com/nikooo11/MistaRecorda/actions/runs/38436757516/artifacts/11833237899) | `MistaRecorda-windows-x64.exe` |
+| Mac — Apple Silicon (M1 or later) | [Download for Apple Silicon](https://github.com/nikooo11/MistaRecorda/actions/runs/38436757516/artifacts/11833532311) | `MistaRecorda-arm64.dmg` |
+| Mac — Intel | [Download for Intel Mac](https://github.com/nikooo11/MistaRecorda/actions/runs/38436757516/artifacts/11832889392) | `MistaRecorda-x64.dmg` |
+
+Sign in to GitHub to download, then unzip the downloaded archive and open the installer. Mac requires macOS 14 or newer; Windows requires build 19041 or newer. These are development builds: Windows is unsigned and Mac is ad-hoc signed, without notarization.
+
+These downloads expire on **November 12, 2026**. For newer builds or expired links, open [Build Electron App](https://github.com/nikooo11/MistaRecorda/actions/workflows/build.yml) and download the artifacts from a successful run. Repository maintainers can use **Run workflow** to build fresh installers.
+
+For installation steps and editable source, start with [Run or edit MistaRecorda](docs/run-and-edit.md).
 
 See the [Voice Change guide](docs/voice-change.md) and the illustrated [Hold-to-zoom guide](docs/hold-to-zoom.md).
 
