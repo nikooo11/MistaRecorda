@@ -152,7 +152,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 
 		// Older helpers or a missing exclusion never authorize the app to show an outline.
-		if config.windowId != nil || !zoomOverlays.isEmpty {
+		if config.windowId != nil || config.cleanSurfaceTitle != nil || zoomOverlays.contains(where: { config.zoomOverlayTitle != nil && $0.title == config.zoomOverlayTitle }) {
 			print("ZOOM_OVERLAY_EXCLUDED")
 			fflush(stdout)
 		}
