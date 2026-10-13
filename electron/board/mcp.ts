@@ -71,7 +71,16 @@ export class DrawingMcpServer {
 				mcp.registerTool(name, { description, inputSchema: schema }, async (args) => {
 					try {
 						const data = await this.action(method, args);
-						return { content: [{ type: "text" as const, text: JSON.stringify(data) }] };
+						return {
+							content: [
+								{
+									type: "text" as const,
+									text: JSON.stringify(data, (key, value) =>
+										key === "dataURL" ? undefined : value,
+									),
+								},
+							],
+						};
 					} catch (e) {
 						return {
 							isError: true,

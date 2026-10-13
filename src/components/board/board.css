@@ -100,7 +100,8 @@ html[data-window-type^="board-"] #root {
 	position: absolute;
 	inset: 0;
 }
-.board-video video {
+.board-video video,
+.board-video img {
 	width: 100%;
 	height: 100%;
 	object-fit: contain;

@@ -243,6 +243,13 @@ export class CompanionServer {
 	}
 	send(id: string, type: string, data: unknown) {
 		const d = this.devices.get(id);
+		// Drop stale preview frames instead of building a queue on slow Wi-Fi.
+		if (
+			type === "signal" &&
+			(data as { type?: string })?.type === "frame" &&
+			(d?.socket?.bufferedAmount ?? 0) > 1024 * 1024
+		)
+			return;
 		if (d?.approved && d.socket?.readyState === WebSocket.OPEN)
 			d.socket.send(JSON.stringify({ type, data }));
 	}

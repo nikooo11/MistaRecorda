@@ -8,6 +8,8 @@ export function TabletApp() {
 	const [state, setState] = useState<BoardState>();
 	const [streamError, setStreamError] = useState("");
 	const [streamed, setStreamed] = useState(false);
+	const [fallbackFrame, setFallbackFrame] = useState("");
+	const fallbackTimer = useRef<ReturnType<typeof setTimeout>>();
 	const video = useRef<HTMLVideoElement>(null);
 	const peer = useRef<RTCPeerConnection>();
 	const candidates = useRef<RTCIceCandidateInit[]>([]);
@@ -20,15 +22,26 @@ export function TabletApp() {
 			sdp: string;
 			candidate: RTCIceCandidateInit;
 			message: string;
+			dataURL: string;
 		}>("signal", async (signal) => {
 			try {
-				if (signal.type === "offer") {
+				if (signal.type === "frame") {
+					setFallbackFrame(signal.dataURL);
+					setStreamed(true);
+					setStreamError("");
+				} else if (signal.type === "offer") {
+					setFallbackFrame("");
+					clearTimeout(fallbackTimer.current);
+					fallbackTimer.current = setTimeout(() => {
+						if (peer.current?.connectionState !== "connected")
+							void transport
+								.request("signal", { type: "fallback" })
+								.catch((e) => setStreamError(String(e)));
+					}, 5000);
 					peer.current?.close();
 					const p = new RTCPeerConnection({ iceServers: [] });
 					peer.current = p;
 					p.ontrack = (e) => {
-						setStreamed(true);
-
 						if (video.current) {
 							video.current.srcObject = e.streams[0];
 							void video.current
@@ -69,12 +82,15 @@ export function TabletApp() {
 		});
 		const disconnect = transport.on("disconnected", () => {
 			peer.current?.close();
+			clearTimeout(fallbackTimer.current);
+			setFallbackFrame("");
 			setStreamed(false);
 		});
 		return () => {
 			info();
 			off();
 			disconnect();
+			clearTimeout(fallbackTimer.current);
 			peer.current?.close();
 		};
 	}, [transport]);
@@ -106,7 +122,21 @@ export function TabletApp() {
 						initial={state}
 						tablet
 						streamed={streamed}
-						background={<video ref={video} autoPlay muted playsInline />}
+						background={
+							<>
+								<video
+									ref={video}
+									autoPlay
+									muted
+									playsInline
+									onPlaying={() => setStreamed(true)}
+									style={{ display: fallbackFrame ? "none" : "block" }}
+								/>
+								{fallbackFrame && (
+									<img src={fallbackFrame} alt="Live computer screen" />
+								)}
+							</>
+						}
 					/>
 				) : (
 					<p>

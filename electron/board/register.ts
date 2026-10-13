@@ -265,6 +265,9 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			editor?.show();
 			publish(actor);
 			return true;
+		case "compact":
+			panel?.setSize(400, input ? 245 : 700);
+			return true;
 		case "hideEditor":
 			editor?.hide();
 			return true;
@@ -528,8 +531,7 @@ export function assertBoardCaptureSource(source: { sourceType?: string; display_
 		);
 	if (
 		store?.state.enabled &&
-		(source.sourceType === "window" ||
-			(source.display_id && source.display_id !== String(displayId)))
+		(source.sourceType === "window" || source.display_id !== String(displayId))
 	)
 		throw Error(
 			"For drawing-board recording, select the same full display in the recorder and Drawing board panel.",
