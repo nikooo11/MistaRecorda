@@ -12,6 +12,10 @@ MistaRecorda embeds the [Excalidraw](https://github.com/excalidraw/excalidraw) e
 
 Use **Clear scene** only when you want to remove that scene's drawings and image tray. Named saved scenes remain available. **Save scene** stores the current scene under the entered name; saving the same name replaces it. **Browse scenes** loads a prepared scene in place of the active scene after confirmation.
 
+![Clean drawing surface created through MCP](screenshots/board-clean.png)
+
+The clean surface contains the drawing without editor toolbars. This screenshot is from the Linux desktop playtest, not a native Mac/Windows recording.
+
 ## Connect an iPad
 
 1. Put both devices on the same trusted Wi-Fi network. In **Board → Connect iPad**, click **Show pairing QR**. Choose your Wi-Fi address if several interfaces appear.
@@ -21,6 +25,10 @@ Use **Clear scene** only when you want to remove that scene's drawings and image
 5. **Reconnect** resumes an approved session in the same browser tab. Tap **Start screen** again after a connection failure or display change. **Disconnect** revokes a device; **Stop sharing** closes all companion connections.
 
 The initial page and drawing synchronization use local HTTP/WebSocket, so use a trusted private network. WebRTC carries the screen stream when available. If the network blocks a direct WebRTC connection, an automatic lower-frame-rate JPEG preview uses the approved local WebSocket connection; that fallback is also unencrypted on local HTTP. Guest Wi-Fi isolation, VPNs, firewalls or denied local-network access can prevent connection. Allow MistaRecorda on your private network. Pairing approval is required even with the QR link; do not share the link publicly. There is no remote Internet relay or USB companion app in this version.
+
+![Browser companion at a tablet-sized viewport](screenshots/board-companion.png)
+
+The browser companion at 1024×768. Physical iPad/Pencil testing remains separate from this browser playtest.
 
 ## Keep assets ready
 
@@ -36,6 +44,8 @@ Native macOS capture filters out MistaRecorda's presenter/editor windows; Window
 
 Make a short sample recording on your computer before a tutorial to confirm permissions, display selection, webcam and capture exclusion. Native capture and Apple Pencil behavior require real target-device testing; a Linux cloud desktop cannot validate them.
 
+![Compact presenter controls](screenshots/board-presenter.png)
+
 ## Let Codex prepare diagrams
 
 1. Open **Board → Codex / MCP → Enable MCP drawing tools**. Copy the configuration shown there into your Codex MCP configuration. It uses a localhost HTTP URL and `bearer_token_env_var = "MISTARECORDA_MCP_TOKEN"`.
@@ -46,3 +56,5 @@ Make a short sample recording on your computer before a tutorial to confirm perm
 Codex running on the same computer can reach this server directly. A hosted/cloud Codex session requires a separately configured authenticated bridge to your computer; enabling MCP does not create one. Do not expose the unauthenticated companion page or your MCP token publicly.
 
 To prepare a board from a YouTube tutorial, give Codex an accessible transcript and relevant frames, or authorized tools that can obtain them. The drawing server itself does not watch or download YouTube. Codex can turn that source material into diagrams **before** you record, and save multiple scenes for your tutorial.
+
+For the exact checks performed and remaining device checks, see [Drawing board validation](drawing-board-validation.md).
