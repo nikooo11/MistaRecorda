@@ -1,6 +1,6 @@
 # Drawing board validation
 
-Validation performed in a Linux cloud desktop with Electron and a separate Chromium browser. Native installer builds additionally compile the macOS Swift and Windows helpers; that does not replace a recording test on those operating systems.
+Validation performed in a Linux cloud desktop with Electron and a separate Chromium browser connected over loopback. The cloud network policy blocked access to the LAN address, so that address was not playtested. Native installer builds additionally compile the macOS Swift and Windows helpers; that does not replace a recording test on those operating systems.
 
 ## Passed
 
@@ -16,6 +16,10 @@ Validation performed in a Linux cloud desktop with Electron and a separate Chrom
 - Captured screenshots are included in the how-to guide.
 
 A production-only WebSocket optional-dependency failure and an initial tablet zoom mismatch were found through these browser tests and fixed before the final build. The WebSocket dependency stays external to the Electron bundle so its optional native acceleration resolves correctly at runtime.
+
+## Native installer results
+
+[Build run 38485968983](https://github.com/nikooo11/MistaRecorda/actions/runs/38485968983) succeeded for Windows x64, macOS arm64 and macOS x64 from code commit `ae84382f76dc4ee22a3425bc309a9c8b392b9996`. All three jobs completed native helper compilation, application packaging, packaged-binary smoke checks, checksums, artifact attestations and uploads. Later changes update documentation and download links only.
 
 ## Not established by this environment
 
