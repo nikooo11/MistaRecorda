@@ -8,7 +8,7 @@
 - The signed app was installed and its new Mac presenter controls, secure OpenAI-key field and soundboard empty state were verified through the native interface. No OpenAI key was configured, so paid transcription, hosted research, generation and actual result imports have not been tested live; service tests use mocks.
 - A browser companion was paired to the installed Mac app. The native clean-preview helper streamed the desktop; drawing appeared and Clear removed it without pressing Start screen again. Capture Mac screen opened a still on the whiteboard, retained it in Standby images after Clear, and placed it again successfully.
 - A silent 96-second native screen recording completed and opened in the editor. Inspection of the recorded frames confirmed the red laser trail (41.4 seconds), the persistent marker stroke, and its removal after Clear. The whiteboard remained visible without the companion/editor toolbars. This check inspected the captured MP4; it did not repeat the earlier export tests or measure physical Pencil latency.
-- Automated Escape keystrokes did not reliably reach the native app. Physical-key acceptance is still required for Escape closing the board and clearing screen annotations.
+- The user confirmed both physical Escape actions work on the installed Mac build: Escape puts the open whiteboard away, and Escape clears drawings when annotating the Mac screen. Automated keystrokes had not reliably reached the app.
 - Physical iPad Safari/Apple Pencil latency and Wi-Fi performance require device acceptance. The 30 fps preview setting is a requested maximum, not a measured end-to-end latency guarantee.
 
 ## macOS / iPad interaction update — 2026-10-14
