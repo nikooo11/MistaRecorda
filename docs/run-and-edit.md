@@ -12,11 +12,11 @@ To build a fresh set, use the **Build Electron App** GitHub Actions workflow:
 2. Click **Run workflow**, choose `main`, and leave **Installers to build** set to `desktop` for Windows and both Mac architectures. You can also choose just `windows` or `macos`.
 3. Wait for the requested jobs to succeed. Open that run and download the relevant **Artifact** at the bottom. GitHub requires a signed-in account to download Actions artifacts. Unzip the artifact first.
 
-| Computer | Artifact | Installer inside |
+| Computer | Downloaded archive | Installer inside |
 | --- | --- | --- |
-| Windows 10 build 19041+ / Windows 11, Intel or AMD 64-bit | `windows-x64-release` | `MistaRecorda-windows-x64.exe` |
-| Apple Silicon Mac (M1/M2/M3/M4 and later), macOS 14+ | `macos-arm64-release` | `MistaRecorda-arm64.dmg` |
-| Intel Mac, macOS 14+ | `macos-x64-release` | `MistaRecorda-x64.dmg` |
+| Windows 10 build 19041+ / Windows 11, Intel or AMD 64-bit | `MistaRecorda-windows-x64.zip` | `MistaRecorda-windows-x64.exe` |
+| Apple Silicon Mac (M1/M2/M3/M4 and later), macOS 14+ | `MistaRecorda-arm64.zip` | `MistaRecorda-arm64.dmg` |
+| Intel Mac, macOS 14+ | `MistaRecorda-x64.zip` | `MistaRecorda-x64.dmg` |
 
 On Windows, run the `.exe` installer and launch **MistaRecorda** from Start. On Mac, open the `.dmg`, drag **MistaRecorda** into Applications, then launch it from Applications. Windows ARM is not a native build target here.
 
