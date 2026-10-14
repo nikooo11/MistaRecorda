@@ -1,3 +1,7 @@
+import { lazy, Suspense } from "react";
+const BoardWindow = lazy(() =>
+	import("./components/board/BoardWindows").then((m) => ({ default: m.BoardWindow })),
+);
 import { VoiceNotifications } from "./components/voice/VoiceNotifications";
 import { VoicePanel } from "./components/voice/VoicePanel";
 import { RecordingZoomSettingsPanel } from "./components/recording-zoom/RecordingZoomSettings";
@@ -26,6 +30,7 @@ export default function App() {
 		document.documentElement.dataset.windowType = type;
 
 		if (
+			type.startsWith("board-") ||
 			type === "hud-overlay" ||
 			type === "source-selector" ||
 			type === "countdown" ||
@@ -60,12 +65,31 @@ export default function App() {
 	}, [windowType, t]);
 
 	switch (windowType) {
-		case "zoom-settings": return <RecordingZoomSettingsPanel />;
-		case "voice": return <><VoiceNotifications /><VoicePanel /><Toaster /></>;
+		case "board-panel":
+		case "board-editor":
+		case "board-surface":
+		case "board-hint":
+		case "board-stream":
+			return (
+				<Suspense fallback={null}>
+					<BoardWindow kind={windowType} />
+				</Suspense>
+			);
+		case "zoom-settings":
+			return <RecordingZoomSettingsPanel />;
+		case "voice":
+			return (
+				<>
+					<VoiceNotifications />
+					<VoicePanel />
+					<Toaster />
+				</>
+			);
 		case "hud-overlay":
 			return (
 				<>
-					<VoiceNotifications /><LaunchWindow />
+					<VoiceNotifications />
+					<LaunchWindow />
 					<Toaster className="pointer-events-auto" />
 				</>
 			);
@@ -78,7 +102,8 @@ export default function App() {
 		case "editor":
 			return (
 				<ShortcutsProvider>
-					<VoiceNotifications /><VideoEditor />
+					<VoiceNotifications />
+					<VideoEditor />
 					<ShortcutsConfigDialog />
 				</ShortcutsProvider>
 			);

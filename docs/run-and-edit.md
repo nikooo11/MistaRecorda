@@ -4,7 +4,9 @@ You can use an installer for everyday recording and keep a separate source check
 
 ## Install and run
 
-The **Build Electron App** GitHub Actions workflow builds Windows and Mac installers without requiring developer tools on the computer that will run them.
+Use the [ready-to-download installers on the repository home page](../README.md#download-mistarecorda) for everyday use. You do not need developer tools to run them.
+
+To build a fresh set, use the **Build Electron App** GitHub Actions workflow:
 
 1. Open [Actions → Build Electron App](https://github.com/nikooo11/MistaRecorda/actions/workflows/build.yml).
 2. Click **Run workflow**, choose `main`, and leave **Installers to build** set to `desktop` for Windows and both Mac architectures. You can also choose just `windows` or `macos`.
@@ -48,6 +50,9 @@ Open the folder in VS Code or another editor. Useful starting points:
 - `src/components/`: interface, recorder and video editor.
 - `electron/ipc/zoom/`: held/tapped zoom behavior and target window.
 - `electron/ipc/voice/`: microphone-only voice processing and presets.
+- `src/components/board/`: desktop/tablet drawing interface.
+- `electron/board/`: persistent scenes, companion pairing and MCP tools.
+- `docs/skills/mistarecorda-board/`: instructions that teach Codex to prepare diagrams.
 - `electron/native/`: native Mac/Windows capture helpers.
 - `electron-builder.json5`: installer names and packaging.
 
@@ -70,4 +75,4 @@ npm run build:mac -- --x64 --config.mac.identity=- --publish never
 
 The files appear in `release/`. Use **Build Electron App** if you do not have both operating systems available. The workflow runs each platform's native build and checks packaged executables, FFmpeg and native helper files; it does not replace a real recording/playback/export test on your computer.
 
-See the [recording zoom guide](hold-to-zoom.md) and [Voice Change guide](voice-change.md) for usage and the remaining native-platform acceptance checks.
+See the illustrated [drawing board, iPad and Codex guide](drawing-board.md), [recording zoom guide](hold-to-zoom.md) and [Voice Change guide](voice-change.md) for usage and the remaining native-platform acceptance checks.

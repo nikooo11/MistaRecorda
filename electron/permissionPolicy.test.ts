@@ -169,17 +169,18 @@ describe("shouldGrantDisplayCapture", () => {
 		).toBe(true);
 	});
 
-	it.each(["null", "file://", "file:///"])(
-		"accepts Chromium's packaged file origin form: %s",
-		(securityOrigin) => {
-			expect(
-				shouldGrantDisplayCapture(
-					makeRequest({ currentDocumentUrl: FILE_HUD_URL, securityOrigin }),
-					TRUSTED_DOCUMENT_BASE_URLS,
-				),
-			).toBe(true);
-		},
-	);
+	it.each([
+		"null",
+		"file://",
+		"file:///",
+	])("accepts Chromium's packaged file origin form: %s", (securityOrigin) => {
+		expect(
+			shouldGrantDisplayCapture(
+				makeRequest({ currentDocumentUrl: FILE_HUD_URL, securityOrigin }),
+				TRUSTED_DOCUMENT_BASE_URLS,
+			),
+		).toBe(true);
+	});
 
 	it.each([
 		["another BrowserWindow", { isTrustedCaptureWindow: false }],
@@ -193,5 +194,46 @@ describe("shouldGrantDisplayCapture", () => {
 		expect(shouldGrantDisplayCapture(makeRequest(overrides), TRUSTED_DOCUMENT_BASE_URLS)).toBe(
 			false,
 		);
+	});
+});
+
+describe("board media permission boundaries", () => {
+	it.each(["board-surface", "board-stream"])("permits only a known %s main frame", (kind) => {
+		const url = `http://localhost:5173/?windowType=${kind}`;
+		const request = {
+			permission: "media",
+			isTrustedCaptureWindow: true,
+			isMainFrame: true,
+			currentDocumentUrl: url,
+			requestingUrl: url,
+			securityOrigins: ["http://localhost:5173"],
+		};
+		expect(shouldGrantMediaPermission(request, TRUSTED_DOCUMENT_BASE_URLS)).toBe(true);
+		expect(
+			shouldGrantMediaPermission(
+				{ ...request, isTrustedCaptureWindow: false },
+				TRUSTED_DOCUMENT_BASE_URLS,
+			),
+		).toBe(false);
+		expect(
+			shouldGrantMediaPermission(
+				{ ...request, isMainFrame: false },
+				TRUSTED_DOCUMENT_BASE_URLS,
+			),
+		).toBe(false);
+	});
+	it("does not grant capture to the editor or a LAN companion page", () => {
+		expect(
+			isTrustedCaptureDocumentUrl(
+				"http://localhost:5173/?windowType=board-editor",
+				TRUSTED_DOCUMENT_BASE_URLS,
+			),
+		).toBe(false);
+		expect(
+			isTrustedCaptureDocumentUrl(
+				"http://192.168.1.2:3000/?windowType=board-stream",
+				TRUSTED_DOCUMENT_BASE_URLS,
+			),
+		).toBe(false);
 	});
 });

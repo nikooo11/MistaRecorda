@@ -16,6 +16,8 @@ struct CaptureConfig: Codable {
 	let microphoneOutputPath: String?
 	let zoomOverlayOwnerPID: Int32?
 	let zoomOverlayTitle: String?
+	let presenterWindowTitles: [String]?
+	let cleanSurfaceTitle: String?
 }
 
 let targetCaptureFPS = 60
@@ -72,7 +74,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		let availableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
 		let zoomOverlays = availableContent.windows.filter {
 			config.zoomOverlayOwnerPID != nil && $0.owningApplication?.processID == config.zoomOverlayOwnerPID &&
-			config.zoomOverlayTitle != nil && $0.title == config.zoomOverlayTitle
+			((config.zoomOverlayTitle != nil && $0.title == config.zoomOverlayTitle) || (config.presenterWindowTitles ?? []).contains($0.title ?? ""))
 		}
 		let streamConfig = SCStreamConfiguration()
 		capturesSystemAudio = config.capturesSystemAudio ?? false
@@ -131,7 +133,16 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 				throw NSError(domain: "RecordlyCapture", code: 4, userInfo: [NSLocalizedDescriptionKey: "Display not found"])
 			}
 
-			filter = SCContentFilter(display: display, excludingWindows: zoomOverlays)
+			if let cleanTitle = config.cleanSurfaceTitle, let ownerPID = config.zoomOverlayOwnerPID {
+                guard let owner = availableContent.applications.first(where: { $0.processID == ownerPID }),
+                      let cleanSurface = availableContent.windows.first(where: { $0.owningApplication?.processID == ownerPID && $0.title == cleanTitle }) else {
+                    throw NSError(domain: "RecordlyCapture", code: 7, userInfo: [NSLocalizedDescriptionKey: "The clean drawing surface is not ready. Reopen the Drawing board before recording."])
+                }
+                // Exclude all presenter windows, including any opened after capture starts.
+                filter = SCContentFilter(display: display, excludingApplications: [owner], exceptingWindows: [cleanSurface])
+            } else {
+                filter = SCContentFilter(display: display, excludingWindows: zoomOverlays)
+            }
 			let displayBounds = CGDisplayBounds(display.displayID)
 			let scaleFactor = ScreenCaptureRecorder.scaleFactor(for: display.displayID)
 			outputWidth = max(2, Int(displayBounds.width) * scaleFactor)
@@ -141,7 +152,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 
 		// Older helpers or a missing exclusion never authorize the app to show an outline.
-		if config.windowId != nil || !zoomOverlays.isEmpty {
+		if config.windowId != nil || config.cleanSurfaceTitle != nil || zoomOverlays.contains(where: { config.zoomOverlayTitle != nil && $0.title == config.zoomOverlayTitle }) {
 			print("ZOOM_OVERLAY_EXCLUDED")
 			fflush(stdout)
 		}

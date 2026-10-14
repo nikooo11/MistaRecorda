@@ -105,6 +105,8 @@ type NativeExportCapabilities = {
 	};
 };
 
+import type { BoardAPI } from "../src/types/board";
+
 const nativeVideoExportWriteRequests = new Map<
 	number,
 	{
@@ -166,6 +168,10 @@ function settleNativeVideoExportPendingRequests(
 }
 
 contextBridge.exposeInMainWorld("electronAPI", {
+	board: {
+		request: (method, input) => ipcRenderer.invoke("board:request", method, input),
+		on: <T>(event: string, callback: (data:T)=>void) => { const channel = `board:${event}`; const handler = (_event: unknown, data: unknown) => callback(data as T); ipcRenderer.on(channel, handler); return () => ipcRenderer.removeListener(channel, handler); },
+	} satisfies BoardAPI,
 	recordingZoom: {
 		getStatus: () => ipcRenderer.invoke("recording-zoom:status"),
 		saveSettings: (settings) => ipcRenderer.invoke("recording-zoom:save", settings),

@@ -1,3 +1,4 @@
+import { registerBoard, isBoardCaptureWebContents } from "./board/register";
 import { openVoiceWindow } from "./ipc/voice/register";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -166,7 +167,10 @@ function isHudWebContents(webContents: Electron.WebContents | null): boolean {
 	}
 
 	const hudWindow = getHudOverlayWindow();
-	return Boolean(hudWindow && hudWindow.webContents === webContents);
+	return (
+		Boolean(hudWindow && hudWindow.webContents === webContents) ||
+		isBoardCaptureWebContents(webContents)
+	);
 }
 
 // Window references
@@ -1058,6 +1062,7 @@ app.whenReady().then(async () => {
 	);
 
 	registerExtensionIpcHandlers();
+	await registerBoard();
 
 	if (IS_SMOKE_EXPORT || process.env.RECORDLY_DEV_OPEN_RECORDING_INPUT) {
 		await logSmokeExportGpuDiagnostics();
