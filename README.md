@@ -6,13 +6,13 @@ Personal and internal-team fork, based on [Recordly](https://github.com/webadder
 
 | Your computer | Download | Installer inside |
 | --- | --- | --- |
-| Windows 10/11 — Intel or AMD 64-bit | [Download for Windows](https://github.com/nikooo11/MistaRecorda/actions/runs/38485968983/artifacts/11859418330) | `MistaRecorda-windows-x64.exe` |
-| Mac — Apple Silicon (M1 or later) | [Download for Apple Silicon](https://github.com/nikooo11/MistaRecorda/actions/runs/38485968983/artifacts/11859657919) | `MistaRecorda-arm64.dmg` |
-| Mac — Intel | [Download for Intel Mac](https://github.com/nikooo11/MistaRecorda/actions/runs/38485968983/artifacts/11860213084) | `MistaRecorda-x64.dmg` |
+| Windows 10/11 — Intel or AMD 64-bit | [Download for Windows](https://github.com/nikooo11/MistaRecorda/actions/runs/38491387441/artifacts/11862202300) | `MistaRecorda-windows-x64.exe` |
+| Mac — Apple Silicon (M1 or later) | [Download for Apple Silicon](https://github.com/nikooo11/MistaRecorda/actions/runs/38491387441/artifacts/11861987506) | `MistaRecorda-arm64.dmg` |
+| Mac — Intel | [Download for Intel Mac](https://github.com/nikooo11/MistaRecorda/actions/runs/38491387441/artifacts/11862307787) | `MistaRecorda-x64.dmg` |
 
 Sign in to GitHub to download, then unzip the downloaded archive and open the installer. Mac requires macOS 14 or newer; Windows requires build 19041 or newer. These are development builds: Windows is unsigned and Mac is ad-hoc signed, without notarization.
 
-These downloads expire on **November 12, 2026**. For newer builds or expired links, open [Build Electron App](https://github.com/nikooo11/MistaRecorda/actions/workflows/build.yml) and download the artifacts from a successful run. Repository maintainers can use **Run workflow** to build fresh installers.
+These downloads expire on **November 13, 2026**. For newer builds or expired links, open [Build Electron App](https://github.com/nikooo11/MistaRecorda/actions/workflows/build.yml) and download the artifacts from a successful run. Repository maintainers can use **Run workflow** to build fresh installers.
 
 For installation steps and editable source, start with [Run or edit MistaRecorda](docs/run-and-edit.md).
 
