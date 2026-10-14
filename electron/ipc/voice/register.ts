@@ -1,3 +1,4 @@
+import { isVoiceExportReady, voiceProcessingKey } from "../../../src/lib/voiceExport";
 import { ffmpeg } from "./chunker";
 import { prepareRecordingAudio, recordingBase } from "../recording/library";
 import { pathToFileURL } from "node:url";
@@ -192,7 +193,33 @@ export function registerVoiceHandlers() {
 	voiceHandle("recording", async (input) => {
 		const p = typeof input === "string" ? await resolveApprovedLocalMediaPath(input) : null;
 		if (!p) throw new Error("noAccess");
-		return readAudioMetadata(p);
+		return (await readAudioMetadata(p)) ?? prepareRecordingAudio(p);
+	});
+	voiceHandle("exportReady", async (input) => {
+		const p = typeof input === "string" ? await resolveApprovedLocalMediaPath(input) : null;
+		if (!p) throw new Error("noAccess");
+		return (
+			!jobProgress().some((job) => job.videoPath === p && job.state === "running") &&
+			isVoiceExportReady(await readAudioMetadata(p), await voiceStore().read())
+		);
+	});
+	voiceHandle("setVoiceChange", async (input) => {
+		if (typeof input?.enabled !== "boolean") throw new Error("invalidSettings");
+		const p = await resolveApprovedLocalMediaPath(input.videoPath);
+		if (!p) throw new Error("noAccess");
+		const meta = (await readAudioMetadata(p)) ?? (await prepareRecordingAudio(p));
+		if (!meta?.micPath) throw new Error("missingMic");
+		const reuse =
+			input.enabled &&
+			meta.changedMicPath &&
+			meta.changedSettingsKey === voiceProcessingKey(await voiceStore().read());
+		await writeAudioMetadata({
+			...meta,
+			voiceChangeEnabled: input.enabled,
+			micSelection: reuse ? "changed" : "original",
+		});
+		for (const w of BrowserWindow.getAllWindows()) w.webContents.send("voice:audioChanged", p);
+		return true;
 	});
 	voiceHandle("selectMic", async (input) => {
 		if (!input || !["original", "changed"].includes(input.selection))
@@ -202,7 +229,11 @@ export function registerVoiceHandlers() {
 		const meta = await readAudioMetadata(p);
 		if (!meta || (input.selection === "changed" && !meta.changedMicPath))
 			throw new Error("missingMic");
-		await writeAudioMetadata({ ...meta, micSelection: input.selection });
+		await writeAudioMetadata({
+			...meta,
+			micSelection: input.selection,
+			voiceChangeEnabled: input.selection === "changed",
+		});
 		for (const w of BrowserWindow.getAllWindows()) w.webContents.send("voice:audioChanged", p);
 		return true;
 	});

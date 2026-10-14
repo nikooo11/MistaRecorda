@@ -342,6 +342,9 @@ export function WebcamCropControl({
 
 	return (
 		<div
+			aria-label={
+				mirrored ? "Recorded webcam crop preview, mirrored" : "Recorded webcam crop preview"
+			}
 			ref={containerRef}
 			className="relative w-full touch-none select-none overflow-hidden rounded-lg border border-foreground/10 bg-editor-dialog-alt"
 			style={{ aspectRatio: previewAspectRatio }}

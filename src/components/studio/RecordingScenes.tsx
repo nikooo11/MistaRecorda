@@ -35,7 +35,8 @@ export function RecordingScenes({
 							id: crypto.randomUUID(),
 							name: "",
 							source: sources[0],
-							camera: false,
+							camera: info.camera?.enabled ?? false,
+							cameraLayout: info.settings.cameraLayout,
 							shortcut: "",
 						});
 					}}
@@ -56,7 +57,10 @@ export function RecordingScenes({
 						if (saving) return;
 						setSaving(true);
 						setError("");
-						void saveShortcut("saveScene", draft)
+						void saveShortcut("saveScene", {
+							...draft,
+							cameraLayout: info.settings.cameraLayout,
+						})
 							.then(() => setDraft(undefined))
 							.catch((e) => setError(e.message))
 							.finally(() => setSaving(false));
@@ -115,7 +119,12 @@ export function RecordingScenes({
 						>
 							{saving ? "Saving…" : "Save scene"}
 						</button>{" "}
-						<button type="button" title="Discard these scene edits." disabled={saving} onClick={() => setDraft(undefined)}>
+						<button
+							type="button"
+							title="Discard these scene edits."
+							disabled={saving}
+							onClick={() => setDraft(undefined)}
+						>
 							Cancel
 						</button>
 					</div>
@@ -167,7 +176,11 @@ export function RecordingScenes({
 					>
 						Use
 					</button>
-					<button disabled={busy || info.recording} title="Change this scene’s name, source, or face camera state." onClick={() => setDraft(scene)}>
+					<button
+						disabled={busy || info.recording}
+						title="Change this scene’s name, source, or face camera state."
+						onClick={() => setDraft(scene)}
+					>
 						Edit
 					</button>
 					<button

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
-import { canShowFloatingWebcamPreview } from "../floatingWebcamPreview";
 
 const WEBCAM_PREVIEW_DRAG_THRESHOLD = 6;
 const DEFAULT_WEBCAM_PREVIEW_OFFSET = { x: 0, y: 0 };
@@ -9,7 +8,6 @@ export function useWebcamPreviewOverlay({
 	webcamDeviceId,
 	showWebcamControls,
 	webcamPopoverOpen,
-	hudOverlayMousePassthroughSupported,
 }: {
 	webcamEnabled: boolean;
 	webcamDeviceId?: string;
@@ -39,14 +37,8 @@ export function useWebcamPreviewOverlay({
 		dragging: boolean;
 	} | null>(null);
 	const isWebcamPreviewDraggingRef = useRef(false);
-	const showRecordingWebcamPreview =
-		webcamEnabled &&
-		canShowFloatingWebcamPreview(
-			showFloatingWebcamPreview,
-			hudOverlayMousePassthroughSupported,
-		);
-	const shouldStreamWebcamPreview =
-		webcamEnabled && (showRecordingWebcamPreview || (showWebcamControls && webcamPopoverOpen));
+	const showRecordingWebcamPreview = false;
+	const shouldStreamWebcamPreview = webcamEnabled && showWebcamControls && webcamPopoverOpen;
 
 	useEffect(() => {
 		if (!webcamEnabled) {
@@ -61,32 +53,29 @@ export function useWebcamPreviewOverlay({
 		}
 	}, [webcamEnabled]);
 
-	const handleWebcamPreviewPointerDown = useCallback(
-		(event: PointerEvent<HTMLDivElement>) => {
-			if (event.button !== 0) {
-				return;
-			}
+	const handleWebcamPreviewPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
+		if (event.button !== 0) {
+			return;
+		}
 
-			const previewRect = event.currentTarget.getBoundingClientRect();
+		const previewRect = event.currentTarget.getBoundingClientRect();
 
-			event.preventDefault();
-			window.electronAPI?.hudOverlaySetIgnoreMouse?.(false);
-			webcamPreviewDragStartRef.current = {
-				pointerId: event.pointerId,
-				startX: event.clientX,
-				startY: event.clientY,
-				originX: webcamPreviewOffsetRef.current.x,
-				originY: webcamPreviewOffsetRef.current.y,
-				initialLeft: previewRect.left,
-				initialTop: previewRect.top,
-				previewWidth: previewRect.width,
-				previewHeight: previewRect.height,
-				dragging: false,
-			};
-			event.currentTarget.setPointerCapture(event.pointerId);
-		},
-		[],
-	);
+		event.preventDefault();
+		window.electronAPI?.hudOverlaySetIgnoreMouse?.(false);
+		webcamPreviewDragStartRef.current = {
+			pointerId: event.pointerId,
+			startX: event.clientX,
+			startY: event.clientY,
+			originX: webcamPreviewOffsetRef.current.x,
+			originY: webcamPreviewOffsetRef.current.y,
+			initialLeft: previewRect.left,
+			initialTop: previewRect.top,
+			previewWidth: previewRect.width,
+			previewHeight: previewRect.height,
+			dragging: false,
+		};
+		event.currentTarget.setPointerCapture(event.pointerId);
+	}, []);
 
 	const handleWebcamPreviewPointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
 		const dragState = webcamPreviewDragStartRef.current;
@@ -225,12 +214,12 @@ export function useWebcamPreviewOverlay({
 								width: { ideal: 320 },
 								height: { ideal: 320 },
 								frameRate: { ideal: 24, max: 30 },
-						  }
+							}
 						: {
 								width: { ideal: 320 },
 								height: { ideal: 320 },
 								frameRate: { ideal: 24, max: 30 },
-						  },
+							},
 					audio: false,
 				});
 

@@ -1,3 +1,4 @@
+import { shouldHidePanel, showCapturePanel } from "../panelToggle";
 import { ensureDrawingSurfaceReady, captureWindowId } from "./captureReady";
 import { requireScreenRecordingAccess } from "../screenCaptureAccess";
 import { EdgeBoardTrigger } from "./edgeTrigger";
@@ -256,12 +257,26 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			return info();
 		case "tabletInfo":
 			return tabletInfo();
+		case "panelTab":
+			panelTab = z.enum(["draw", "ipad", "scenes", "settings"]).parse(input);
+			return info();
+		case "togglePanel": {
+			const tab = z.enum(["draw", "ipad", "scenes", "settings"]).parse(data.tab ?? "draw");
+			await prepare();
+			if (shouldHidePanel(panel?.isVisible() ?? false, panelTab ?? "draw", tab))
+				panel?.hide();
+			else {
+				panelTab = tab;
+				send("navigate", tab);
+				if (panel) showCapturePanel(panel, BrowserWindow.getAllWindows());
+			}
+			return info();
+		}
 		case "open":
 			if (data.tab) panelTab = data.tab;
 			await prepare();
 			if (data.tab) send("navigate", data.tab);
-			panel?.show();
-			panel?.focus();
+			if (panel) showCapturePanel(panel, BrowserWindow.getAllWindows());
 			return info();
 		case "enable":
 			if (status.recording) throw Error("Enable drawing before starting a recording");
@@ -621,7 +636,9 @@ export async function registerBoard() {
 }
 
 // Native menus and global shortcuts use the same recording command path.
-export function sendRecordingControl(control: "record" | "pause" | "webcam" | "webcam-on" | "webcam-off") {
+export function sendRecordingControl(
+	control: "record" | "pause" | "webcam" | "webcam-on" | "webcam-off",
+) {
 	return action("control", control);
 }
 

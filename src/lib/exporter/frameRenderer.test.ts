@@ -414,6 +414,38 @@ describe("FrameRenderer webcam export path", () => {
 		expect((outputContext as MockContext).drawImage.mock.calls[0][0]).toBe(bubbleCanvas);
 	});
 
+	it("exports edited rectangular camera points with their saved height", () => {
+		const renderer = createRenderer() as any;
+		renderer.config.webcam.layoutCues = [
+			{
+				timeMs: 0,
+				layout: {
+					x: 0.25,
+					y: 0.5,
+					size: 40,
+					width: 40,
+					height: 20,
+					roundness: 0,
+					mirror: false,
+					locked: false,
+					margin: 12,
+				},
+			},
+		];
+		renderer.webcamVideoElement = new FakeVideoElement({
+			currentTime: 2,
+			readyState: 2,
+			videoWidth: 800,
+			videoHeight: 600,
+		});
+		renderer.lastSyncedWebcamTime = 2;
+		renderer.currentVideoTime = 2;
+		renderer.animationState.appliedScale = 1;
+		renderer.drawWebcamOverlay(createMockContext(), 1280, 720);
+		expect(createdCanvases[0].width).toBe(288);
+		expect(createdCanvases[0].height).toBe(144);
+	});
+
 	it("uses the live webcam frame and refreshes the cache when the video is synchronized", () => {
 		const renderer = createRenderer() as unknown as FrameRendererTestAccess;
 		const outputContext = createMockContext();

@@ -1,8 +1,16 @@
+import { DEFAULT_CAMERA_LAYOUT } from "../../src/lib/cameraLayout";
 import { expect, test } from "vitest";
 import { SoundTake, shortcutSchema, soundSchema, studioSettingsSchema } from "./model";
 test("existing settings gain a camera shortcut without changing user choices", () => {
 	const result = studioSettingsSchema.parse({ glow: false, windows: [], sounds: [] });
-	expect(result).toEqual({ glow: false, windows: [], sounds: [], scenes: [], cameraShortcut: "CommandOrControl+Shift+W" });
+	expect(result).toEqual({
+		glow: false,
+		windows: [],
+		sounds: [],
+		scenes: [],
+		cameraShortcut: "CommandOrControl+Shift+W",
+		cameraLayout: DEFAULT_CAMERA_LAYOUT,
+	});
 });
 test("sound cues use media time, ignore pause and suppress keyboard repeats", () => {
 	const take = new SoundTake();

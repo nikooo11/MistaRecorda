@@ -1,3 +1,4 @@
+import { normalizeCameraCues } from "../../../src/lib/cameraLayout";
 import { normalizeWebcamVisibility } from "../../../src/lib/webcamVisibility";
 import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
@@ -16,7 +17,9 @@ export function getRecordingSessionManifestPath(videoPath: string) {
 	return path.join(path.dirname(videoPath), `${baseName}${RECORDING_SESSION_MANIFEST_SUFFIX}`);
 }
 
-export async function persistRecordingSessionManifest(session: RecordingSessionData): Promise<void> {
+export async function persistRecordingSessionManifest(
+	session: RecordingSessionData,
+): Promise<void> {
 	const normalizedVideoPath = normalizeVideoSourcePath(session.videoPath);
 	if (!normalizedVideoPath) {
 		return;
@@ -36,6 +39,7 @@ export async function persistRecordingSessionManifest(session: RecordingSessionD
 		webcamFileName: path.basename(normalizedWebcamPath),
 		timeOffsetMs: normalizeRecordingTimeOffsetMs(session.timeOffsetMs),
 		webcamVisibility: normalizeWebcamVisibility(session.webcamVisibility),
+		webcamLayoutCues: normalizeCameraCues(session.webcamLayoutCues),
 	};
 
 	await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
@@ -53,8 +57,7 @@ export async function resolveRecordingSessionManifest(
 
 	try {
 		const content = await fs.readFile(manifestPath, "utf-8");
-		const parsed =
-			parseJsonWithByteOrderMark<Partial<RecordingSessionManifest>>(content);
+		const parsed = parseJsonWithByteOrderMark<Partial<RecordingSessionManifest>>(content);
 		if (parsed.version !== 1 && parsed.version !== 2) {
 			return null;
 		}
@@ -69,7 +72,8 @@ export async function resolveRecordingSessionManifest(
 				videoPath: normalizedVideoPath,
 				webcamPath: null,
 				timeOffsetMs: normalizeRecordingTimeOffsetMs(parsed.timeOffsetMs),
-		webcamVisibility: normalizeWebcamVisibility(parsed.webcamVisibility),
+				webcamVisibility: normalizeWebcamVisibility(parsed.webcamVisibility),
+				webcamLayoutCues: normalizeCameraCues(parsed.webcamLayoutCues),
 			};
 		}
 
@@ -83,7 +87,8 @@ export async function resolveRecordingSessionManifest(
 			videoPath: normalizedVideoPath,
 			webcamPath: webcamExists ? webcamPath : null,
 			timeOffsetMs: normalizeRecordingTimeOffsetMs(parsed.timeOffsetMs),
-		webcamVisibility: normalizeWebcamVisibility(parsed.webcamVisibility),
+			webcamVisibility: normalizeWebcamVisibility(parsed.webcamVisibility),
+			webcamLayoutCues: normalizeCameraCues(parsed.webcamLayoutCues),
 		};
 	} catch {
 		return null;
@@ -142,5 +147,3 @@ export async function resolveRecordingSession(
 		webcamPath: linkedWebcamPath,
 	};
 }
-
-

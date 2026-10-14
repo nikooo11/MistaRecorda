@@ -37,8 +37,7 @@ export function VoicePanel({
 	const [modelNotice, setModelNotice] = useState("");
 	const { recording, job, loaded, error } = useVoiceRecording(videoPath);
 	const processing = busy || job?.state === "running";
-	const selectedVoiceId =
-		recording?.micSelection === "changed" ? (recording.changedVoiceId ?? "") : "";
+	const selectedVoiceId = settings.voiceId;
 	const run = async (action: () => Promise<void>) => {
 		if (busyRef.current) return;
 		busyRef.current = true;
@@ -51,6 +50,7 @@ export function VoicePanel({
 		} finally {
 			busyRef.current = false;
 			setBusy(false);
+			setApplyingId("");
 		}
 	};
 	useEffect(() => {
@@ -115,7 +115,6 @@ export function VoicePanel({
 	};
 	const useVoice = (voice: VoiceInfo) =>
 		run(async () => {
-			check();
 			setApplyingId(voice.voiceId);
 			const chosen = unwrapVoice(
 				await request("chooseVoice", {
@@ -124,14 +123,19 @@ export function VoicePanel({
 					publicOwnerId: voice.publicOwnerId,
 				}),
 			);
-			await apply({ ...settings, voiceId: chosen.voiceId, voiceName: chosen.voiceName });
+			setSettings(chosen);
+			if (videoPath && recording?.micPath)
+				unwrapVoice(await request("setVoiceChange", { videoPath, enabled: true }));
+			setMessage(`Selected ${chosen.voiceName}. Click Process voice when ready.`);
 		});
 	const usePreset = (preset: VoicePreset) =>
 		run(async () => {
-			check();
 			setApplyingId(preset.voice.voiceId);
 			const next = unwrapVoice(await request("usePreset", preset));
-			await apply({ ...next, noticeAccepted: settings.noticeAccepted });
+			setSettings(next);
+			if (videoPath && recording?.micPath)
+				unwrapVoice(await request("setVoiceChange", { videoPath, enabled: true }));
+			setMessage(`Selected ${next.voiceName}. Click Process voice when ready.`);
 		});
 	const status =
 		job?.state === "running"
@@ -168,7 +172,7 @@ export function VoicePanel({
 					aria-expanded={expanded}
 					aria-controls="voice-browser-panel"
 					onClick={() => setExpanded(!expanded)}
-					data-help="Open the voice picker. Preview any voice, then choose Use to convert your microphone."
+					data-help="Open the voice picker. Preview any voice, then choose Use to select it. Process explicitly when ready."
 				>
 					<div>
 						<small>VOICE</small>
@@ -217,6 +221,20 @@ export function VoicePanel({
 								: "No isolated mic track in this recording."}
 					</p>
 				)}
+				<button
+					type="button"
+					className="voice-primary"
+					disabled={processing || !settings.voiceId || !recording?.micPath}
+					onClick={() =>
+						void run(async () => {
+							check();
+							setApplyingId(settings.voiceId);
+							await apply(settings);
+						})
+					}
+				>
+					Process voice via ElevenLabs
+				</button>
 				<details className="voice-tuning-disclosure">
 					<summary data-help="Expand to adjust the conversion model, stability, similarity, style, and noise reduction.">
 						Voice settings <span>{modelLabel(settings.modelId)}</span>
@@ -319,14 +337,15 @@ export function VoicePanel({
 								disabled={!settings.voiceId || !recording?.micPath}
 								onClick={() =>
 									void run(async () => {
-										check();
-										setApplyingId(settings.voiceId);
-										await apply(settings);
+										unwrapVoice(await request("saveSettings", settings));
+										setMessage(
+											"Voice settings saved. Process voice when ready.",
+										);
 									})
 								}
-								data-help="Reprocess with the current voice and tuning. Uses ElevenLabs conversion credits."
+								data-help="Save these voice settings. Processing starts only when you click Process voice."
 							>
-								Apply tuning
+								Save tuning
 							</button>
 						</div>
 					</fieldset>
@@ -334,7 +353,7 @@ export function VoicePanel({
 				{modelNotice && <p className="voice-hint">{modelNotice}</p>}
 				<label
 					className="voice-upload"
-					data-help="Only the microphone audio is sent to ElevenLabs when you click Use. Video and computer audio stay local."
+					data-help="Only the microphone audio is sent to ElevenLabs when you click Process voice. Video and computer audio stay local."
 				>
 					<input
 						type="checkbox"

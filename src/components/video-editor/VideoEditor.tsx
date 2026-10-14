@@ -1,5 +1,11 @@
+import { useVoiceExport } from "../voice/useVoiceExport";
+import { VoiceExportControls } from "../voice/VoiceExportControls";
+import { unwrapVoice } from "@/types/voice";
+import { cameraOverlayAt } from "../../lib/cameraLayout";
+import { LayersPanel } from "./LayersPanel";
 import { VoicePanel } from "../voice/VoicePanel";
 import {
+	Stack,
 	BookmarkSimple,
 	Check,
 	CaretDown as ChevronDown,
@@ -616,7 +622,9 @@ export default function VideoEditor() {
 	const [aspectRatio, setAspectRatio] = useState<AspectRatio>(
 		initialEditorPreferences.aspectRatio,
 	);
-	const [activeEffectSection, setActiveEffectSection] = useState<EditorEffectSection>("scene");
+	const [activeEffectSection, setActiveEffectSection] = useState<EditorEffectSection | null>(
+		"scene",
+	);
 	const [exportQuality, setExportQuality] = useState<ExportQuality>(
 		initialEditorPreferences.exportQuality,
 	);
@@ -1660,6 +1668,7 @@ export default function VideoEditor() {
 
 	const editorSectionButtons = useMemo(
 		() => [
+			{ id: "layers" as const, label: "Layers", icon: Stack },
 			{ id: "scene" as const, label: t("settings.sections.scene", "Scene"), icon: PhSparkle },
 			{
 				id: "cursor" as const,
@@ -1780,6 +1789,8 @@ export default function VideoEditor() {
 		() => videoSourcePath ?? (videoPath ? fromFileUrl(videoPath) : null),
 		[videoPath, videoSourcePath],
 	);
+	const voiceExport = useVoiceExport(currentSourcePath);
+
 	const projectDisplayName = useMemo(() => {
 		const fileName =
 			currentProjectPath?.split(/[\\/]/).pop() ??
@@ -1964,6 +1975,8 @@ export default function VideoEditor() {
 
 	const buildHistorySnapshot = useCallback((): EditorHistorySnapshot => {
 		return {
+			webcam,
+			background: { wallpaper, padding, borderRadius, shadowIntensity, backgroundBlur },
 			zoomRegions,
 			clipRegions,
 			speedRegions,
@@ -1976,6 +1989,12 @@ export default function VideoEditor() {
 			selectedAudioId,
 		};
 	}, [
+		webcam,
+		wallpaper,
+		padding,
+		borderRadius,
+		shadowIntensity,
+		backgroundBlur,
 		zoomRegions,
 		clipRegions,
 		speedRegions,
@@ -1991,6 +2010,14 @@ export default function VideoEditor() {
 	const applyHistorySnapshot = useCallback((snapshot: EditorHistorySnapshot) => {
 		applyingHistoryRef.current = true;
 		const cloned = cloneStructured(snapshot);
+		if (cloned.webcam) setWebcam(cloned.webcam);
+		if (cloned.background) {
+			setWallpaper(cloned.background.wallpaper);
+			setPadding(cloned.background.padding);
+			setBorderRadius(cloned.background.borderRadius);
+			setShadowIntensity(cloned.background.shadowIntensity);
+			setBackgroundBlur(cloned.background.backgroundBlur);
+		}
 		setZoomRegions(cloned.zoomRegions);
 		setClipRegions(cloned.clipRegions);
 		setSpeedRegions(cloned.speedRegions);
@@ -2071,6 +2098,7 @@ export default function VideoEditor() {
 						webcamPath: normalizedEditor.webcam.sourcePath,
 						timeOffsetMs: normalizedEditor.webcam.timeOffsetMs,
 						webcamVisibility: normalizedEditor.webcam.visibility,
+						webcamLayoutCues: normalizedEditor.webcam.layoutCues,
 					},
 					{
 						preserveProjectPath: Boolean(path),
@@ -2268,7 +2296,10 @@ export default function VideoEditor() {
 				{
 					videoPath: currentSourcePath,
 					webcamPath,
-					webcamVisibility: webcamPath === webcam.sourcePath ? webcam.visibility : undefined,
+					webcamVisibility:
+						webcamPath === webcam.sourcePath ? webcam.visibility : undefined,
+					webcamLayoutCues:
+						webcamPath === webcam.sourcePath ? webcam.layoutCues : undefined,
 					timeOffsetMs:
 						webcamPath && Number.isFinite(timeOffsetMs)
 							? (timeOffsetMs ?? DEFAULT_WEBCAM_TIME_OFFSET_MS)
@@ -2281,7 +2312,14 @@ export default function VideoEditor() {
 				},
 			);
 		},
-		[currentProjectPath, currentSourcePath, webcam.timeOffsetMs, webcam.sourcePath, webcam.visibility],
+		[
+			currentProjectPath,
+			currentSourcePath,
+			webcam.timeOffsetMs,
+			webcam.sourcePath,
+			webcam.visibility,
+			webcam.layoutCues,
+		],
 	);
 
 	const syncActiveVideoSource = useCallback(
@@ -2293,6 +2331,7 @@ export default function VideoEditor() {
 						webcamPath,
 						timeOffsetMs: webcam.timeOffsetMs,
 						webcamVisibility: webcam.visibility,
+						webcamLayoutCues: webcam.layoutCues,
 					},
 					{
 						preserveProjectPath: Boolean(currentProjectPath),
@@ -2305,7 +2344,7 @@ export default function VideoEditor() {
 				preserveProjectPath: Boolean(currentProjectPath),
 			});
 		},
-		[currentProjectPath, webcam.timeOffsetMs, webcam.visibility],
+		[currentProjectPath, webcam.timeOffsetMs, webcam.visibility, webcam.layoutCues],
 	);
 
 	const resetSourceScopedEditorState = useCallback(() => {
@@ -2355,6 +2394,7 @@ export default function VideoEditor() {
 			sourcePath: result.path ?? null,
 			timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
 			visibility: undefined,
+			layoutCues: undefined,
 		}));
 
 		await syncRecordingSessionWebcam(result.path, DEFAULT_WEBCAM_TIME_OFFSET_MS);
@@ -2368,6 +2408,7 @@ export default function VideoEditor() {
 			sourcePath: null,
 			timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
 			visibility: undefined,
+			layoutCues: undefined,
 		}));
 
 		await syncRecordingSessionWebcam(null);
@@ -2442,7 +2483,8 @@ export default function VideoEditor() {
 						enabled: Boolean(webcamSourcePath),
 						sourcePath: webcamSourcePath,
 						timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
-			visibility: undefined,
+						visibility: undefined,
+						layoutCues: undefined,
 					}));
 					setError(null);
 					return;
@@ -2470,7 +2512,8 @@ export default function VideoEditor() {
 						enabled: !!smokeWebcamSourcePath,
 						sourcePath: smokeWebcamSourcePath,
 						timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
-			visibility: undefined,
+						visibility: undefined,
+						layoutCues: undefined,
 						shadow:
 							smokeExportConfig.webcamShadow === undefined
 								? prev.shadow
@@ -2540,6 +2583,10 @@ export default function VideoEditor() {
 						enabled: Boolean(sessionResult.session?.webcamPath),
 						sourcePath: sessionResult.session?.webcamPath ?? null,
 						visibility: sessionResult.session?.webcamVisibility,
+						layoutCues: sessionResult.session?.webcamLayoutCues,
+						reactToZoom: sessionResult.session?.webcamLayoutCues?.length
+							? false
+							: prev.reactToZoom,
 						timeOffsetMs:
 							sessionResult.session?.timeOffsetMs ?? DEFAULT_WEBCAM_TIME_OFFSET_MS,
 					}));
@@ -2562,7 +2609,8 @@ export default function VideoEditor() {
 						enabled: false,
 						sourcePath: null,
 						timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
-			visibility: undefined,
+						visibility: undefined,
+						layoutCues: undefined,
 					}));
 				} else {
 					setError("No video to load. Please record or select a video.");
@@ -2616,6 +2664,8 @@ export default function VideoEditor() {
 				enabled: Boolean(sessionWebcamPath),
 				sourcePath: sessionWebcamPath,
 				visibility: session.webcamVisibility,
+				layoutCues: session.webcamLayoutCues,
+				reactToZoom: session.webcamLayoutCues?.length ? false : prev.reactToZoom,
 				timeOffsetMs: sessionWebcamPath
 					? (session.timeOffsetMs ?? prev.timeOffsetMs)
 					: DEFAULT_WEBCAM_TIME_OFFSET_MS,
@@ -3366,6 +3416,7 @@ export default function VideoEditor() {
 			sourcePath: null,
 			timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
 			visibility: undefined,
+			layoutCues: undefined,
 		}));
 		applySessionPresentation(null);
 		await window.electronAPI.setCurrentVideoPath(sourcePath, { preserveProjectPath: false });
@@ -4386,25 +4437,29 @@ export default function VideoEditor() {
 		[selectedAudioId],
 	);
 
-	const handleAnnotationAdded = useCallback((span: Span, trackIndex = 0) => {
-		const id = `annotation-${nextAnnotationIdRef.current++}`;
-		const zIndex = nextAnnotationZIndexRef.current++; // Assign z-index based on creation order
-		const newRegion: AnnotationRegion = {
-			id,
-			startMs: Math.round(span.start),
-			endMs: Math.round(span.end),
-			type: "text",
-			content: "Enter text...",
-			position: { ...DEFAULT_ANNOTATION_POSITION },
-			size: { ...DEFAULT_ANNOTATION_SIZE },
-			style: { ...DEFAULT_ANNOTATION_STYLE },
-			zIndex,
-			trackIndex,
-		};
-		setAnnotationRegions((prev) => [...prev, newRegion]);
-		setSelectedAnnotationId(id);
-		setSelectedZoomId(null);
-	}, []);
+	const handleAnnotationAdded = useCallback(
+		(span: Span, trackIndex = 0, type: AnnotationRegion["type"] = "text") => {
+			const id = `annotation-${nextAnnotationIdRef.current++}`;
+			const zIndex = nextAnnotationZIndexRef.current++; // Assign z-index based on creation order
+			const newRegion: AnnotationRegion = {
+				id,
+				startMs: Math.round(span.start),
+				endMs: Math.round(span.end),
+				type,
+				content: type === "text" ? "Enter text..." : "",
+				figureData: type === "figure" ? { ...DEFAULT_FIGURE_DATA } : undefined,
+				position: { ...DEFAULT_ANNOTATION_POSITION },
+				size: { ...DEFAULT_ANNOTATION_SIZE },
+				style: { ...DEFAULT_ANNOTATION_STYLE },
+				zIndex,
+				trackIndex,
+			};
+			setAnnotationRegions((prev) => [...prev, newRegion]);
+			setSelectedAnnotationId(id);
+			setSelectedZoomId(null);
+		},
+		[],
+	);
 
 	const handleAnnotationSpanChange = useCallback(
 		(id: string, span: Span, trackIndex?: number) => {
@@ -4536,13 +4591,14 @@ export default function VideoEditor() {
 		[],
 	);
 
-	// Global Tab prevention
+	// Editor shortcuts must leave focused controls' native keyboard behavior intact.
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			const target = e.target as HTMLElement | null;
 			const isEditableTarget =
 				target instanceof HTMLInputElement ||
 				target instanceof HTMLTextAreaElement ||
+				target instanceof HTMLSelectElement ||
 				target?.isContentEditable;
 
 			const usesPrimaryModifier = isMac ? e.metaKey : e.ctrlKey;
@@ -4568,17 +4624,13 @@ export default function VideoEditor() {
 				return;
 			}
 
-			if (e.key === "Tab") {
-				// Allow tab only in inputs/textareas
-				if (isEditableTarget) {
-					return;
-				}
-				e.preventDefault();
-			}
-
 			if (matchesShortcut(e, shortcuts.playPause, isMac)) {
-				// Allow space only in inputs/textareas
-				if (isEditableTarget) {
+				if (
+					isEditableTarget ||
+					target?.closest(
+						'button, a, [role="button"], [role="switch"], [role="checkbox"], [role="slider"], [role="combobox"], [role="menuitem"]',
+					)
+				) {
 					return;
 				}
 				e.preventDefault();
@@ -4652,6 +4704,37 @@ export default function VideoEditor() {
 			if (!videoPath) {
 				toast.error("No video loaded");
 				return;
+			}
+
+			let exportAudioPaths = audio.sourceAudioFallbackPaths;
+			let exportAudioDelays = audio.sourceAudioFallbackStartDelayMsByPath;
+			// Re-read persisted state and selected audio at export time, including immediately after conversion.
+			if (settings.format !== "gif" && currentSourcePath) {
+				try {
+					if (
+						!voiceExport.ready ||
+						!unwrapVoice(
+							await window.electronAPI.voice.request(
+								"exportReady",
+								currentSourcePath,
+							),
+						)
+					) {
+						toast.error(
+							"Process the selected voice before exporting, or turn off voice change.",
+						);
+						setShowExportDropdown(true);
+						return;
+					}
+					const selectedAudio =
+						await window.electronAPI.getVideoAudioFallbackPaths(currentSourcePath);
+					if (!selectedAudio.success) throw new Error("Could not load selected audio");
+					exportAudioPaths = selectedAudio.paths;
+					exportAudioDelays = selectedAudio.startDelayMsByPath ?? {};
+				} catch {
+					toast.error("Could not verify microphone audio. Reopen export and try again.");
+					return;
+				}
 			}
 
 			const video = videoPlaybackRef.current?.video;
@@ -4941,9 +5024,8 @@ export default function VideoEditor() {
 						frame,
 						audioRegions,
 						clipRegions,
-						sourceAudioFallbackPaths: audio.sourceAudioFallbackPaths,
-						sourceAudioFallbackStartDelayMsByPath:
-							audio.sourceAudioFallbackStartDelayMsByPath,
+						sourceAudioFallbackPaths: exportAudioPaths,
+						sourceAudioFallbackStartDelayMsByPath: exportAudioDelays,
 						sourceAudioTrackSettings: sourceAudioTrackSettingsForExport,
 						previewWidth,
 						previewHeight,
@@ -5163,6 +5245,8 @@ export default function VideoEditor() {
 			}
 		},
 		[
+			voiceExport.ready,
+			currentSourcePath,
 			clearPendingExportSave,
 			videoPath,
 			wallpaper,
@@ -5989,7 +6073,7 @@ export default function VideoEditor() {
 						data-help="Connect an iPad to draw over your live screen. Open the pairing panel, then show its QR code."
 						onClick={() =>
 							void window.electronAPI.board
-								.request("open", { tab: "ipad" })
+								.request("togglePanel", { tab: "ipad" })
 								.catch(() => toast.error("Could not open iPad pairing."))
 						}
 					>
@@ -6136,7 +6220,7 @@ export default function VideoEditor() {
 							<Button
 								type="button"
 								onClick={handleOpenExportDropdown}
-								className="inline-flex h-8 min-w-[112px] items-center justify-center gap-2 rounded-[5px] bg-[#2563EB] px-4.5 text-white transition-colors hover:bg-[#2563EB]/92"
+								className={`inline-flex h-8 min-w-[112px] items-center justify-center gap-2 rounded-[5px] px-4.5 transition-colors ${exportFormat !== "gif" && voiceExport.enabled && !voiceExport.ready ? "bg-foreground/15 text-muted-foreground" : "bg-[#2563EB] text-white hover:bg-[#2563EB]/92"}`}
 							>
 								<Download className="h-4 w-4" />
 								<span className="text-sm font-semibold tracking-tight">
@@ -6335,6 +6419,18 @@ export default function VideoEditor() {
 									mp4OutputDimensions={mp4OutputDimensions}
 									gifOutputDimensions={gifOutputDimensions}
 									onExport={handleStartExportFromDropdown}
+									exportDisabled={exportFormat !== "gif" && !voiceExport.ready}
+									voiceControls={
+										exportFormat !== "gif" ? (
+											<VoiceExportControls
+												state={voiceExport}
+												onManage={() => {
+													setShowExportDropdown(false);
+													setActiveEffectSection("voice");
+												}}
+											/>
+										) : undefined
+									}
 									className="shadow-2xl"
 								/>
 							)}
@@ -6355,7 +6451,12 @@ export default function VideoEditor() {
 									<div key={section.id} className="flex items-center">
 										<motion.button
 											type="button"
-											onClick={() => setActiveEffectSection(section.id)}
+											onClick={() =>
+												setActiveEffectSection((current) =>
+													current === section.id ? null : section.id,
+												)
+											}
+											aria-expanded={isActive}
 											title={section.label}
 											className="group relative flex h-12 w-14 flex-col gap-1 items-center justify-center rounded-[3px] outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
 											animate={{ opacity: isActive ? 1 : 0.55 }}
@@ -6384,7 +6485,11 @@ export default function VideoEditor() {
 												{typeof section.icon === "string" ? (
 													<ExtensionIcon
 														icon={section.icon}
-														extensionPath={section.extensionPath}
+														extensionPath={
+															"extensionPath" in section
+																? section.extensionPath
+																: undefined
+														}
 														className="h-[20px] w-[20px]"
 													/>
 												) : (
@@ -6432,7 +6537,71 @@ export default function VideoEditor() {
 							</div>
 						</div>
 						{/* Panel */}
-						{activeEffectSection === "voice" ? (
+						{activeEffectSection === null ? null : activeEffectSection === "layers" ? (
+							<LayersPanel
+								annotations={annotationRegions}
+								webcam={webcam}
+								add={(type) => {
+									const start = Math.max(
+										0,
+										Math.min(
+											timelinePlayheadTime * 1000,
+											timelineDuration * 1000 - 200,
+										),
+									);
+									handleAnnotationAdded(
+										{
+											start,
+											end: Math.min(timelineDuration * 1000, start + 5000),
+										},
+										Math.max(
+											-1,
+											...annotationRegions.map((a) => a.trackIndex ?? 0),
+										) + 1,
+										type,
+									);
+									setActiveEffectSection("scene");
+								}}
+								select={(id) => {
+									setSelectedAnnotationId(id);
+									setActiveEffectSection("scene");
+								}}
+								update={(id, hidden) =>
+									setAnnotationRegions((all) =>
+										all.map((a) => (a.id === id ? { ...a, hidden } : a)),
+									)
+								}
+								remove={handleAnnotationDelete}
+								move={(id, direction) =>
+									setAnnotationRegions((all) => {
+										const sorted = [...all].sort((a, b) => a.zIndex - b.zIndex);
+										const index = sorted.findIndex((a) => a.id === id),
+											other = sorted[index + direction];
+										if (!other) return all;
+										const z = sorted[index].zIndex;
+										return all.map((a) =>
+											a.id === id
+												? { ...a, zIndex: other.zIndex }
+												: a.id === other.id
+													? { ...a, zIndex: z }
+													: a,
+										);
+									})
+								}
+								camera={() => {
+									setSelectedAnnotationId(null);
+									setActiveEffectSection("webcam");
+									if (!webcam.sourcePath) void handleUploadWebcam();
+								}}
+								cameraVisibility={() =>
+									setWebcam((w) => ({ ...w, enabled: !w.enabled }))
+								}
+								screen={() => {
+									setSelectedAnnotationId(null);
+									setActiveEffectSection("scene");
+								}}
+							/>
+						) : activeEffectSection === "voice" ? (
 							<VoicePanel embedded videoPath={currentSourcePath} />
 						) : activeEffectSection === "extensions" ? (
 							<ExtensionManager />
@@ -6599,11 +6768,21 @@ export default function VideoEditor() {
 								onCursorSwayChange={setCursorSway}
 								borderRadius={borderRadius}
 								onBorderRadiusChange={setBorderRadius}
-								webcam={webcam}
+								webcam={cameraOverlayAt(webcam, currentTime * 1000)}
 								webcamPreviewSrc={webcam.sourcePath ? resolvedWebcamVideoUrl : null}
 								webcamPreviewCurrentTime={currentTime}
 								webcamPreviewPlaying={isPlaying}
-								onWebcamChange={setWebcam}
+								onWebcamChange={(next) => {
+									videoPlaybackRef.current?.pause();
+									setIsPlaying(false);
+									setWebcam(next);
+								}}
+								webcamTimelineTime={timelinePlayheadTime}
+								onWebcamSeek={(seconds) =>
+									handleSeek(mapSourceTimeToTimelineTime(seconds * 1000) / 1000, {
+										pause: true,
+									})
+								}
 								onUploadWebcam={handleUploadWebcam}
 								onClearWebcam={handleClearWebcam}
 								padding={padding}
@@ -6757,6 +6936,11 @@ export default function VideoEditor() {
 										align="start"
 										className="bg-editor-surface-alt border-foreground/10"
 									>
+										<DropdownMenuItem
+											onClick={() => setActiveEffectSection("layers")}
+										>
+											Manage layers…
+										</DropdownMenuItem>
 										<DropdownMenuItem
 											onClick={() => {
 												const nextTrackIndex =

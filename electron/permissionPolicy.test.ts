@@ -198,7 +198,11 @@ describe("shouldGrantDisplayCapture", () => {
 });
 
 describe("board media permission boundaries", () => {
-	it.each(["board-surface", "board-stream"])("permits only a known %s main frame", (kind) => {
+	it.each([
+		"board-surface",
+		"board-stream",
+		"camera-overlay",
+	])("permits only a known %s main frame", (kind) => {
 		const url = `http://localhost:5173/?windowType=${kind}`;
 		const request = {
 			permission: "media",
@@ -236,4 +240,19 @@ describe("board media permission boundaries", () => {
 			),
 		).toBe(false);
 	});
+});
+
+it("the camera preview cannot request display capture", () => {
+	expect(
+		shouldGrantDisplayCapture(
+			{
+				isTrustedCaptureWindow: true,
+				isMainFrame: true,
+				currentDocumentUrl: "http://localhost:5173/?windowType=camera-overlay",
+				securityOrigin: "http://localhost:5173",
+				videoRequested: true,
+			},
+			TRUSTED_DOCUMENT_BASE_URLS,
+		),
+	).toBe(false);
 });

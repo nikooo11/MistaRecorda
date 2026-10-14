@@ -673,6 +673,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 						webcamPath,
 						timeOffsetMs: webcamTimeOffsetMs.current,
 						webcamVisibility: webcamVisibility.current,
+						webcamLayoutCues: await window.electronAPI.studio.request("cameraTake"),
 						hideOverlayCursorByDefault: shouldHideOverlayCursor,
 					});
 				} else {
@@ -935,118 +936,118 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	 * recording yet. Call {@link beginWebcamCapture} after the main recording
 	 * has started so both begin at approximately the same time.
 	 */
-	const prepareWebcamRecorder = useCallback(async (force = false) => {
-		if (!force) webcamVisibility.current = [];
-		const boardCapture = await window.electronAPI.board.request<{ enabled: boolean }>(
-			"captureConfig",
-		);
-		if ((!webcamEnabled && !force) || boardCapture.enabled) {
-			resolvedWebcamPath.current = null;
-			pendingWebcamPathPromise.current = Promise.resolve(null);
-			webcamStartTime.current = null;
-			webcamTimeOffsetMs.current = 0;
-			return;
-		}
-
-		try {
-			webcamStream.current = await navigator.mediaDevices.getUserMedia({
-				video: webcamDeviceId
-					? {
-							deviceId: { exact: webcamDeviceId },
-							width: { ideal: WEBCAM_WIDTH },
-							height: { ideal: WEBCAM_HEIGHT },
-							frameRate: { ideal: WEBCAM_FRAME_RATE, max: WEBCAM_FRAME_RATE },
-						}
-					: {
-							width: { ideal: WEBCAM_WIDTH },
-							height: { ideal: WEBCAM_HEIGHT },
-							frameRate: { ideal: WEBCAM_FRAME_RATE, max: WEBCAM_FRAME_RATE },
-						},
-				audio: false,
-			});
-
-			const mimeType = selectWebcamMimeType();
-			webcamChunks.current = [];
-			resolvedWebcamPath.current = null;
-			webcamStopPromise.current = new Promise((resolve) => {
-				webcamStopResolver.current = resolve;
-			});
-			pendingWebcamPathPromise.current = webcamStopPromise.current;
-
-			const recorder = new MediaRecorder(webcamStream.current, {
-				videoBitsPerSecond: WEBCAM_BITRATE,
-				...(mimeType ? { mimeType } : {}),
-			});
-
-			webcamRecorder.current = recorder;
-			recorder.ondataavailable = (event) => {
-				if (event.data && event.data.size > 0) {
-					webcamChunks.current.push(event.data);
-				}
-			};
-			recorder.onerror = () => {
-				webcamStopResolver.current?.(null);
-				webcamStopResolver.current = null;
-			};
-			recorder.onstop = async () => {
-				const sessionTimestamp = recordingSessionTimestamp.current ?? Date.now();
-				const webcamMimeType = recorder.mimeType || mimeType;
-				const webcamFileName = `${RECORDING_FILE_PREFIX}${sessionTimestamp}${WEBCAM_SUFFIX}${getVideoExtensionForMimeType(webcamMimeType)}`;
-
-				try {
-					if (webcamChunks.current.length === 0) {
-						webcamStopResolver.current?.(null);
-						return;
-					}
-
-					const duration = Math.max(
-						0,
-						getRecordingDurationMs(Date.now()) - webcamTimeOffsetMs.current,
-					);
-					const webcamBlob = new Blob(
-						webcamChunks.current,
-						webcamMimeType ? { type: webcamMimeType } : undefined,
-					);
-					webcamChunks.current = [];
-					const finalBlob = isWebmMimeType(webcamMimeType)
-						? await fixWebmDuration(webcamBlob, duration)
-						: webcamBlob;
-					const arrayBuffer = await finalBlob.arrayBuffer();
-					const result = await window.electronAPI.storeRecordedVideo(
-						arrayBuffer,
-						webcamFileName,
-					);
-					webcamStopResolver.current?.(result.success ? (result.path ?? null) : null);
-				} catch (error) {
-					console.error("Error saving webcam recording:", error);
-					webcamStopResolver.current?.(null);
-				} finally {
-					webcamStopResolver.current = null;
-					webcamRecorder.current = null;
-					webcamStartTime.current = null;
-					if (webcamStream.current) {
-						webcamStream.current.getTracks().forEach((track) => track.stop());
-						webcamStream.current = null;
-					}
-				}
-			};
-		} catch (error) {
-			console.warn(
-				"Failed to start webcam recording; continuing without webcam layer:",
-				error,
-			);
-			resolvedWebcamPath.current = null;
-			pendingWebcamPathPromise.current = Promise.resolve(null);
-			webcamStopPromise.current = Promise.resolve(null);
-			webcamRecorder.current = null;
-			webcamStartTime.current = null;
-			webcamTimeOffsetMs.current = 0;
-			if (webcamStream.current) {
-				webcamStream.current.getTracks().forEach((track) => track.stop());
-				webcamStream.current = null;
+	const prepareWebcamRecorder = useCallback(
+		async (force = false) => {
+			if (!force) webcamVisibility.current = [];
+			if (!webcamEnabled && !force) {
+				resolvedWebcamPath.current = null;
+				pendingWebcamPathPromise.current = Promise.resolve(null);
+				webcamStartTime.current = null;
+				webcamTimeOffsetMs.current = 0;
+				return;
 			}
-		}
-	}, [getRecordingDurationMs, selectWebcamMimeType, webcamDeviceId, webcamEnabled]);
+
+			try {
+				webcamStream.current = await navigator.mediaDevices.getUserMedia({
+					video: webcamDeviceId
+						? {
+								deviceId: { exact: webcamDeviceId },
+								width: { ideal: WEBCAM_WIDTH },
+								height: { ideal: WEBCAM_HEIGHT },
+								frameRate: { ideal: WEBCAM_FRAME_RATE, max: WEBCAM_FRAME_RATE },
+							}
+						: {
+								width: { ideal: WEBCAM_WIDTH },
+								height: { ideal: WEBCAM_HEIGHT },
+								frameRate: { ideal: WEBCAM_FRAME_RATE, max: WEBCAM_FRAME_RATE },
+							},
+					audio: false,
+				});
+
+				const mimeType = selectWebcamMimeType();
+				webcamChunks.current = [];
+				resolvedWebcamPath.current = null;
+				webcamStopPromise.current = new Promise((resolve) => {
+					webcamStopResolver.current = resolve;
+				});
+				pendingWebcamPathPromise.current = webcamStopPromise.current;
+
+				const recorder = new MediaRecorder(webcamStream.current, {
+					videoBitsPerSecond: WEBCAM_BITRATE,
+					...(mimeType ? { mimeType } : {}),
+				});
+
+				webcamRecorder.current = recorder;
+				recorder.ondataavailable = (event) => {
+					if (event.data && event.data.size > 0) {
+						webcamChunks.current.push(event.data);
+					}
+				};
+				recorder.onerror = () => {
+					webcamStopResolver.current?.(null);
+					webcamStopResolver.current = null;
+				};
+				recorder.onstop = async () => {
+					const sessionTimestamp = recordingSessionTimestamp.current ?? Date.now();
+					const webcamMimeType = recorder.mimeType || mimeType;
+					const webcamFileName = `${RECORDING_FILE_PREFIX}${sessionTimestamp}${WEBCAM_SUFFIX}${getVideoExtensionForMimeType(webcamMimeType)}`;
+
+					try {
+						if (webcamChunks.current.length === 0) {
+							webcamStopResolver.current?.(null);
+							return;
+						}
+
+						const duration = Math.max(
+							0,
+							getRecordingDurationMs(Date.now()) - webcamTimeOffsetMs.current,
+						);
+						const webcamBlob = new Blob(
+							webcamChunks.current,
+							webcamMimeType ? { type: webcamMimeType } : undefined,
+						);
+						webcamChunks.current = [];
+						const finalBlob = isWebmMimeType(webcamMimeType)
+							? await fixWebmDuration(webcamBlob, duration)
+							: webcamBlob;
+						const arrayBuffer = await finalBlob.arrayBuffer();
+						const result = await window.electronAPI.storeRecordedVideo(
+							arrayBuffer,
+							webcamFileName,
+						);
+						webcamStopResolver.current?.(result.success ? (result.path ?? null) : null);
+					} catch (error) {
+						console.error("Error saving webcam recording:", error);
+						webcamStopResolver.current?.(null);
+					} finally {
+						webcamStopResolver.current = null;
+						webcamRecorder.current = null;
+						webcamStartTime.current = null;
+						if (webcamStream.current) {
+							webcamStream.current.getTracks().forEach((track) => track.stop());
+							webcamStream.current = null;
+						}
+					}
+				};
+			} catch (error) {
+				console.warn(
+					"Failed to start webcam recording; continuing without webcam layer:",
+					error,
+				);
+				resolvedWebcamPath.current = null;
+				pendingWebcamPathPromise.current = Promise.resolve(null);
+				webcamStopPromise.current = Promise.resolve(null);
+				webcamRecorder.current = null;
+				webcamStartTime.current = null;
+				webcamTimeOffsetMs.current = 0;
+				if (webcamStream.current) {
+					webcamStream.current.getTracks().forEach((track) => track.stop());
+					webcamStream.current = null;
+				}
+			}
+		},
+		[getRecordingDurationMs, selectWebcamMimeType, webcamDeviceId, webcamEnabled],
+	);
 
 	/** Start the prepared webcam MediaRecorder. Call after main recording begins. */
 	const beginWebcamCapture = useCallback(() => {
@@ -1059,37 +1060,59 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		}
 	}, []);
 
-	const setWebcamEnabled = useCallback((enabled: boolean) => {
-		if (starting || finalizing || countdownActive || webcamToggleInFlight.current) return;
-		if (!liveRecording.current) { setWebcamEnabledState(enabled); return; }
-		webcamToggleInFlight.current = true;
-		void (async () => {
-			try {
-				const board = await window.electronAPI.board.request<{ enabled: boolean }>("captureConfig");
-				if (!liveRecording.current) return;
-				if (!board.enabled) {
-					if (enabled && !webcamRecorder.current) {
-						await prepareWebcamRecorder(true);
-						if (!liveRecording.current) {
-							webcamStream.current?.getTracks().forEach((track) => track.stop());
-							webcamRecorder.current = null;
-							return;
-						}
-						if (!webcamRecorder.current) throw Error("Camera unavailable. Check camera access and choose a connected camera.");
-						beginWebcamCapture();
-						webcamTimeOffsetMs.current = getRecordingDurationMs(Date.now());
-						webcamVisibility.current = [];
-						if (paused) (webcamRecorder.current as MediaRecorder | null)?.pause();
-					}
-					for (const track of webcamStream.current?.getVideoTracks() ?? []) track.enabled = enabled;
-					webcamVisibility.current.push({ timeMs: getRecordingDurationMs(Date.now()), visible: enabled });
-				}
+	const setWebcamEnabled = useCallback(
+		(enabled: boolean) => {
+			if (starting || finalizing || countdownActive || webcamToggleInFlight.current) return;
+			if (!liveRecording.current) {
 				setWebcamEnabledState(enabled);
-			} catch (e) {
-				toast.error((e as Error).message);
-			} finally { webcamToggleInFlight.current = false; }
-		})();
-	}, [starting, finalizing, countdownActive, paused, prepareWebcamRecorder, beginWebcamCapture, getRecordingDurationMs]);
+				return;
+			}
+			webcamToggleInFlight.current = true;
+			void (async () => {
+				try {
+					if (!liveRecording.current) return;
+					{
+						if (enabled && !webcamRecorder.current) {
+							await prepareWebcamRecorder(true);
+							if (!liveRecording.current) {
+								webcamStream.current?.getTracks().forEach((track) => track.stop());
+								webcamRecorder.current = null;
+								return;
+							}
+							if (!webcamRecorder.current)
+								throw Error(
+									"Camera unavailable. Check camera access and choose a connected camera.",
+								);
+							beginWebcamCapture();
+							webcamTimeOffsetMs.current = getRecordingDurationMs(Date.now());
+							webcamVisibility.current = [];
+							if (paused) (webcamRecorder.current as MediaRecorder | null)?.pause();
+						}
+						for (const track of webcamStream.current?.getVideoTracks() ?? [])
+							track.enabled = enabled;
+						webcamVisibility.current.push({
+							timeMs: getRecordingDurationMs(Date.now()),
+							visible: enabled,
+						});
+					}
+					setWebcamEnabledState(enabled);
+				} catch (e) {
+					toast.error((e as Error).message);
+				} finally {
+					webcamToggleInFlight.current = false;
+				}
+			})();
+		},
+		[
+			starting,
+			finalizing,
+			countdownActive,
+			paused,
+			prepareWebcamRecorder,
+			beginWebcamCapture,
+			getRecordingDurationMs,
+		],
+	);
 
 	const stopRecording = useRef(() => {
 		liveRecording.current = false;
@@ -1197,7 +1220,8 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 							videoPath: finalPath,
 							webcamPath,
 							timeOffsetMs: webcamTimeOffsetMs.current,
-						webcamVisibility: webcamVisibility.current,
+							webcamVisibility: webcamVisibility.current,
+							webcamLayoutCues: await window.electronAPI.studio.request("cameraTake"),
 							hideOverlayCursorByDefault: hideEditorOverlayCursorByDefault.current,
 						});
 
@@ -1932,7 +1956,9 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 										videoPath: finalVideoPath,
 										webcamPath,
 										timeOffsetMs: webcamTimeOffsetMs.current,
-						webcamVisibility: webcamVisibility.current,
+										webcamVisibility: webcamVisibility.current,
+										webcamLayoutCues:
+											await window.electronAPI.studio.request("cameraTake"),
 										hideOverlayCursorByDefault:
 											hideEditorOverlayCursorByDefault.current,
 									});

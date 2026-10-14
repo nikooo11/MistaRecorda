@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { defaultVoiceSettings } from "../../../src/types/voice";
+import type { VoicePreset } from "../../../src/types/voicePreset";
 import { selectSingleFavorite } from "./favoriteSelection";
 import { PresetStore } from "./presets";
 import { VoiceSettingsStore } from "./settings";
@@ -69,4 +70,52 @@ test("legacy automatic-conversion settings are discarded", async () => {
 	);
 	expect((await settings.read()).voiceId).toBe("saved");
 	expect(await settings.read()).not.toHaveProperty("enabled");
+});
+test("favoriting an imported team preset selects its shared settings, without a conversion action", async () => {
+	const { settings, presets } = await stores();
+	const preset: VoicePreset = {
+		schema: "mistarecorda.voice-preset",
+		version: 1,
+		id: crypto.randomUUID(),
+		name: "Team narrator",
+		createdBy: "",
+		createdAt: new Date().toISOString(),
+		updatedAt: new Date().toISOString(),
+		voice: {
+			voiceId: "team-voice",
+			source: "owned",
+			publicOwnerId: null,
+			originalName: "Narrator",
+			category: "cloned",
+		},
+		settings: {
+			modelId: "eleven_english_sts_v2",
+			stability: 0.3,
+			similarityBoost: 0.8,
+			style: 0.4,
+			useSpeakerBoost: true,
+			removeBackgroundNoise: true,
+			postFx: { loudnessLufs: -18, eqPreset: "warm", pitchSemitones: 1 },
+		},
+		preview: { format: "wav", base64: "", text: "" },
+		tags: [],
+		isFavorite: true,
+	};
+	await presets.import(preset);
+	await presets.favorite("other-favorite", true);
+	await presets.favorite(preset.voice.voiceId, true);
+	await selectSingleFavorite(settings, presets, {
+		voiceId: preset.voice.voiceId,
+		name: preset.name,
+	});
+	expect(await settings.read()).toMatchObject({
+		...preset.settings,
+		voiceId: "team-voice",
+		voiceName: "Team narrator",
+	});
+	// On subsequent startup, a user's tuning is retained instead of reset to the preset.
+	await settings.save({ ...(await settings.read()), stability: 0.6 });
+	await presets.favorite("other-favorite", false);
+	await selectSingleFavorite(settings, presets);
+	expect((await settings.read()).stability).toBe(0.6);
 });

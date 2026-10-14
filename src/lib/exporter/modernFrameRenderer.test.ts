@@ -218,7 +218,9 @@ describe("ModernFrameRenderer Pixi lifecycle", () => {
 			};
 			renderer.config.preferredRenderBackend = "webgpu";
 
-			await expect(renderer.createPixiApplication({} as HTMLCanvasElement)).resolves.toMatchObject({
+			await expect(
+				renderer.createPixiApplication({} as HTMLCanvasElement),
+			).resolves.toMatchObject({
 				backend: "webgl",
 			});
 
@@ -516,7 +518,15 @@ describe("ModernFrameRenderer webcam frame cache", () => {
 describe("ModernFrameRenderer webcam export fallback", () => {
 	it("hides a captured camera frame for a recorded off interval", () => {
 		const renderer = createRenderer() as any;
-		renderer.config.webcam = { ...DEFAULT_WEBCAM_OVERLAY, enabled: true, visibility: [{ timeMs: 0, visible: true }, { timeMs: 500, visible: false }, { timeMs: 900, visible: true }] };
+		renderer.config.webcam = {
+			...DEFAULT_WEBCAM_OVERLAY,
+			enabled: true,
+			visibility: [
+				{ timeMs: 0, visible: true },
+				{ timeMs: 500, visible: false },
+				{ timeMs: 900, visible: true },
+			],
+		};
 		renderer.webcamRootContainer = { visible: true };
 		renderer.webcamMaskGraphics = {};
 		renderer.updateWebcamOverlay(0.6);
@@ -647,14 +657,14 @@ describe("ModernFrameRenderer webcam export fallback", () => {
 			};
 			renderer.config.webcamUrl = "file:///tmp/webcam.webm";
 
-				await renderer.setupWebcamSource();
-				const syncPromise = renderer.syncWebcamFrame(1);
+			await renderer.setupWebcamSource();
+			const syncPromise = renderer.syncWebcamFrame(1);
 
 			await vi.advanceTimersByTimeAsync(5_001);
-				await expect(syncPromise).resolves.toBeUndefined();
+			await expect(syncPromise).resolves.toBeUndefined();
 
-				expect(cancelForwardFrameSourceMock).toHaveBeenCalled();
-				expect(destroyForwardFrameSourceMock).toHaveBeenCalled();
+			expect(cancelForwardFrameSourceMock).toHaveBeenCalled();
+			expect(destroyForwardFrameSourceMock).toHaveBeenCalled();
 			expect(revoke).toHaveBeenCalled();
 			expect(renderer.webcamForwardFrameSource).toBeNull();
 			expect(renderer.webcamVideoElement).toBeNull();
@@ -703,6 +713,58 @@ describe("ModernFrameRenderer webcam export fallback", () => {
 
 		expect(renderer.webcamRootContainer.visible).toBe(true);
 		expect(renderer.webcamSprite).toBeTruthy();
+	});
+
+	it("exports edited rectangular camera points with their saved dimensions and margin", () => {
+		const renderer = createRenderer() as any;
+		renderer.config.webcam = {
+			...DEFAULT_WEBCAM_OVERLAY,
+			enabled: true,
+			layoutCues: [
+				{
+					timeMs: 0,
+					layout: {
+						x: 0,
+						y: 0,
+						size: 40,
+						width: 40,
+						height: 20,
+						roundness: 0,
+						mirror: false,
+						locked: false,
+						margin: 12,
+					},
+				},
+			],
+		};
+		renderer.currentVideoTime = 2;
+		renderer.lastSyncedWebcamTime = 2;
+		renderer.webcamVideoElement = {
+			currentTime: 2,
+			readyState: 2,
+			seeking: false,
+			videoWidth: 640,
+			videoHeight: 480,
+			duration: 8,
+		};
+		renderer.webcamRootContainer = { visible: false, position: { set: vi.fn() } };
+		renderer.webcamContainer = { addChildAt: vi.fn() };
+		renderer.webcamMaskGraphics = {
+			clear: vi.fn(),
+			moveTo: vi.fn(),
+			lineTo: vi.fn(),
+			closePath: vi.fn(),
+			fill: vi.fn(),
+		};
+		renderer.webcamShadowLayers = [];
+		renderer.animationState = { appliedScale: 1 };
+		renderer.updateWebcamOverlay();
+		expect(renderer.webcamLayoutCache).toMatchObject({
+			width: 432,
+			height: 216,
+			positionX: 12,
+			positionY: 12,
+		});
 	});
 
 	it("keeps the webcam live when the media element time is current but lastSyncedWebcamTime is stale", () => {

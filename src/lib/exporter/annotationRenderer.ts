@@ -367,11 +367,16 @@ export async function renderAnnotations(
 	coordinateRect?: AnnotationCoordinateRect,
 ): Promise<void> {
 	const activeAnnotations = annotations.filter(
-		(ann) => currentTimeMs >= ann.startMs && currentTimeMs <= ann.endMs,
+		(ann) => !ann.hidden && currentTimeMs >= ann.startMs && currentTimeMs <= ann.endMs,
 	);
 
 	const sortedAnnotations = [...activeAnnotations].sort((a, b) => a.zIndex - b.zIndex);
-	const annotationRect = coordinateRect ?? { x: 0, y: 0, width: canvasWidth, height: canvasHeight };
+	const annotationRect = coordinateRect ?? {
+		x: 0,
+		y: 0,
+		width: canvasWidth,
+		height: canvasHeight,
+	};
 
 	for (const annotation of sortedAnnotations) {
 		const rect = transformAnnotationRect(

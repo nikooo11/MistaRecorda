@@ -1,0 +1,52 @@
+html:has(.live-camera),
+body:has(.live-camera),
+#root:has(.live-camera) {
+	background: transparent !important;
+	overflow: hidden;
+}
+.live-camera {
+	position: fixed;
+	inset: 0;
+	-webkit-app-region: drag;
+	cursor: grab;
+	user-select: none;
+}
+.live-camera[data-locked="true"] {
+	-webkit-app-region: no-drag;
+	cursor: default;
+}
+.live-camera video {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	pointer-events: none;
+}
+.camera-layout-button {
+	-webkit-app-region: no-drag;
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	border: 1px solid #ffffff50;
+	border-radius: 4px;
+	background: #202126de;
+	color: white;
+	width: 28px;
+	height: 28px;
+	opacity: 0;
+	cursor: pointer;
+	transition: opacity 0.15s;
+}
+.live-camera:hover .camera-layout-button,
+.camera-layout-button:focus-visible {
+	opacity: 1;
+}
+.camera-error {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	place-content: center;
+	background: #28292d;
+	color: #fff;
+	border: 1px solid #666;
+	font: 12px system-ui;
+}

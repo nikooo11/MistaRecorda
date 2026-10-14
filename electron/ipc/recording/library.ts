@@ -18,6 +18,8 @@ export interface RecordingAudioMetadata {
 	changedVoiceName?: string;
 	changedVoiceId?: string;
 	changedModelId?: string;
+	changedSettingsKey?: string;
+	voiceChangeEnabled?: boolean;
 }
 export function recordingBase(videoPath: string) {
 	return videoPath.slice(0, videoPath.length - path.extname(videoPath).length);
@@ -90,7 +92,21 @@ async function firstExisting(paths: string[]) {
 	return null;
 }
 /** Only known mic sidecars are eligible. Never extract the video's audio for STS. */
-export async function prepareRecordingAudio(videoPath: string, measuredOffsetMs?: number) {
+const audioPreparation = new Map<string, Promise<RecordingAudioMetadata>>();
+export function prepareRecordingAudio(videoPath: string, measuredOffsetMs?: number) {
+	const previous = audioPreparation.get(videoPath);
+	const task = (previous ? previous.catch(() => undefined) : Promise.resolve()).then(() =>
+		prepareRecordingAudioOnce(videoPath, measuredOffsetMs),
+	);
+	audioPreparation.set(videoPath, task);
+	void task
+		.finally(() => {
+			if (audioPreparation.get(videoPath) === task) audioPreparation.delete(videoPath);
+		})
+		.catch(() => undefined);
+	return task;
+}
+async function prepareRecordingAudioOnce(videoPath: string, measuredOffsetMs?: number) {
 	const previous = await readAudioMetadata(videoPath);
 	const base = recordingBase(videoPath);
 	const micPath = `${base}.mic.wav`;

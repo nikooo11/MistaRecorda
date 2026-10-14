@@ -121,8 +121,16 @@ export function registerPresetHandlers() {
 	voiceHandle("presets", async () => store().entries((await voiceStore().read()).teamFolder));
 	voiceHandle("savePreset", async (input) => {
 		const p = await store().save(input);
-		if (p.isFavorite) await store().favorite(p.voice.voiceId, true);
-		await synchronizeFavoriteVoice();
+		await store().favorite(
+			p.voice.voiceId,
+			p.isFavorite ||
+				(await store().entries((await voiceStore().read()).teamFolder)).some(
+					(e) => e.preset.voice.voiceId === p.voice.voiceId && e.preset.isFavorite,
+				),
+		);
+		await synchronizeFavoriteVoice(
+			p.isFavorite ? { voiceId: p.voice.voiceId, name: p.name } : undefined,
+		);
 		notify();
 		return p;
 	});
@@ -243,7 +251,9 @@ export function registerPresetHandlers() {
 		if (status === "askShare") return { status, preset: p };
 		const saved = await store().import(p, input.rename);
 		if (saved.isFavorite) await store().favorite(saved.voice.voiceId, true);
-		await synchronizeFavoriteVoice();
+		await synchronizeFavoriteVoice(
+			saved.isFavorite ? { voiceId: saved.voice.voiceId, name: saved.name } : undefined,
+		);
 		notify();
 		return { status, preset: saved };
 	});

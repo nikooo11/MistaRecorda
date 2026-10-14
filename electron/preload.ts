@@ -191,7 +191,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	recordingZoom: {
 		getStatus: () => ipcRenderer.invoke("recording-zoom:status"),
 		saveSettings: (settings) => ipcRenderer.invoke("recording-zoom:save", settings),
-		openSettings: () => ipcRenderer.invoke("recording-zoom:open"),
+		openSettings: (toggle = false) => ipcRenderer.invoke("recording-zoom:open", toggle),
 		getRegions: (videoPath) => ipcRenderer.invoke("recording-zoom:regions", videoPath),
 		onStatus: (callback) => {
 			const listener = (
@@ -805,6 +805,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 			webcamPath?: string | null;
 			timeOffsetMs?: number;
 			webcamVisibility?: import("../src/lib/webcamVisibility").WebcamVisibilityEvent[];
+			webcamLayoutCues?: import("../src/lib/cameraLayout").CameraLayoutCue[];
 			hideOverlayCursorByDefault?: boolean;
 		},
 		options?: { preserveProjectPath?: boolean },

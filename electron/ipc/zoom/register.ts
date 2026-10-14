@@ -1,3 +1,4 @@
+import { showCapturePanel } from "../../panelToggle";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -68,11 +69,11 @@ export function registerRecordingZoomHandlers() {
 			return { success: true, regions: [] };
 		}
 	});
-	ipcMain.handle("recording-zoom:open", async (event) => {
+	ipcMain.handle("recording-zoom:open", async (event, toggle = false) => {
 		if (!trusted(event)) return;
 		if (settingsWindow && !settingsWindow.isDestroyed()) {
-			settingsWindow.show();
-			settingsWindow.focus();
+			if (toggle && settingsWindow.isVisible()) settingsWindow.hide();
+			else showCapturePanel(settingsWindow, BrowserWindow.getAllWindows());
 			return;
 		}
 		settingsWindow = new BrowserWindow({
@@ -86,6 +87,7 @@ export function registerRecordingZoomHandlers() {
 				sandbox: true,
 			},
 		});
+		settingsWindow.setContentProtection(true);
 		settingsWindow.on("closed", () => {
 			settingsWindow = null;
 		});
@@ -97,5 +99,6 @@ export function registerRecordingZoomHandlers() {
 			await settingsWindow.loadFile(path.join(app.getAppPath(), "dist/index.html"), {
 				query: { windowType: "zoom-settings" },
 			});
+		showCapturePanel(settingsWindow, BrowserWindow.getAllWindows());
 	});
 }

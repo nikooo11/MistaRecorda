@@ -1,3 +1,4 @@
+import { cameraOverlayAt } from "../cameraLayout";
 import { isWebcamVisible } from "../webcamVisibility";
 import { Application, BlurFilter, Container, Graphics, Rectangle, Sprite, Texture } from "pixi.js";
 import { MotionBlurFilter } from "pixi-filters/motion-blur";
@@ -1459,6 +1460,7 @@ export class FrameRenderer {
 	private hasActiveBlurAnnotations(timeMs: number): boolean {
 		return (this.config.annotationRegions ?? []).some(
 			(annotation) =>
+				!annotation.hidden &&
 				annotation.type === "blur" &&
 				timeMs >= annotation.startMs &&
 				timeMs <= annotation.endMs,
@@ -1600,6 +1602,7 @@ export class FrameRenderer {
 		);
 
 		for (const annotation of annotations) {
+			if (annotation.hidden) continue;
 			const annotationRect = this.layoutCache?.maskRect ?? {
 				x: 0,
 				y: 0,
@@ -2840,8 +2843,15 @@ export class FrameRenderer {
 	}
 
 	private updateWebcamOverlay(referenceTimeSeconds = this.currentVideoTime): void {
-		const webcam = this.config.webcam;
-		if (!webcam?.enabled || !isWebcamVisible(webcam.visibility, referenceTimeSeconds * 1000) || !this.webcamRootContainer || !this.webcamMaskGraphics) {
+		const webcam = this.config.webcam
+			? cameraOverlayAt(this.config.webcam, referenceTimeSeconds * 1000)
+			: undefined;
+		if (
+			!webcam?.enabled ||
+			!isWebcamVisible(webcam.visibility, referenceTimeSeconds * 1000) ||
+			!this.webcamRootContainer ||
+			!this.webcamMaskGraphics
+		) {
 			if (this.webcamRootContainer) {
 				this.webcamRootContainer.visible = false;
 			}
@@ -2907,13 +2917,15 @@ export class FrameRenderer {
 			liveSourceDimensions.height > 0
 				? liveSourceDimensions.height
 				: renderableWebcamSource.height;
-		const heightPercent = getCropMatchedWebcamHeightPercent(
-			widthPercent,
-			webcam.height ?? webcam.size ?? 50,
-			aspectSourceWidth,
-			aspectSourceHeight,
-			webcam.cropRegion,
-		);
+		const heightPercent = webcam.layoutCues?.length
+			? (webcam.height ?? widthPercent)
+			: getCropMatchedWebcamHeightPercent(
+					widthPercent,
+					webcam.height ?? webcam.size ?? 50,
+					aspectSourceWidth,
+					aspectSourceHeight,
+					webcam.cropRegion,
+				);
 		const dimensions = getWebcamOverlayDimensionsPx({
 			containerWidth: this.config.width,
 			containerHeight: this.config.height,

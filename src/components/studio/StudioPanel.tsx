@@ -1,3 +1,4 @@
+import { CaptureLayers } from "./CaptureLayers";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	GearSixIcon,
@@ -18,7 +19,7 @@ export { ShortcutInput } from "./ShortcutInput";
 export function StudioPanel() {
 	const [info, setInfo] = useState<StudioInfo>();
 	const modifier = /Mac/.test(navigator.platform) ? "⌘" : "Ctrl";
-	const [tab, setTab] = useState<"windows" | "sounds" | "controls" | "scenes">("controls");
+	const [tab, setTab] = useState<import("../../types/studio").StudioTab>("layers");
 	const [sources, setSources] = useState<StudioSource[]>([]);
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -59,6 +60,9 @@ export function StudioPanel() {
 		return window.electronAPI.studio.onChanged(setInfo);
 	}, [run, refresh]);
 	useEffect(() => () => audio.current?.pause(), []);
+	useEffect(() => {
+		if (info?.panelTab) setTab(info.panelTab);
+	}, [info?.panelTab]);
 	const preview = async (sound: SoundEffect) => {
 		audio.current?.pause();
 		if (playing === sound.id) {
@@ -92,6 +96,7 @@ export function StudioPanel() {
 				{(
 					[
 						{ id: "controls", label: "Recording", Icon: KeyboardIcon },
+						{ id: "layers", label: "Layers", Icon: StackIcon },
 						{ id: "scenes", label: "Recording scenes", Icon: StackIcon },
 						{ id: "windows", label: "Window shortcuts", Icon: MonitorIcon },
 						{ id: "sounds", label: "Sound effects", Icon: SpeakerHighIcon },
@@ -100,9 +105,13 @@ export function StudioPanel() {
 					<button
 						key={id}
 						aria-pressed={tab === id}
-						onClick={() => setTab(id)}
+						onClick={() => {
+							setTab(id);
+							void run("panelTab", id);
+						}}
 						title={
 							{
+								layers: "Add a camera and drawings, choose camera placement, and lock its position.",
 								windows:
 									"Assign hotkeys to switch the recorded application window during a take.",
 								sounds: "Import sound clips, preview them, and choose hotkeys that add them to your recording.",
@@ -117,6 +126,7 @@ export function StudioPanel() {
 				))}
 			</nav>
 			<div className="capture-content">
+				{tab === "layers" && <CaptureLayers info={info} run={run} />}
 				{tab === "scenes" && (
 					<RecordingScenes
 						info={info}

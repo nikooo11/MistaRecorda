@@ -1570,7 +1570,12 @@ export class ModernVideoExporter {
 		if (this.config.webcam?.enabled && !this.getNativeWebcamSourcePath()) {
 			reasons.push("unsupported-webcam-source");
 		}
-		if (this.config.webcam?.enabled && this.config.webcam.visibility?.some((cue) => cue.timeMs > 0 || !cue.visible)) {
+		if (this.config.webcam?.enabled && this.config.webcam.layoutCues?.length)
+			reasons.push("webcam-layout-requires-frame-compositor");
+		if (
+			this.config.webcam?.enabled &&
+			this.config.webcam.visibility?.some((cue) => cue.timeMs > 0 || !cue.visible)
+		) {
 			reasons.push("webcam-visibility-requires-frame-compositor");
 		}
 		if (this.hasUnsupportedNativeStaticLayoutWebcamShape()) {

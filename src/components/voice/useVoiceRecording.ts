@@ -19,6 +19,7 @@ export function useVoiceRecording(videoPath: string | null) {
 				);
 				if (!disposed) {
 					setRecording(next);
+					setError("");
 					setLoaded(true);
 				}
 			} catch (e) {

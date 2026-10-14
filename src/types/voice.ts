@@ -71,6 +71,8 @@ export interface VoiceRecording {
 	changedVoiceName?: string;
 	changedVoiceId?: string;
 	changedModelId?: string;
+	changedSettingsKey?: string;
+	voiceChangeEnabled?: boolean;
 }
 export interface VoiceRequests {
 	storeBrowserAudio: {
@@ -132,6 +134,8 @@ export interface VoiceRequests {
 	afterRecording: { input: string; output: string | null };
 	outputAction: { input: { videoPath: string; action: "open" | "reveal" }; output: boolean };
 	recording: { input: string; output: VoiceRecording | null };
+	setVoiceChange: { input: { videoPath: string; enabled: boolean }; output: boolean };
+	exportReady: { input: string; output: boolean };
 	selectMic: { input: { videoPath: string; selection: "original" | "changed" }; output: boolean };
 	start: { input: string | { videoPath: string; settings: VoiceSettings }; output: string };
 	models: { input: undefined; output: VoiceModel[] };

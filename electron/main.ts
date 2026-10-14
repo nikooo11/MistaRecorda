@@ -1,3 +1,4 @@
+import { isCameraPreviewWebContents } from "./studio/register";
 import {
 	registerBoard,
 	isBoardCaptureWebContents,
@@ -966,7 +967,8 @@ app.whenReady().then(async () => {
 			return shouldGrantMediaPermission(
 				{
 					permission,
-					isTrustedCaptureWindow: isHudWebContents(webContents),
+					isTrustedCaptureWindow:
+						isHudWebContents(webContents) || isCameraPreviewWebContents(webContents),
 					isMainFrame: details.isMainFrame,
 					currentDocumentUrl: webContents?.getURL() ?? "",
 					// Electron 39 may supply the last committed document URL, including its
@@ -988,7 +990,9 @@ app.whenReady().then(async () => {
 				shouldGrantMediaPermission(
 					{
 						permission,
-						isTrustedCaptureWindow: isHudWebContents(webContents),
+						isTrustedCaptureWindow:
+							isHudWebContents(webContents) ||
+							isCameraPreviewWebContents(webContents),
 						isMainFrame: details.isMainFrame,
 						currentDocumentUrl: webContents.getURL(),
 						requestingUrl: details.requestingUrl,

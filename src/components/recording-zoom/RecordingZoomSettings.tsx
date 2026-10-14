@@ -37,7 +37,7 @@ export function RecordingZoomControl() {
 		<button
 			type="button"
 			className="recording-zoom-control"
-			onClick={() => void window.electronAPI.recordingZoom.openSettings()}
+			onClick={() => void window.electronAPI.recordingZoom.openSettings(true)}
 			title={t("recordingZoom.title")}
 		>
 			{status?.following

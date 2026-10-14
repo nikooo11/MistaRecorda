@@ -1,3 +1,4 @@
+import { CameraOverlay } from "./components/studio/CameraOverlay";
 import { StudioPanel } from "./components/studio/StudioPanel";
 import { lazy, Suspense } from "react";
 const BoardWindow = lazy(() =>
@@ -76,6 +77,8 @@ export default function App() {
 					<BoardWindow kind={windowType} />
 				</Suspense>
 			);
+		case "camera-overlay":
+			return <CameraOverlay />;
 		case "studio":
 			return <StudioPanel />;
 		case "zoom-settings":

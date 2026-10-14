@@ -34,7 +34,7 @@ export interface RecordingZoomStatus {
 export interface RecordingZoomAPI {
 	getStatus(): Promise<RecordingZoomStatus>;
 	saveSettings(settings: RecordingZoomSettings): Promise<{ success: boolean; error?: string }>;
-	openSettings(): Promise<void>;
+	openSettings(toggle?: boolean): Promise<void>;
 	getRegions(videoPath: string): Promise<{ success: boolean; regions: ZoomRegion[] }>;
 	onStatus(callback: (status: RecordingZoomStatus) => void): () => void;
 }

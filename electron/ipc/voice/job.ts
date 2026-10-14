@@ -1,3 +1,4 @@
+import { voiceProcessingKey } from "../../../src/lib/voiceExport";
 import { mixArgs } from "./mix";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -217,6 +218,8 @@ async function run(
 			changedVoiceId: settings.voiceId,
 			changedVoiceName: settings.voiceName,
 			changedModelId: settings.modelId,
+			changedSettingsKey: voiceProcessingKey(settings),
+			voiceChangeEnabled: true,
 		});
 		committed = true;
 		for (const win of BrowserWindow.getAllWindows())

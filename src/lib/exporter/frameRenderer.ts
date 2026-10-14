@@ -1,3 +1,4 @@
+import { cameraOverlayAt } from "../cameraLayout";
 import { isWebcamVisible } from "../webcamVisibility";
 import { Application, Container, Graphics, Rectangle, Sprite, Texture } from "pixi.js";
 import { MotionBlurFilter } from "pixi-filters/motion-blur";
@@ -2336,10 +2337,16 @@ export class FrameRenderer {
 	}
 
 	private drawWebcamOverlay(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-		const webcam = this.config.webcam;
+		const webcam = this.config.webcam
+			? cameraOverlayAt(this.config.webcam, this.currentVideoTime * 1000)
+			: undefined;
 		const webcamDecodedFrame = this.webcamDecodedFrame;
 		const webcamVideo = this.webcamVideoElement;
-		if (!webcam?.enabled || !isWebcamVisible(webcam.visibility, this.currentVideoTime * 1000) || (!webcamDecodedFrame && !webcamVideo)) {
+		if (
+			!webcam?.enabled ||
+			!isWebcamVisible(webcam.visibility, this.currentVideoTime * 1000) ||
+			(!webcamDecodedFrame && !webcamVideo)
+		) {
 			return;
 		}
 
@@ -2442,13 +2449,15 @@ export class FrameRenderer {
 					: webcamFrameSource.height) || sourceWidth;
 		const margin = webcam.margin ?? 24;
 		const widthPercent = webcam.width ?? webcam.size ?? 50;
-		const heightPercent = getCropMatchedWebcamHeightPercent(
-			widthPercent,
-			webcam.height ?? webcam.size ?? 50,
-			sourceWidth,
-			sourceHeight,
-			webcam.cropRegion,
-		);
+		const heightPercent = webcam.layoutCues?.length
+			? (webcam.height ?? widthPercent)
+			: getCropMatchedWebcamHeightPercent(
+					widthPercent,
+					webcam.height ?? webcam.size ?? 50,
+					sourceWidth,
+					sourceHeight,
+					webcam.cropRegion,
+				);
 		const dimensions = getWebcamOverlayDimensionsPx({
 			containerWidth: width,
 			containerHeight: height,

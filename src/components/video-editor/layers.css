@@ -1,0 +1,80 @@
+.editor-layers {
+	width: 332px;
+	min-width: 280px;
+	max-width: 332px;
+	height: 100%;
+	padding: 14px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	background: hsl(var(--background));
+	color: hsl(var(--foreground));
+	overflow: hidden;
+	font-size: 12px;
+	border: 1px solid hsl(var(--foreground) / 0.12);
+	border-radius: 4px;
+}
+.editor-layers h2 {
+	font-size: 15px;
+	font-weight: 600;
+	margin: 0 0 6px;
+}
+.editor-layers p {
+	font-size: 11px;
+	line-height: 1.5;
+	color: hsl(var(--foreground) / 0.6);
+}
+.editor-layers button {
+	border: 1px solid hsl(var(--foreground) / 0.16);
+	border-radius: 3px;
+	padding: 5px 8px;
+	background: hsl(var(--foreground) / 0.035);
+	transition: background 0.12s;
+	cursor: pointer;
+}
+.editor-layers button:hover {
+	background: hsl(var(--foreground) / 0.09);
+}
+.editor-layers button:disabled {
+	opacity: 0.3;
+	cursor: default;
+}
+.layer-add {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 4px;
+}
+.layer-list {
+	overflow: auto;
+	flex: 1;
+	min-height: 80px;
+}
+.editor-layer-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 8px 0;
+	border-bottom: 1px solid hsl(var(--foreground) / 0.12);
+}
+.editor-layer-row .layer-name {
+	flex: 1;
+	min-width: 0;
+	text-align: left;
+	border: 0;
+	background: transparent;
+}
+.layer-name strong,
+.layer-name small {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.layer-name small {
+	font-size: 10px;
+	opacity: 0.6;
+	margin-top: 3px;
+}
+.layer-empty {
+	padding: 15px 0;
+}

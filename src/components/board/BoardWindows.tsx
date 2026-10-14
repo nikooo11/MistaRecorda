@@ -14,7 +14,6 @@ import {
 	ArrowsOutSimpleIcon,
 } from "@phosphor-icons/react";
 import QRCode from "qrcode";
-import { BoardCamera } from "./BoardCamera";
 import { BoardCanvas } from "./BoardCanvas";
 import { BoardStream } from "./BoardStream";
 import { desktopBoard } from "./transport";
@@ -113,12 +112,6 @@ export function BoardWindow({ kind }: { kind: string }) {
 					initial={info.state}
 					clean={kind === "board-surface"}
 				/>
-				{kind === "board-surface" && (
-					<BoardCamera
-						visible={info.state.enabled && info.status.webcam}
-						deviceId={info.status.webcamDeviceId}
-					/>
-				)}
 			</>
 		);
 	const expiresIn = Math.max(0, Math.ceil(((info.pairing?.expires ?? 0) - now) / 1000));
@@ -179,6 +172,7 @@ export function BoardWindow({ kind }: { kind: string }) {
 								}
 								onClick={() => {
 									setTab(id);
+									void run("panelTab", id);
 									setNotice("");
 								}}
 							>

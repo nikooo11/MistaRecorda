@@ -25,6 +25,7 @@ export interface StudioSettings {
 	windows: WindowSlot[];
 	sounds: SoundEffect[];
 	cameraShortcut: string;
+	cameraLayout: import("../lib/cameraLayout").CameraLayout;
 	scenes: RecordingScene[];
 }
 export interface RecordingScene {
@@ -32,10 +33,14 @@ export interface RecordingScene {
 	name: string;
 	source: StudioSource;
 	camera: boolean;
+	cameraLayout?: import("../lib/cameraLayout").CameraLayout;
 	shortcut: string;
 }
+export type StudioTab = "windows" | "sounds" | "controls" | "scenes" | "layers";
 export interface StudioInfo {
+	panelTab?: StudioTab;
 	settings: StudioSettings;
+	camera?: { enabled: boolean; deviceId?: string; preview: boolean; error?: string };
 	recording: boolean;
 	switching: boolean;
 	canSwitch: boolean;

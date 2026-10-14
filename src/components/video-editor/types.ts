@@ -100,6 +100,7 @@ export function normalizeCursorClickEffectColor(
 }
 
 export type EditorEffectSection =
+	| "layers"
 	| "voice"
 	| "scene"
 	| "cursor"
@@ -128,6 +129,7 @@ export type WebcamPositionPreset =
 	| "custom";
 
 export interface WebcamOverlaySettings {
+	layoutCues?: import("../../lib/cameraLayout").CameraLayoutCue[];
 	visibility?: import("../../lib/webcamVisibility").WebcamVisibilityEvent[];
 	enabled: boolean;
 	sourcePath: string | null;
@@ -445,6 +447,7 @@ export function getDefaultCaptionFontFamily() {
 }
 
 export interface AnnotationRegion {
+	hidden?: boolean;
 	id: string;
 	startMs: number;
 	endMs: number;

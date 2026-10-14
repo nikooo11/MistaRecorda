@@ -382,10 +382,10 @@ export function VoiceBrowser({
 								className="voice-use"
 								disabled={disabled || busy || selectedVoiceId === v.voiceId}
 								onClick={() => void onUseVoice(v)}
-								data-help="Convert this recording’s microphone to this voice, then use it for playback and export."
+								data-help="Select this voice. Process voice explicitly when ready; selection never uploads audio."
 							>
 								{applyingVoiceId === v.voiceId
-									? "Applying…"
+									? "Selecting…"
 									: selectedVoiceId === v.voiceId
 										? "Selected"
 										: "Use"}
@@ -490,12 +490,37 @@ export function VoiceBrowser({
 								</div>
 								<button
 									type="button"
+									aria-label={`${p.isFavorite ? "Unfavorite" : "Favorite"} ${p.name}`}
+									aria-pressed={p.isFavorite}
+									disabled={disabled || busy}
+									onClick={() =>
+										void run(async () => {
+											unwrapVoice(
+												await window.electronAPI.voice.request(
+													"savePreset",
+													{ ...p, isFavorite: !p.isFavorite },
+												),
+											);
+											refresh();
+										})
+									}
+									data-help="Favorite a team preset to select its shared voice and settings automatically."
+								>
+									{p.isFavorite ? "★" : "☆"}
+								</button>
+								<button
+									type="button"
 									className="voice-use"
 									disabled={disabled || busy}
 									onClick={() => void onUsePreset(p)}
-									data-help="Apply this preset’s voice and tuning to the microphone recording."
+									data-help="Select this preset’s voice and tuning. Click Process voice when ready to convert."
 								>
-									{applyingVoiceId === p.voice.voiceId ? "Applying…" : "Use"}
+									{applyingVoiceId === p.voice.voiceId
+										? "Selecting…"
+										: selectedVoiceId === p.voice.voiceId &&
+												settings.voiceName === p.name
+											? "Selected"
+											: "Use"}
 								</button>
 								<button
 									type="button"

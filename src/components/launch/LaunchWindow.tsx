@@ -157,6 +157,15 @@ function LaunchWindowContent() {
 	});
 
 	useEffect(() => {
+		void window.electronAPI.studio
+			.request("cameraStatus", {
+				enabled: webcamEnabled,
+				deviceId: webcamDeviceId,
+				preview: showFloatingWebcamPreview,
+			})
+			.catch(console.error);
+	}, [webcamEnabled, webcamDeviceId, showFloatingWebcamPreview, recording]);
+	useEffect(() => {
 		window.electronAPI?.hudOverlaySetWebcamPreviewVisible?.(showRecordingWebcamPreview);
 	}, [showRecordingWebcamPreview]);
 
@@ -248,7 +257,9 @@ function LaunchWindowContent() {
 			<Button
 				variant="ghost"
 				title="Drawing studio: annotate your screen, open a whiteboard, or connect your iPad. Command/Control + Shift + B toggles the board."
-				onClick={() => void window.electronAPI.board.request("open")}
+				onClick={() =>
+					void window.electronAPI.board.request("togglePanel", { tab: "draw" })
+				}
 			>
 				<PencilSimpleIcon size={17} /> Board
 			</Button>
@@ -256,7 +267,7 @@ function LaunchWindowContent() {
 				variant="ghost"
 				aria-label="Capture settings"
 				title="Open assigned windows and trigger sounds during this take. Stop recording to edit their settings."
-				onClick={() => void window.electronAPI.studio.request("open")}
+				onClick={() => void window.electronAPI.studio.request("togglePanel")}
 			>
 				<GearSixIcon size={18} />
 			</Button>
@@ -281,14 +292,18 @@ function LaunchWindowContent() {
 			<Button
 				variant="ghost"
 				title="Drawing studio: annotate your screen, open a whiteboard, or connect your iPad. Command/Control + Shift + B toggles the board."
-				onClick={() => void window.electronAPI.board.request("open")}
+				onClick={() =>
+					void window.electronAPI.board.request("togglePanel", { tab: "draw" })
+				}
 			>
 				<PencilSimpleIcon size={17} /> Board
 			</Button>
 			<Button
 				variant="ghost"
 				title="Show the QR code pairing panel to connect an iPad for drawing."
-				onClick={() => void window.electronAPI.board.request("open", { tab: "ipad" })}
+				onClick={() =>
+					void window.electronAPI.board.request("togglePanel", { tab: "ipad" })
+				}
 			>
 				<DeviceTabletIcon size={17} /> iPad
 			</Button>
@@ -296,7 +311,7 @@ function LaunchWindowContent() {
 				variant="ghost"
 				title="Assign window-switching hotkeys, import sound effects, and set up capture controls."
 				aria-label="Capture settings"
-				onClick={() => void window.electronAPI.studio.request("open")}
+				onClick={() => void window.electronAPI.studio.request("togglePanel")}
 			>
 				<GearSixIcon size={18} />
 			</Button>

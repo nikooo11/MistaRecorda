@@ -35,9 +35,9 @@ Use **Drawings** to save and load drawings; **Settings** selects the display and
 
 ## Recording scenes and camera
 
-Open **Capture settings → Recording** to view the main shortcuts. **⌘/Ctrl + Shift + W** toggles the face camera; click the shortcut to change it. During ordinary screen/window capture, camera visibility is recorded as source-time cues and is respected by preview, saved projects and export. The camera can first be enabled after recording starts. In drawing capture, the clean drawing surface includes the camera directly.
+Open **Capture settings → Recording** to view the main shortcuts. **⌘/Ctrl + Shift + W** toggles the face camera; click the shortcut to change it. Camera visibility and movement are recorded as source-time cues and are respected by preview, saved projects and export. The camera can first be enabled after recording starts. Drawing capture also keeps the camera as a separate editable video layer.
 
-**Recording scenes → Add scene** saves a name, one screen/window source and camera on/off state. Click its shortcut field to assign a key, or click **Use**. Microphone and system audio remain the current recorder choices. Scenes never start a recording automatically. During native macOS window capture, window scenes can change the source. Switching to a different display requires stopping first. A missing source leaves the existing source and camera untouched.
+**Recording scenes → Add scene** saves a name, one screen/window source, camera on/off state and the current camera placement. Click its shortcut field to assign a key, or click **Use**. Microphone and system audio remain the current recorder choices. Scenes never start a recording automatically. During native macOS window capture, window scenes can change the source. Switching to a different display requires stopping first. A missing source leaves the existing source and camera untouched.
 
 ## Window shortcuts and sounds
 
@@ -53,7 +53,9 @@ Open the gear button for **Capture settings**.
 
 Voice controls appear **only after recording, in the editor**. Open the waveform **Voice / ElevenLabs** sidebar. Its compact tuning controls stay in place while only the voice list scrolls. Use **My voices**, **Library**, **Favorites**, or **Presets**, and search to narrow the list. The play button auditions a sample without selecting it.
 
-Click **Use** to convert the current recording’s isolated microphone track with that voice and the displayed tuning. The button shows **Applying…** during processing and **Selected** when the changed track is active. Playback and export switch automatically; **Mic audio → Original** restores the original. **Apply tuning** reconverts with adjusted settings. Computer audio and the original microphone remain intact. Record with the microphone enabled; takes without an isolated microphone track explain why conversion is unavailable.
+Recording always captures the original microphone. Click **Use** to select a voice; the row shows **Selected**. Selecting, favoriting, importing, or saving tuning never processes audio. Click **Process voice via ElevenLabs** explicitly when ready. Successful processing switches playback and export to the changed microphone; **Mic audio → Original** restores the original. Computer audio and the original microphone remain intact. Takes without an isolated microphone explain why conversion is unavailable.
+
+The **Export** menu contains a compact voice selector, preview, favorite button, preset shortcut, and **Change microphone voice** checkbox. With voice change enabled, **Export video** stays disabled until the selected voice and tuning have been processed. Changing either makes processing necessary again. Disabling voice change permits exporting the original. A favorite is selected automatically; starring a team preset selects its shared voice and tuning. With several favorites, the most recently starred choice is selected and retained on restart. GIF export has no audio and does not require voice processing.
 
 The conversion-model dropdown lists models the ElevenLabs API reports as supporting voice conversion. Per-voice quality labels reflect supplied model metadata; they do not imply every listed model supports speech-to-speech. Missing metadata is shown honestly.
 
@@ -76,3 +78,20 @@ Local builds now use the persistent **MistaRecorda Local Development** certifica
 Capture settings uses a fixed category sidebar: Recording, Recording scenes, Window shortcuts and Sound effects. Settings apply through their existing controls; shortcut edits have explicit Save and Cancel buttons. The footer identifies the selected recording source. Drawing, iPad pairing and saved drawings share compact tabs with a fixed recording transport. Voice conversion remains in the editor after recording.
 
 Visual references: [OBS settings](https://obsproject.com/kb/OBS-Studio-Overview) for category navigation and aligned controls; [DaVinci Resolve Fairlight](https://www.blackmagicdesign.com/products/davinciresolve/fairlight) for compact grouping and restrained status colors. Reference images inform layout; they are not shipped as application assets.
+
+## Layers and camera placement
+
+**Capture settings → Layers** has camera position presets, size, shape, mirroring and position lock. Drag the floating camera directly, even while recording. Its protected preview stays visible when the recorder controls are hidden. Moving it during a take records placement cues; idle gaps hold the position. Disabling the floating preview leaves camera recording enabled. Linux hides the floating camera during capture because reliable window exclusion is unavailable there.
+
+In the editor, **Layers** lists text, images, shapes and blur overlays, plus the camera and base screen recording. Add an overlay at the playhead, select it to edit its content, drag it in the preview, hide/show it, change its stacking order or remove it. Undo restores changes. Timeline tracks control timing. Drawing captured live remains part of the base video. **Webcam → Placement** shows the playhead time and X/Y fields. Scrub or use Previous/Next point, then change X/Y or a position preset to correct that point while preserving the other recorded movement. Add/Remove point controls adjust the path, and playback/export interpolate between points. Changes pause playback and participate in undo and project saving. Reset restores the default camera layout.
+
+## Recorder panel buttons
+
+Board, iPad, Capture settings and Zoom toggle their menus. Click once to open, then again to hide. Choosing another tool replaces the visible menu. Switching between Board and iPad opens the requested tab rather than hiding the shared panel. The editor sidebar and its Connect iPad button also toggle open/closed. Menu-bar commands explicitly open their destination.
+
+
+## Studio backgrounds
+
+After recording, open **Scene → Background → Studio backgrounds**. Choose Blueprint, Contour, Graphite, or Paper. Each sets an editable frame margin, corner radius, and shadow around the screen recording. Blueprint and Contour include an optional **Motion** toggle for a quiet eight-second loop. Backgrounds remain behind screen footage and the separate camera layer in playback and export; they add no work to live capture. All four designs are original, bundled offline, and may be used in commercial recordings without attribution. Existing custom image/video backgrounds remain available below the short menu.
+
+The webcam cropper previews the recorded camera at the current playhead and respects **Mirror webcam**. Crop the recorded frame, not the current live camera image; this keeps the preview consistent with the exported take.

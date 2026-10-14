@@ -5,9 +5,19 @@ import type {
 	ClipRegion,
 	SpeedRegion,
 	ZoomRegion,
+	WebcamOverlaySettings,
+	Padding,
 } from "./types";
 
 export type EditorHistorySnapshot = {
+	webcam?: WebcamOverlaySettings;
+	background?: {
+		wallpaper: string;
+		padding: Padding;
+		borderRadius: number;
+		shadowIntensity: number;
+		backgroundBlur: number;
+	};
 	zoomRegions: ZoomRegion[];
 	clipRegions: ClipRegion[];
 	speedRegions: SpeedRegion[];
@@ -44,9 +54,7 @@ export function resetEditorHistoryStack(stack: EditorHistoryStack): void {
 	stack.future = [];
 }
 
-export function cloneEditorHistorySnapshot(
-	snapshot: EditorHistorySnapshot,
-): EditorHistorySnapshot {
+export function cloneEditorHistorySnapshot(snapshot: EditorHistorySnapshot): EditorHistorySnapshot {
 	return globalThis.structuredClone(snapshot);
 }
 

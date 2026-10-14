@@ -1,3 +1,4 @@
+import { normalizeCameraCues } from "../../../src/lib/cameraLayout";
 import { normalizeWebcamVisibility } from "../../../src/lib/webcamVisibility";
 import { randomUUID } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
@@ -677,7 +678,8 @@ export function registerProjectHandlers() {
 				videoPath: string;
 				webcamPath?: string | null;
 				timeOffsetMs?: number;
-			webcamVisibility?: import("../../../src/lib/webcamVisibility").WebcamVisibilityEvent[];
+				webcamVisibility?: import("../../../src/lib/webcamVisibility").WebcamVisibilityEvent[];
+				webcamLayoutCues?: import("../../../src/lib/cameraLayout").CameraLayoutCue[];
 				hideOverlayCursorByDefault?: boolean;
 			},
 			options?: { preserveProjectPath?: boolean },
@@ -689,7 +691,8 @@ export function registerProjectHandlers() {
 				videoPath: normalizedVideoPath,
 				webcamPath: normalizeVideoSourcePath(session.webcamPath ?? null),
 				timeOffsetMs: normalizeRecordingTimeOffsetMs(session.timeOffsetMs),
-		webcamVisibility: normalizeWebcamVisibility(session.webcamVisibility),
+				webcamVisibility: normalizeWebcamVisibility(session.webcamVisibility),
+				webcamLayoutCues: normalizeCameraCues(session.webcamLayoutCues),
 				hideOverlayCursorByDefault: normalizeBoolean(session.hideOverlayCursorByDefault),
 			});
 			await rememberApprovedLocalReadPath(currentRecordingSession!.videoPath);

@@ -27,8 +27,24 @@ export const soundSchema = z.object({
 	shortcut: shortcutSchema,
 	volume: z.number().min(0).max(2),
 });
+export const cameraLayoutSchema = z.object({
+	x: z.number().min(0).max(1),
+	y: z.number().min(0).max(1),
+	size: z.number().min(10).max(60),
+	roundness: z.number().min(0).max(100),
+	mirror: z.boolean(),
+	locked: z.boolean(),
+});
 export const studioSettingsSchema = z.object({
 	glow: z.boolean(),
+	cameraLayout: cameraLayoutSchema.default({
+		x: 0.97,
+		y: 0.97,
+		size: 26,
+		roundness: 90,
+		mirror: true,
+		locked: false,
+	}),
 	cameraShortcut: shortcutSchema.default("CommandOrControl+Shift+W"),
 	scenes: z
 		.array(
@@ -37,6 +53,7 @@ export const studioSettingsSchema = z.object({
 				name: z.string().trim().min(1).max(60),
 				source: sourceSchema,
 				camera: z.boolean(),
+				cameraLayout: cameraLayoutSchema.optional(),
 				shortcut: shortcutSchema,
 			}),
 		)

@@ -1,4 +1,9 @@
-const CAPTURE_WINDOW_TYPES = new Set(["hud-overlay", "board-surface", "board-stream"]);
+const CAPTURE_WINDOW_TYPES = new Set([
+	"hud-overlay",
+	"board-surface",
+	"board-stream",
+	"camera-overlay",
+]);
 const TRUSTED_RENDERER_PROTOCOLS = new Set(["http:", "https:", "file:"]);
 const FILE_SECURITY_ORIGINS = new Set(["null", "file://", "file:///"]);
 
@@ -151,6 +156,7 @@ export function shouldGrantDisplayCapture(
 		request.isTrustedCaptureWindow &&
 		request.isMainFrame &&
 		request.videoRequested &&
+		parseUrl(request.currentDocumentUrl)?.searchParams.get("windowType") !== "camera-overlay" &&
 		isTrustedCaptureDocumentUrl(request.currentDocumentUrl, trustedDocumentBaseUrls) &&
 		isSecurityOriginForDocument(request.securityOrigin, request.currentDocumentUrl)
 	);

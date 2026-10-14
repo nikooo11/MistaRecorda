@@ -1,3 +1,4 @@
+import { DEFAULT_CAMERA_LAYOUT } from "../cameraLayout";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AudioRegion, SpeedRegion } from "@/components/video-editor/types";
 import { ModernVideoExporter } from "./modernVideoExporter";
@@ -74,8 +75,44 @@ function createExporter(overrides: Record<string, unknown> = {}) {
 }
 
 it("routes camera on/off cues to the frame compositor instead of flattening them", () => {
-	const exporter = createExporter({ webcam: { enabled: true, sourcePath: "/camera.webm", width: 40, height: 40, visibility: [{ timeMs: 0, visible: true }, { timeMs: 500, visible: false }] } });
-	expect(exporter.getNativeStaticLayoutSkipReasons(exporter.buildNativeAudioPlan(videoInfo), videoInfo, 60)).toContain("webcam-visibility-requires-frame-compositor");
+	const exporter = createExporter({
+		webcam: {
+			enabled: true,
+			sourcePath: "/camera.webm",
+			width: 40,
+			height: 40,
+			visibility: [
+				{ timeMs: 0, visible: true },
+				{ timeMs: 500, visible: false },
+			],
+		},
+	});
+	expect(
+		exporter.getNativeStaticLayoutSkipReasons(
+			exporter.buildNativeAudioPlan(videoInfo),
+			videoInfo,
+			60,
+		),
+	).toContain("webcam-visibility-requires-frame-compositor");
+});
+
+it("routes recorded camera placement to the frame compositor", () => {
+	const exporter = createExporter({
+		webcam: {
+			enabled: true,
+			sourcePath: "/camera.webm",
+			width: 26,
+			height: 26,
+			layoutCues: [{ timeMs: 0, layout: DEFAULT_CAMERA_LAYOUT }],
+		},
+	});
+	expect(
+		exporter.getNativeStaticLayoutSkipReasons(
+			exporter.buildNativeAudioPlan(videoInfo),
+			videoInfo,
+			60,
+		),
+	).toContain("webcam-layout-requires-frame-compositor");
 });
 
 afterEach(() => {

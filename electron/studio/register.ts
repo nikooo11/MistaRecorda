@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { showCapturePanel } from "../panelToggle";
+import { CaptureCamera } from "./camera";
 import { normalizeShortcut, recorderShortcuts } from "../../src/components/studio/shortcuts";
 import { setCaptureCanvasAspect } from "./geometry";
 import fs from "node:fs/promises";
@@ -32,13 +35,42 @@ import {
 	resolveApprovedLocalMediaPath,
 	rememberApprovedLocalReadPath,
 } from "../ipc/project/manager";
-import { assertBoardCaptureSource, isDrawingSurfaceWindow, sendRecordingControl } from "../board/register";
+import {
+	assertBoardCaptureSource,
+	isDrawingSurfaceWindow,
+	sendRecordingControl,
+} from "../board/register";
 import { requireScreenRecordingAccess } from "../screenCaptureAccess";
 import type { AudioRegion } from "../../src/components/video-editor/types";
 import type { StudioSettings, StudioInfo, StudioSource } from "../../src/types/studio";
-import { SoundTake, studioSettingsSchema, shortcutSchema, sourceSchema } from "./model";
+import {
+	SoundTake,
+	studioSettingsSchema,
+	shortcutSchema,
+	sourceSchema,
+	cameraLayoutSchema,
+} from "./model";
 const exec = promisify(execFile);
 let settings: StudioSettings = studioSettingsSchema.parse({ glow: true, windows: [], sounds: [] });
+let cameraSaveTimer: ReturnType<typeof setTimeout> | undefined;
+const camera = new CaptureCamera(
+	() => settings.cameraLayout,
+	(layout) => {
+		settings = { ...settings, cameraLayout: layout };
+		camera.record(layout);
+		publish();
+		clearTimeout(cameraSaveTimer);
+		cameraSaveTimer = setTimeout(
+			() =>
+				void save().catch((e) => {
+					message = e.message;
+					publish();
+				}),
+			250,
+		);
+	},
+);
+let panelTab: import("../../src/types/studio").StudioTab = "layers";
 let message = "";
 let switching = false;
 let take = new SoundTake();
@@ -57,6 +89,8 @@ const bindings = new Set<string>();
 const root = () => path.join(app.getPath("userData"), "studio");
 const info = (): StudioInfo => ({
 	settings,
+	camera: camera.status,
+	panelTab,
 	recording: isCursorCaptureActive,
 	switching,
 	canSwitch: process.platform === "darwin",
@@ -99,7 +133,11 @@ function bindAll(next: StudioSettings) {
 		{ shortcut: next.cameraShortcut, run: () => void sendRecordingControl("webcam") },
 		...next.scenes.map((scene) => ({
 			shortcut: scene.shortcut,
-			run: () => void applyScene(scene.id).catch((e) => { message = e.message; publish(); }),
+			run: () =>
+				void applyScene(scene.id).catch((e) => {
+					message = e.message;
+					publish();
+				}),
 		})),
 		...next.windows.map((w) => ({
 			shortcut: w.shortcut,
@@ -133,7 +171,18 @@ function bindAll(next: StudioSettings) {
 	);
 	if (new Set(keys).size !== keys.length) throw Error("Each shortcut can only have one action.");
 	for (const fixed of recorderShortcuts)
-		if (keys.includes(normalizeShortcut(fixed.shortcut, process.platform === "darwin" ? "darwin" : process.platform === "win32" ? "win32" : "linux")))
+		if (
+			keys.includes(
+				normalizeShortcut(
+					fixed.shortcut,
+					process.platform === "darwin"
+						? "darwin"
+						: process.platform === "win32"
+							? "win32"
+							: "linux",
+				),
+			)
+		)
 			throw Error(`That shortcut is assigned to ${fixed.name}. Choose another combination.`);
 	// Check conflicts before replacing working bindings.
 	for (const b of desired)
@@ -160,23 +209,41 @@ async function applyScene(id: string) {
 		// Never change the camera if the source switch fails.
 		if (scene.source.id !== selectedSource?.id) {
 			if (scene.source.sourceType !== "window" || !selectedSource?.id?.startsWith("window:"))
-				throw Error("Stop recording to switch displays. Window scenes can switch during a window recording.");
+				throw Error(
+					"Stop recording to switch displays. Window scenes can switch during a window recording.",
+				);
 			await switchWindow(scene.source);
 		}
 	} else if (process.platform === "darwin" && scene.source.sourceType === "window") {
 		await switchWindow(scene.source);
 	} else {
 		requireScreenRecordingAccess();
-		const sources = await desktopCapturer.getSources({ types: [scene.source.sourceType], thumbnailSize: { width: 0, height: 0 } });
-		const source = sources.find((s) => scene.source.sourceType === "screen" && scene.source.display_id
-			? s.display_id === scene.source.display_id : s.id === scene.source.id);
-		if (!source) throw Error("This scene’s source is unavailable. Edit the scene and choose an open source.");
+		const sources = await desktopCapturer.getSources({
+			types: [scene.source.sourceType],
+			thumbnailSize: { width: 0, height: 0 },
+		});
+		const source = sources.find((s) =>
+			scene.source.sourceType === "screen" && scene.source.display_id
+				? s.display_id === scene.source.display_id
+				: s.id === scene.source.id,
+		);
+		if (!source)
+			throw Error(
+				"This scene’s source is unavailable. Edit the scene and choose an open source.",
+			);
 		const next = { ...scene.source, id: source.id };
 		assertBoardCaptureSource(next);
 		setSelectedSource(next);
-		for (const w of BrowserWindow.getAllWindows()) w.webContents.send("selected-source-changed", next);
+		for (const w of BrowserWindow.getAllWindows())
+			w.webContents.send("selected-source-changed", next);
 	}
-	await sendRecordingControl(scene.camera ? "webcam-on" : "webcam-off");
+	if (scene.cameraLayout) {
+		settings = { ...settings, cameraLayout: scene.cameraLayout };
+		camera.record(scene.cameraLayout);
+		camera.sync();
+		await save();
+	}
+	sendRecordingControl(scene.camera ? "webcam-on" : "webcam-off");
 	message = `Scene: ${scene.name}`;
 	publish();
 }
@@ -259,6 +326,7 @@ export async function switchWindow(input: StudioSource) {
 	}
 }
 export function startStudioTake() {
+	camera.start();
 	setCaptureCanvasAspect(
 		process.platform === "darwin" &&
 			nativeScreenRecordingActive &&
@@ -347,15 +415,15 @@ export async function prepareStudioCapture() {
 		const kind = new URL(w.webContents.getURL() || "about:blank").searchParams.get(
 			"windowType",
 		);
-		if (w !== glow && !isDrawingSurfaceWindow(w) && kind !== "countdown") w.hide();
+		if (w !== glow && w !== camera.window && !isDrawingSurfaceWindow(w) && kind !== "countdown")
+			w.hide();
 		if (process.platform === "win32" && !isDrawingSurfaceWindow(w))
 			w.setContentProtection(true);
 	}
 }
 async function openPanel() {
 	if (panel && !panel.isDestroyed()) {
-		panel.show();
-		panel.focus();
+		showCapturePanel(panel, BrowserWindow.getAllWindows());
 		return;
 	}
 	panel = new BrowserWindow({
@@ -381,6 +449,7 @@ async function openPanel() {
 	panel.on("closed", endShortcutCapture);
 	panel.webContents.on("render-process-gone", endShortcutCapture);
 	await panel.loadURL(`${base}?windowType=studio`);
+	showCapturePanel(panel, BrowserWindow.getAllWindows());
 }
 export function registerStudio() {
 	app.on("browser-window-created", (_, window) => {
@@ -422,13 +491,53 @@ export function registerStudio() {
 			} else if (shortcutCaptureOwner === e.sender) endShortcutCapture();
 			return info();
 		}
+		if (method === "panelTab") {
+			panelTab = z.enum(["windows", "sounds", "controls", "scenes", "layers"]).parse(input);
+			publish();
+			return info();
+		}
 		if (method === "info") return info();
+		if (method === "cameraStatus") {
+			if (!e.sender.getURL().includes("windowType=hud-overlay"))
+				throw Error("Camera status is owned by the recorder.");
+			await camera.update({
+				enabled: input?.enabled === true,
+				deviceId: typeof input?.deviceId === "string" ? input.deviceId : undefined,
+				preview: input?.preview !== false,
+			});
+			publish();
+			return info();
+		}
+		if (method === "cameraError") {
+			camera.status.error = String(input).slice(0, 300);
+			publish();
+			return info();
+		}
+		if (method === "cameraLayout") {
+			const layout = cameraLayoutSchema.parse(input);
+			settings = { ...settings, cameraLayout: layout };
+			camera.record(layout);
+			camera.sync();
+			await save();
+			return info();
+		}
+		if (method === "cameraTake") return camera.cues;
+		if (method === "cameraToggle") {
+			sendRecordingControl(camera.status.enabled ? "webcam-off" : "webcam-on");
+			return info();
+		}
 		if (method === "prepareCapture") {
 			await prepareStudioCapture();
 			return info();
 		}
-		if (method === "open") {
+		if (method === "togglePanel" && panel && !panel.isDestroyed() && panel.isVisible()) {
+			panel.hide();
+			return info();
+		}
+		if (method === "open" || method === "togglePanel") {
+			if (input === "layers") panelTab = "layers";
 			await openPanel();
+			publish();
 			return info();
 		}
 		if (method === "fireSound") {
@@ -492,8 +601,12 @@ export function registerStudio() {
 			const next = studioSettingsSchema.parse({
 				...settings,
 				...(method === "cameraShortcut" ? { cameraShortcut: input } : {}),
-				...(method === "saveScene" ? { scenes: [...settings.scenes.filter((s) => s.id !== input?.id), input] } : {}),
-				...(method === "removeScene" ? { scenes: settings.scenes.filter((s) => s.id !== input) } : {}),
+				...(method === "saveScene"
+					? { scenes: [...settings.scenes.filter((s) => s.id !== input?.id), input] }
+					: {}),
+				...(method === "removeScene"
+					? { scenes: settings.scenes.filter((s) => s.id !== input) }
+					: {}),
 			});
 			bindAll(next);
 			settings = next;
@@ -622,5 +735,17 @@ export function registerStudio() {
 	app.on("will-quit", () => {
 		for (const key of bindings) globalShortcut.unregister(key);
 		clearInterval(glowTimer);
+		clearTimeout(cameraSaveTimer);
+		camera.destroy();
 	});
+}
+
+/** Only the independent camera window may request its local camera preview. */
+export function isCameraPreviewWebContents(contents: Electron.WebContents | null): boolean {
+	return Boolean(
+		contents &&
+			camera.window &&
+			!camera.window.isDestroyed() &&
+			camera.window.webContents === contents,
+	);
 }

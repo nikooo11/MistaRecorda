@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_WEBCAM_OVERLAY, DEFAULT_PADDING } from "./types";
+import { editCameraOverlayAt, DEFAULT_CAMERA_LAYOUT } from "@/lib/cameraLayout";
 
 import {
 	areEditorHistorySnapshotsEqual,
@@ -27,6 +29,36 @@ function createSnapshot(id: string | null): EditorHistorySnapshot {
 }
 
 describe("editorHistory", () => {
+	it("undoes and redoes camera corrections and background changes without losing motion points", () => {
+		const original: EditorHistorySnapshot = {
+			...createSnapshot(null),
+			webcam: {
+				...DEFAULT_WEBCAM_OVERLAY,
+				layoutCues: [
+					{ timeMs: 0, layout: DEFAULT_CAMERA_LAYOUT },
+					{ timeMs: 4000, layout: { ...DEFAULT_CAMERA_LAYOUT, x: 0 } },
+				],
+			},
+			background: {
+				wallpaper: "#111111",
+				padding: DEFAULT_PADDING,
+				borderRadius: 0,
+				shadowIntensity: 0,
+				backgroundBlur: 0,
+			},
+		};
+		const edited = {
+			...original,
+			webcam: editCameraOverlayAt(original.webcam!, 2000, { positionX: 0.25 }),
+			background: { ...original.background!, wallpaper: "/wallpapers/studio-blueprint.png" },
+		};
+		const stack = createEditorHistoryStack();
+		recordEditorHistorySnapshot(stack, original);
+		recordEditorHistorySnapshot(stack, edited);
+		expect(undoEditorHistoryStack(stack, edited)).toEqual(original);
+		expect(redoEditorHistoryStack(stack, original)).toEqual(edited);
+		expect(stack.current?.webcam?.layoutCues).toHaveLength(3);
+	});
 	it("initializes without adding undo history", () => {
 		const stack = createEditorHistoryStack();
 		const snapshot = createSnapshot("first");

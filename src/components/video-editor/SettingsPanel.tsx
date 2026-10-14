@@ -1,3 +1,5 @@
+import { StudioBackgroundPicker } from "./StudioBackgroundPicker";
+import { editCameraOverlayAt } from "../../lib/cameraLayout";
 import {
 	CursorClick,
 	Palette,
@@ -805,6 +807,8 @@ interface SettingsPanelProps {
 	webcam?: WebcamOverlaySettings;
 	webcamPreviewSrc?: string | null;
 	webcamPreviewCurrentTime?: number;
+	webcamTimelineTime?: number;
+	onWebcamSeek?: (sourceSeconds: number) => void;
 	webcamPreviewPlaying?: boolean;
 	onWebcamChange?: (webcam: WebcamOverlaySettings) => void;
 	onUploadWebcam?: () => void;
@@ -1250,6 +1254,8 @@ export function SettingsPanel({
 	webcam,
 	webcamPreviewSrc = null,
 	webcamPreviewCurrentTime = 0,
+	webcamTimelineTime = webcamPreviewCurrentTime,
+	onWebcamSeek,
 	webcamPreviewPlaying = false,
 	onWebcamChange,
 	onUploadWebcam,
@@ -1939,7 +1945,7 @@ export function SettingsPanel({
 
 	const updateWebcam = (patch: Partial<WebcamOverlaySettings>) => {
 		if (!webcam || !onWebcamChange) return;
-		onWebcamChange({ ...webcam, ...patch });
+		onWebcamChange(editCameraOverlayAt(webcam, webcamPreviewCurrentTime * 1000, patch));
 	};
 
 	const applyWebcamPositionPreset = (preset: WebcamPositionPreset) => {
@@ -2037,6 +2043,25 @@ export function SettingsPanel({
 
 	const backgroundSettingsContent = (
 		<div className="space-y-4">
+			<StudioBackgroundPicker
+				value={selected}
+				onSelect={(source, frame) => {
+					onWallpaperChange(source);
+					if (frame) {
+						onPaddingChange?.({
+							top: 28,
+							bottom: 28,
+							left: 28,
+							right: 28,
+							linked: true,
+						});
+						onBorderRadiusChange?.(12);
+						onShadowChange?.(0.5);
+						onBackgroundBlurChange?.(0);
+					}
+				}}
+			/>
+
 			<section className="flex flex-col gap-2">
 				<div className="flex items-center justify-between gap-3">
 					<SectionLabel>{tSettings("background.title")}</SectionLabel>
@@ -3955,6 +3980,140 @@ export function SettingsPanel({
 								{t("common.actions.reset", "Reset")}
 							</button>
 						</div>
+						<div className="rounded border border-foreground/10 p-2 text-xs">
+							<strong>Placement at {webcamTimelineTime.toFixed(2)}s</strong>
+							<p className="my-1 text-muted-foreground">
+								Pause or scrub, then adjust X/Y below. Other placement points are
+								preserved.
+							</p>
+							<div className="mb-2 flex gap-3">
+								<label className="flex flex-1 items-center gap-2">
+									X %
+									<input
+										aria-label="Camera X at playhead"
+										type="number"
+										min="0"
+										max="100"
+										step="1"
+										value={Math.round(webcamPositionX * 100)}
+										onChange={(e) => {
+											if (
+												e.target.value !== "" &&
+												Number.isFinite(e.target.valueAsNumber)
+											)
+												updateWebcam({
+													positionX:
+														Math.max(
+															0,
+															Math.min(100, e.target.valueAsNumber),
+														) / 100,
+												});
+										}}
+										className="w-16 rounded border border-foreground/20 bg-transparent px-2 py-1"
+									/>
+								</label>
+								<label className="flex flex-1 items-center gap-2">
+									Y %
+									<input
+										aria-label="Camera Y at playhead"
+										type="number"
+										min="0"
+										max="100"
+										step="1"
+										value={Math.round(webcamPositionY * 100)}
+										onChange={(e) => {
+											if (
+												e.target.value !== "" &&
+												Number.isFinite(e.target.valueAsNumber)
+											)
+												updateWebcam({
+													positionY:
+														Math.max(
+															0,
+															Math.min(100, e.target.valueAsNumber),
+														) / 100,
+												});
+										}}
+										className="w-16 rounded border border-foreground/20 bg-transparent px-2 py-1"
+									/>
+								</label>
+							</div>
+							<div className="grid grid-cols-2 gap-2 [&>button]:rounded [&>button]:border [&>button]:border-foreground/15 [&>button]:px-2 [&>button]:py-1 [&>button:disabled]:opacity-40">
+								<button
+									type="button"
+									disabled={
+										!webcam?.layoutCues?.some(
+											(c) => c.timeMs < webcamPreviewCurrentTime * 1000 - 1,
+										)
+									}
+									onClick={() => {
+										const cue = webcam?.layoutCues
+											?.filter(
+												(c) =>
+													c.timeMs < webcamPreviewCurrentTime * 1000 - 1,
+											)
+											.slice(-1)[0];
+										if (cue) onWebcamSeek?.(cue.timeMs / 1000);
+									}}
+								>
+									Previous point
+								</button>
+								<button
+									type="button"
+									onClick={() =>
+										updateWebcam({
+											positionX: webcamPositionX,
+											positionY: webcamPositionY,
+										})
+									}
+								>
+									Add point
+								</button>
+								<button
+									type="button"
+									disabled={
+										!webcam?.layoutCues?.some(
+											(c) => c.timeMs > webcamPreviewCurrentTime * 1000 + 1,
+										)
+									}
+									onClick={() => {
+										const cue = webcam?.layoutCues?.find(
+											(c) => c.timeMs > webcamPreviewCurrentTime * 1000 + 1,
+										);
+										if (cue) onWebcamSeek?.(cue.timeMs / 1000);
+									}}
+								>
+									Next point
+								</button>
+								<button
+									type="button"
+									disabled={
+										(webcam?.layoutCues?.length ?? 0) < 2 ||
+										!webcam?.layoutCues?.some(
+											(c) =>
+												Math.abs(
+													c.timeMs - webcamPreviewCurrentTime * 1000,
+												) < 1,
+										)
+									}
+									onClick={() => {
+										if (webcam)
+											onWebcamChange?.({
+												...webcam,
+												layoutCues: webcam.layoutCues?.filter(
+													(c) =>
+														Math.abs(
+															c.timeMs -
+																webcamPreviewCurrentTime * 1000,
+														) >= 1,
+												),
+											});
+									}}
+								>
+									Remove point
+								</button>
+							</div>
+						</div>
 						<div className="flex flex-col gap-1.5">
 							<div className="flex items-center justify-between rounded-lg bg-foreground/[0.03] px-2.5 py-1.5">
 								<span className="text-[10px] text-muted-foreground">
@@ -4052,10 +4211,14 @@ export function SettingsPanel({
 								</div>
 								<div className="grid grid-cols-3 gap-1.5">
 									{WEBCAM_POSITION_PRESETS.map((option) => {
-										const isActive = webcamPositionPreset === option.preset;
+										const position = getWebcamPositionForPreset(option.preset);
+										const isActive =
+											Math.abs(webcamPositionX - position.x) < 0.01 &&
+											Math.abs(webcamPositionY - position.y) < 0.01;
 										return (
 											<Button
 												key={option.preset}
+												aria-label={`Camera ${option.preset}`}
 												type="button"
 												onClick={() =>
 													applyWebcamPositionPreset(option.preset)

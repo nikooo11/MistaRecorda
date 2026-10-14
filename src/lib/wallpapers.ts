@@ -8,6 +8,22 @@ export interface BuiltInWallpaper {
 const IMAGE_FILE_PATTERN = /\.(avif|gif|jpe?g|png|svg|webp)$/i;
 const VIDEO_FILE_PATTERN = /\.(avi|m4v|mkv|mov|mp4|webm)$/i;
 
+/** Original bundled designs, usable offline without a third-party asset license. */
+export const STUDIO_BACKGROUNDS = [
+	{
+		name: "Blueprint",
+		image: "/wallpapers/studio-blueprint.png",
+		motion: "/wallpapers/studio-blueprint.mp4",
+	},
+	{
+		name: "Contour",
+		image: "/wallpapers/studio-contour.png",
+		motion: "/wallpapers/studio-contour.mp4",
+	},
+	{ name: "Graphite", image: "/wallpapers/studio-graphite.png", motion: null },
+	{ name: "Paper", image: "/wallpapers/studio-paper.png", motion: null },
+] as const;
+
 export const BUILT_IN_WALLPAPERS: BuiltInWallpaper[] = [
 	createWallpaperEntry("tahoe-light.jpg", "Tahoe Light"),
 	createWallpaperEntry("tahoe-dark.jpg", "Tahoe Dark"),
@@ -34,6 +50,17 @@ export const BUILT_IN_WALLPAPERS: BuiltInWallpaper[] = [
 	createWallpaperEntry("iridescent-9.jpg", "Iridescent 9"),
 	createWallpaperEntry("energy-17.jpg", "Energy 17"),
 	createWallpaperEntry("wispysky.mp4", "Wispy Sky"),
+	...STUDIO_BACKGROUNDS.flatMap((background) => [
+		createWallpaperEntry(background.image.split("/").pop()!, background.name),
+		...(background.motion
+			? [
+					createWallpaperEntry(
+						background.motion.split("/").pop()!,
+						`${background.name} Motion`,
+					),
+				]
+			: []),
+	]),
 ];
 
 export const WALLPAPER_PATHS = BUILT_IN_WALLPAPERS.map((wallpaper) => wallpaper.publicPath);
@@ -113,7 +140,10 @@ function toWallpaperLabel(fileName: string) {
 		.replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
-function createWallpaperEntry(fileName: string, label = toWallpaperLabel(fileName)): BuiltInWallpaper {
+function createWallpaperEntry(
+	fileName: string,
+	label = toWallpaperLabel(fileName),
+): BuiltInWallpaper {
 	const encodedFileName = encodeURIComponent(fileName);
 	return {
 		id: toWallpaperId(fileName) || `wallpaper-${encodedFileName.toLowerCase()}`,

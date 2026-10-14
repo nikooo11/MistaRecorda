@@ -721,7 +721,8 @@ interface Window {
 				videoPath: string;
 				webcamPath?: string | null;
 				timeOffsetMs?: number;
-			webcamVisibility?: import("../src/lib/webcamVisibility").WebcamVisibilityEvent[];
+				webcamVisibility?: import("../src/lib/webcamVisibility").WebcamVisibilityEvent[];
+				webcamLayoutCues?: import("../src/lib/cameraLayout").CameraLayoutCue[];
 				hideOverlayCursorByDefault?: boolean;
 			},
 			options?: { preserveProjectPath?: boolean },
@@ -732,7 +733,8 @@ interface Window {
 				videoPath: string;
 				webcamPath?: string | null;
 				timeOffsetMs?: number;
-			webcamVisibility?: import("../src/lib/webcamVisibility").WebcamVisibilityEvent[];
+				webcamVisibility?: import("../src/lib/webcamVisibility").WebcamVisibilityEvent[];
+				webcamLayoutCues?: import("../src/lib/cameraLayout").CameraLayoutCue[];
 				hideOverlayCursorByDefault?: boolean;
 			};
 		}>;

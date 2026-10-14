@@ -1,3 +1,4 @@
+import { normalizeCameraCues } from "../../lib/cameraLayout";
 import { normalizeWebcamVisibility } from "../../lib/webcamVisibility";
 import type { SourceAudioTrackSettings } from "@/components/video-editor/audio/audioTypes";
 import type {
@@ -646,6 +647,7 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 								: {}),
 						},
 						zIndex: isFiniteNumber(region.zIndex) ? region.zIndex : index + 1,
+						hidden: region.hidden === true,
 						figureData: region.figureData
 							? {
 									...DEFAULT_FIGURE_DATA,
@@ -1060,6 +1062,7 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 				? clamp(webcam.shadow, 0, 1)
 				: DEFAULT_WEBCAM_SHADOW,
 			visibility: normalizeWebcamVisibility(webcam.visibility),
+			layoutCues: normalizeCameraCues(webcam.layoutCues),
 			timeOffsetMs: isFiniteNumber(webcam.timeOffsetMs)
 				? Math.round(webcam.timeOffsetMs)
 				: DEFAULT_WEBCAM_TIME_OFFSET_MS,
