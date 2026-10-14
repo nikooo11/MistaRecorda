@@ -143,3 +143,24 @@ test("revocation prevents a queued operation from running", async () => {
 	await new Promise((resolve) => setTimeout(resolve, 30));
 	expect(action.mock.calls.some((call) => call[0] === "clear")).toBe(false);
 });
+
+test("companion may request visuals and sounds but never read/write API credentials", async () => {
+	const action = await connect();
+	const paired = message();
+	socket.send(JSON.stringify({ type: "pair", code: server.code }));
+	const p = await paired;
+	const approved = message();
+	await server.approve(p.deviceId);
+	await approved;
+	for (const method of ["aiSetKey", "aiTestKey", "aiAudio"]) {
+		const rejected = message("error");
+		socket.send(JSON.stringify({ id: 90, method, input: "secret" }));
+		expect(await rejected).toMatchObject({ type: "error", id: 90 });
+	}
+	for (const method of ["laser", "captureStill", "soundboard", "aiInfo", "aiSearch"]) {
+		const reply = message("reply");
+		socket.send(JSON.stringify({ id: 91, method }));
+		expect((await reply).type).toBe("reply");
+		expect(action).toHaveBeenLastCalledWith(method, undefined, p.deviceId);
+	}
+});

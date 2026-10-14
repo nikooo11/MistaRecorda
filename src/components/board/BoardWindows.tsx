@@ -16,6 +16,10 @@ import {
 import QRCode from "qrcode";
 import { BoardCanvas } from "./BoardCanvas";
 import { BoardStream } from "./BoardStream";
+import { FigureAssistant, FigureSettingsPanel } from "./FigureAssistant";
+import { FigureMicrophone } from "./FigureMicrophone";
+import { SparkleIcon } from "@phosphor-icons/react";
+import { Soundboard } from "./Soundboard";
 import { desktopBoard } from "./transport";
 import type { BoardInfo, BoardStatus } from "../../types/board";
 import "./board.css";
@@ -29,6 +33,8 @@ export function BoardWindow({ kind }: { kind: string }) {
 	const [name, setName] = useState("Introduction");
 	const [scenes, setScenes] = useState<string[]>([]);
 	const [compact, setCompact] = useState(false);
+	const [ai, setAi] = useState(false);
+	const [sounds, setSounds] = useState(false);
 	const [tab, setTab] = useState<"draw" | "ipad" | "scenes" | "settings">("draw");
 	const [notice, setNotice] = useState("");
 	const [now, setNow] = useState(Date.now());
@@ -99,7 +105,13 @@ export function BoardWindow({ kind }: { kind: string }) {
 				<PencilSimpleIcon size={16} />
 			</button>
 		);
-	if (kind === "board-stream") return <BoardStream transport={transport} />;
+	if (kind === "board-stream")
+		return (
+			<>
+				<BoardStream transport={transport} />
+				<FigureMicrophone transport={transport} />
+			</>
+		);
 	if (!info)
 		return (
 			<div className="board-panel board-loading">{error || "Opening drawing studio…"}</div>
@@ -118,6 +130,8 @@ export function BoardWindow({ kind }: { kind: string }) {
 	const connected = info.devices.filter((d) => d.approved && d.connected).length;
 	return (
 		<main className={`board-panel ${compact ? "board-compact" : ""}`}>
+			{ai && <FigureAssistant transport={transport} onClose={() => setAi(false)} />}
+			{sounds && <Soundboard transport={transport} onClose={() => setSounds(false)} />}
 			<header className="board-panel-heading">
 				<div>
 					<h1>{compact ? "Recording controls" : "Drawing"}</h1>
@@ -132,6 +146,24 @@ export function BoardWindow({ kind }: { kind: string }) {
 				</button>
 			</header>
 			<div className="board-status" data-recording={info.status.recording}>
+				<button
+					aria-expanded={ai}
+					onClick={() => {
+						setAi(!ai);
+						setSounds(false);
+					}}
+				>
+					<SparkleIcon size={16} /> AI mic
+				</button>
+				<button
+					aria-expanded={sounds}
+					onClick={() => {
+						setSounds(!sounds);
+						setAi(false);
+					}}
+				>
+					Soundboard
+				</button>
 				<span
 					className={`studio-dot ${info.status.recording && !info.status.paused ? "is-live" : ""}`}
 				/>
@@ -301,6 +333,14 @@ export function BoardWindow({ kind }: { kind: string }) {
 								{info.pairing && (
 									<details className="studio-details">
 										<summary>Connection options</summary>
+										<label className="studio-field">
+											Pairing link
+											<input
+												readOnly
+												value={pairUrl}
+												onFocus={(event) => event.currentTarget.select()}
+											/>
+										</label>
 										<label>
 											Network address
 											<select
@@ -420,6 +460,7 @@ export function BoardWindow({ kind }: { kind: string }) {
 						)}
 						{tab === "settings" && (
 							<>
+								<FigureSettingsPanel transport={transport} />
 								<h2>Drawing settings</h2>
 								<label className="studio-field">
 									Display

@@ -10,7 +10,7 @@ MistaRecorda embeds the [Excalidraw](https://github.com/excalidraw/excalidraw) e
 4. Pinch with two fingers on the board to pan/zoom, or use its zoom controls. Desktop navigation changes the shared drawing viewport. On a trackpad, pinch zooms and two-finger scrolling pans. iPad navigation magnifies its own screen preview and ink together without moving the recorded annotations or changing the desktop application's zoom.
 5. Use **Recording shows** to choose screen plus drawings, screen only, or the opaque board. The choice is visible immediately. Drawings persist when hidden and across app restarts. The overlay starts disabled after reopening the app.
 
-Use **Clear scene** only when you want to remove that scene's drawings and image tray. Named saved scenes remain available. **Save scene** stores the current scene under the entered name; saving the same name replaces it. **Browse scenes** loads a prepared scene in place of the active scene after confirmation.
+Use **Clear drawings** or **Clear whiteboard** to empty the current scene immediately. Standby images and named saved scenes remain available. On the Mac, **Escape** puts an open whiteboard away; when annotating the screen, it clears screen drawings. **Save scene** stores the current scene under the entered name; saving the same name replaces it. **Browse scenes** loads a prepared scene in place of the active scene after confirmation.
 
 ![Clean drawing surface created through MCP](screenshots/board-clean.png)
 
@@ -22,11 +22,11 @@ The clean surface contains the drawing without editor toolbars. This screenshot 
 2. Scan with the iPad camera and open the page in Safari. The QR expires in five minutes; generate another if necessary.
 3. Keep the page open. Click **Approve** for the device on your computer. Then tap **Start screen** on the iPad. The computer streams its selected display without audio; the iPad does not need microphone or camera access.
 4. Tap **Pan & zoom** to turn on the highlighted **Draw** button. It enables transparent screen annotation on the Mac; do this before starting a recording. Draw with a finger or Apple Pencil, or choose arrows and circles. Tap **Draw** again for navigation. Pinch/pan magnifies the iPad preview and ink together, leaving recorded annotation positions unchanged. **Fit screen** restores the full display.
-5. The iPad follows the Mac: hiding the whiteboard returns to the live screen. **Open whiteboard** deploys it on the Mac without showing desktop editing tools. **Clear scene** removes the current scene's drawings.
+5. The iPad follows the Mac: hiding the whiteboard returns to the live screen. **Open whiteboard** deploys it on the Mac without showing desktop editing tools. **Clear drawings** / **Clear whiteboard** removes the current scene's objects on both devices without restarting the preview. The laser tool produces a temporary trail on the Mac and recording.
 6. For text, choose the Text tool and tap a position. Type in the private bubble, then tap **Done** to publish it to the Mac and recording. **Cancel** discards the draft. The keyboard layout is controlled by iPadOS; the app cannot force a floating keyboard to become full-size.
 7. **Reconnect** resumes an approved session in the same browser tab. Tap **Start screen** again after a connection failure or display change. Restarting MistaRecorda requires a fresh QR code and pairing approval. **Disconnect** revokes a device; **Stop sharing** closes all companion connections.
 
-The initial page and drawing synchronization use local HTTP/WebSocket, so use a trusted private network. WebRTC carries the screen stream when available. If the network blocks a direct WebRTC connection, an automatic lower-frame-rate JPEG preview obtains fresh display images through the approved local WebSocket connection. A stalled preview requests this fallback and is hidden if no new frames arrive; tap **Start screen** to retry. This fallback is also unencrypted on local HTTP. Guest Wi-Fi isolation, VPNs, firewalls or denied local-network access can prevent connection. Allow MistaRecorda on your private network. Pairing approval is required even with the QR link; do not share the link publicly. There is no remote Internet relay or USB companion app in this version.
+The initial page and drawing synchronization use local HTTP/WebSocket, so use a trusted private network. On macOS, a ScreenCaptureKit helper streams a clean display preview over the approved WebSocket connection, excluding MistaRecorda windows. The tablet draws ink locally and the Mac renders the same objects independently, avoiding delayed duplicate strokes in the preview. The preview requests up to 30 frames per second, drops queued frames under network pressure, and sends a heartbeat for static screens. Windows uses WebRTC when available with a lower-frame-rate JPEG fallback. A stalled preview requests this fallback and is hidden if no new frames arrive; tap **Start screen** to retry. The local HTTP/WebSocket preview is unencrypted. Guest Wi-Fi isolation, VPNs, firewalls or denied local-network access can prevent connection. Allow MistaRecorda on your private network. Pairing approval is required even with the QR link; do not share the link publicly. There is no remote Internet relay or USB companion app in this version.
 
 ![Browser companion at a tablet-sized viewport](screenshots/board-companion.png)
 
@@ -34,7 +34,9 @@ The browser companion at 1024×768. Physical iPad/Pencil testing remains separat
 
 ## Keep assets ready
 
-Paste a screenshot using your platform's paste command, or choose **Import image** for PNG, JPEG or WebP (up to 12 MB). Transparent PNG backgrounds are preserved. **Standby images** holds imported images for repeated placement. Select related shapes and use Excalidraw's Library to keep reusable arrows or grouped drawings. The library is shared with connected devices and saved with the board.
+Paste a screenshot using your platform's paste command, or choose **Import image** for PNG, JPEG or WebP (up to 12 MB). Transparent PNG backgrounds are preserved. **Capture Mac screen** captures a still, opens it as an editable image on the whiteboard, and saves it to **Standby images** on both devices. When the clean Mac preview is running, the still excludes the app controls and ink. **Standby images** holds imported images and captured stills for repeated placement, including after clearing or restarting. Select related shapes and use Excalidraw's Library to keep reusable arrows or grouped drawings. The library is shared with connected devices and saved with the board.
+
+**Select** lets you move and resize each independent stroke, shape, image or text object. **Select multiple** toggles objects by tapping them; then use **Group** or **Ungroup**. **Copy**, **Paste**, and **Duplicate** are available in the object bar, including on the iPad without a keyboard.
 
 Undo/redo belongs to the active editor. Work from one editing device at a time: conflicting edits show an error instead of silently replacing newer work. Stop drawing before saving/loading a scene or switching tools from another device.
 
@@ -49,6 +51,16 @@ Native macOS capture filters out MistaRecorda's presenter/editor windows; Window
 Make a short sample recording on your computer before a tutorial to confirm permissions, display selection, webcam and capture exclusion. Native capture and Apple Pencil behavior require real target-device testing; a Linux cloud desktop cannot validate them.
 
 ![Compact presenter controls](screenshots/board-presenter.png)
+
+## Soundboard and AI figures
+
+**Soundboard** opens a compact tray on the iPad or Mac presenter panel. Before recording, **Preview** plays a sound locally. During recording, **Add to take** inserts the sound at the current recording time; it is mixed on playback/export, not played through the speakers during capture. Paused recordings reject new cues. Import sounds and assign hotkeys in Capture settings → Sound effects. The control tray is excluded from native recording.
+
+The small **AI** microphone button opens a private figure assistant. In Mac Drawing studio → Setup, enter your own OpenAI API key. It is encrypted by Electron's OS-backed safe storage on the Mac and never sent to the companion device or saved in a shared preset.
+
+Type a topic or tap **Listen on Mac** for up to 20 seconds, then review the transcript and tap **Find visuals**. The local HTTP iPad page cannot request its microphone; listening uses the Mac microphone, with keyboard dictation as an alternative. The request sends the topic to OpenAI, uses GPT-6 Astra with at most two research subagents, and returns up to three sourced suggestions. Each research session has a $1 spend limit and is deleted after completion/cancellation. Transcription and explicit image generation have separate API charges. Set project billing limits in your OpenAI account.
+
+A suggestion offers **Chrome link** to open its source on the computer, **Add to whiteboard** for an available image, and **Illustrate** to edit a generation prompt. Generated images are previewed privately and added only after another tap. Sources with unverified reuse rights say so. Nothing is automatically placed in the recording. If hosted-session cleanup fails, **Retry cleanup** must succeed before another research request.
 
 ## Let Codex prepare diagrams
 

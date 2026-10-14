@@ -46,6 +46,15 @@ export function companionTransport(onConnection: (state: string) => void): Board
 					pending.delete(m.id);
 				}
 			} else if (m.type === "error") {
+				if (typeof m.id === "number") {
+					const p = pending.get(m.id);
+					if (p) {
+						clearTimeout(p.timer);
+						p.reject(Error(m.message));
+						pending.delete(m.id);
+					}
+					return;
+				}
 				onConnection(m.message);
 				emit("error", m.message);
 				for (const p of pending.values()) {

@@ -24,6 +24,7 @@ function getTargetConfigs() {
 }
 
 const helpers = [
+ {source:"ScreenCaptureKitPreview.swift",output:"mistarecorda-companion-preview"},
 	{
 		source: "ScreenCaptureKitRecorder.swift",
 		output: "recordly-screencapturekit-helper",

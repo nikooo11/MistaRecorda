@@ -17,6 +17,18 @@ import type {
 import type { BoardAPI, BoardState, BoardElement, BoardScene } from "../../types/board";
 import "@excalidraw/excalidraw/index.css";
 import "./board.css";
+import { mergeScenePatch, newSceneFiles, sceneSignature, type ScenePatch } from "./sceneSync";
+import {
+	objectId,
+	duplicateObjects,
+	groupObjects,
+	hitObject,
+	selectedObjects,
+} from "./objectEditing";
+import { Soundboard } from "./Soundboard";
+import { FigureAssistant } from "./FigureAssistant";
+import { SparkleIcon, MicrophoneIcon } from "@phosphor-icons/react";
+import { BoardLaser } from "./BoardLaser";
 import {
 	fittedTabletView,
 	readTabletView,
@@ -43,11 +55,23 @@ export function BoardCanvas({
 	drawing?: boolean;
 }) {
 	const stage = useRef<HTMLDivElement>(null);
+	const clientTag = useRef(objectId());
+	const resetGeneration = useRef(0);
 	const [fit, setFit] = useState({ scale: 1, left: 0, top: 0 });
 	const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
 	const [state, setState] = useState(initial);
 	const [error, setError] = useState("");
 	const [assets, setAssets] = useState(false);
+	const [ai, setAi] = useState(false);
+	const [sounds, setSounds] = useState(false);
+	const [selected, setSelected] = useState<Record<string, boolean>>({});
+	const [multiSelect, setMultiSelect] = useState(false);
+	const [clipboard, setClipboard] = useState<{
+		elements: BoardElement[];
+		files: BinaryFiles;
+	} | null>(null);
+	const [capturing, setCapturing] = useState(false);
+	const laserTime = useRef(0);
 	const [boardClosing, setBoardClosing] = useState(false);
 	const [tabletView, setTabletView] = useState(fittedTabletView);
 	const localView = useRef(fittedTabletView());
@@ -107,20 +131,33 @@ export function BoardCanvas({
 		}
 		if (!pending.current) return;
 		const edit = pending.current;
+		const generation = resetGeneration.current;
 		pending.current = null;
 		saving.current = true;
 		inFlight.current = (async () => {
 			try {
-				const next = await transport.request<BoardState>("scene", {
+				const reply = await transport.request<{ revision: number }>("scene", {
 					...edit,
+					scene: {
+						...edit.scene,
+						files: newSceneFiles(edit.scene, current.current.scenes[edit.mode].files),
+					},
 					revision: current.current.revision,
+					tag: clientTag.current,
 				});
-				if (next.revision >= current.current.revision) {
-					current.current = next;
-					setState(next);
+				if (
+					generation === resetGeneration.current &&
+					reply.revision >= current.current.revision
+				) {
+					current.current = mergeScenePatch(current.current, {
+						...edit,
+						revision: reply.revision,
+					});
+					setState(current.current);
 				}
 				setError("");
 			} catch (e) {
+				if (generation !== resetGeneration.current) return;
 				setError(
 					`${e instanceof Error ? e.message : "Save failed"} Your pending edit was not saved. Refresh before continuing.`,
 				);
@@ -177,7 +214,7 @@ export function BoardCanvas({
 				fit.scale,
 				tablet ? localView.current : fittedTabletView(),
 			);
-			const signature = JSON.stringify(scene);
+			const signature = sceneSignature(scene);
 			if (
 				signature === last.current &&
 				mode === modeRef.current &&
@@ -223,6 +260,39 @@ export function BoardCanvas({
 			({ state: next, origin }) => apply(next, origin),
 		);
 	}, [api, apply, transport]);
+	useEffect(() => {
+		const patch = transport.on<ScenePatch>("sceneUpdate", (update) => {
+			const next = mergeScenePatch(current.current, update);
+			if (update.tag === clientTag.current) {
+				current.current = next;
+				setState(next);
+			} else apply(next);
+		});
+		const reset = transport.on<BoardState>("sceneReset", (next) => {
+			resetGeneration.current++;
+			pending.current = null;
+			clearTimeout(timer.current);
+			timer.current = undefined;
+			interacted.current = false;
+			setDraft(null);
+			last.current = "";
+			applying.current = true;
+			if (api) {
+				const activeTool = api.getAppState().activeTool;
+				api.resetScene();
+				api.updateScene({ appState: { activeTool } });
+			}
+			// A clear supersedes in-flight edits; their older replies are ignored by revision.
+			const wasSaving = saving.current;
+			saving.current = false;
+			apply(next);
+			saving.current = wasSaving;
+		});
+		return () => {
+			patch();
+			reset();
+		};
+	}, [transport, api, apply]);
 	useEffect(() => transport.on<string>("error", setError), [transport]);
 	useEffect(() => {
 		if (api) void api.updateLibrary({ libraryItems: state.library as LibraryItems });
@@ -241,6 +311,7 @@ export function BoardCanvas({
 		apply(next);
 	}
 	async function addImage(file: File) {
+		if (!drawing) throw Error("Turn Draw on to import an image.");
 		if (!api) return;
 		if (!["image/png", "image/jpeg", "image/webp"].includes(file.type))
 			throw Error("Choose PNG, JPEG or WebP");
@@ -263,7 +334,13 @@ export function BoardCanvas({
 		placeImage(id, image.width, image.height);
 	}
 	function placeImage(fileId: string, width = 320, height = 240) {
+		if (!drawing) {
+			setError("Turn Draw on to place an image.");
+			return;
+		}
 		if (!api) return;
+		const file = current.current.assets[fileId];
+		if (file) api.addFiles([file] as BinaryFileData[]);
 		interacted.current = true;
 		const view = api.getAppState();
 		const w = Math.min(width, 600);
@@ -340,14 +417,20 @@ export function BoardCanvas({
 				),
 				captureUpdate: CaptureUpdateAction.IMMEDIATELY,
 			});
-			const next = await transport.request<BoardState>("scene", {
+			const reply = await transport.request<{ revision: number }>("scene", {
 				mode: draft.mode,
 				scene,
 				revision: current.current.revision,
 			});
 			setDraft(null);
 			last.current = "";
-			apply(next);
+			apply(
+				mergeScenePatch(current.current, {
+					mode: draft.mode,
+					scene,
+					revision: reply.revision,
+				}),
+			);
 		} catch (error) {
 			last.current = "";
 			apply(current.current);
@@ -363,12 +446,91 @@ export function BoardCanvas({
 		last.current = "";
 		apply(current.current);
 	}
+	function editObjects(elements: readonly BoardElement[], select?: Record<string, boolean>) {
+		if (!api) return;
+		interacted.current = true;
+		api.updateScene({
+			elements: restoreElements(elements as Parameters<typeof restoreElements>[0], null),
+			appState: select
+				? {
+						selectedElementIds: Object.fromEntries(
+							Object.keys(select)
+								.filter((id) => select[id])
+								.map((id) => [id, true as const]),
+						),
+						selectedGroupIds: {},
+					}
+				: undefined,
+			captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+		});
+	}
+	function copyObjects() {
+		if (!api) return;
+		const elements = selectedObjects(
+			api.getSceneElements() as unknown as BoardElement[],
+			api.getAppState().selectedElementIds,
+		);
+		if (elements.length)
+			setClipboard({
+				elements: structuredClone(elements),
+				files: structuredClone(api.getFiles()),
+			});
+	}
+	function pasteObjects(duplicate = false) {
+		if (!api) return;
+		const source = duplicate
+			? {
+					elements: selectedObjects(
+						api.getSceneElements() as unknown as BoardElement[],
+						api.getAppState().selectedElementIds,
+					),
+					files: api.getFiles(),
+				}
+			: clipboard;
+		if (!source?.elements.length) return;
+		api.addFiles(Object.values(source.files));
+		const copies = duplicateObjects(source.elements);
+		editObjects(
+			[...(api.getSceneElements() as unknown as BoardElement[]), ...copies],
+			Object.fromEntries(copies.map((e) => [e.id, true])),
+		);
+	}
+	const selectedCount = Object.values(selected).filter(Boolean).length;
 	return (
 		<div
 			ref={stage}
 			data-board-ready={clean && api ? "true" : undefined}
 			onPointerDownCapture={(event) => {
 				interacted.current = true;
+				if (multiSelect && api && event.target instanceof HTMLCanvasElement) {
+					event.preventDefault();
+					event.stopPropagation();
+					const view = api.getAppState();
+					const elements = api.getSceneElements() as unknown as BoardElement[];
+					const hit = hitObject(
+						elements,
+						(event.clientX - view.offsetLeft) / view.zoom.value - view.scrollX,
+						(event.clientY - view.offsetTop) / view.zoom.value - view.scrollY,
+					);
+					if (hit) {
+						const group = (hit.groupIds as string[] | undefined)?.slice(-1)[0];
+						const targets = group
+							? elements.filter((e) =>
+									(e.groupIds as string[] | undefined)?.includes(group),
+								)
+							: [hit];
+						const ids = { ...view.selectedElementIds };
+						const value = !ids[hit.id];
+						for (const e of targets) {
+							if (value) ids[e.id] = true;
+							else delete ids[e.id];
+						}
+						api.updateScene({
+							appState: { selectedElementIds: ids, selectedGroupIds: {} },
+						});
+					}
+					return;
+				}
 				if (
 					tablet &&
 					drawing &&
@@ -385,6 +547,27 @@ export function BoardCanvas({
 						(event.clientY - view.offsetTop) / view.zoom.value - view.scrollY,
 					);
 				}
+			}}
+			onPointerMoveCapture={(event) => {
+				if (
+					clean ||
+					!drawing ||
+					event.buttons === 0 ||
+					!api ||
+					api.getAppState().activeTool.type !== "laser" ||
+					!(event.target instanceof HTMLCanvasElement) ||
+					Date.now() - laserTime.current < 30
+				)
+					return;
+				laserTime.current = Date.now();
+				const view = api.getAppState();
+				void transport
+					.request("laser", {
+						mode: modeRef.current,
+						x: (event.clientX - view.offsetLeft) / view.zoom.value - view.scrollX,
+						y: (event.clientY - view.offsetTop) / view.zoom.value - view.scrollY,
+					})
+					.catch((e) => setError(String(e)));
 			}}
 			onWheelCapture={() => {
 				interacted.current = true;
@@ -475,6 +658,11 @@ export function BoardCanvas({
 						},
 					}}
 					onChange={(elements, view, files) => {
+						setSelected((old) =>
+							JSON.stringify(old) === JSON.stringify(view.selectedElementIds)
+								? old
+								: view.selectedElementIds,
+						);
 						if (tablet && view.penMode)
 							api?.updateScene({ appState: { penMode: false, penDetected: true } });
 						if (
@@ -538,7 +726,7 @@ export function BoardCanvas({
 								? shared.zoom
 								: Math.max(0.1, Math.min(10, view.zoom.value / fit.scale)),
 						};
-						const signature = JSON.stringify(scene);
+						const signature = sceneSignature(scene);
 						if (signature === last.current) return;
 						last.current = signature;
 						pending.current = { mode: modeRef.current, scene };
@@ -568,13 +756,116 @@ export function BoardCanvas({
 					}}
 				/>
 			</div>
+			{clean && <BoardLaser transport={transport} state={state} />}
+			{!clean && drawing && (
+				<div className="board-object-tools" aria-label="Object editing">
+					<button
+						title="Select an object to move or resize it. Drag across empty space to select several."
+						onClick={() => {
+							setMultiSelect(false);
+							api?.setActiveTool({ type: "selection" });
+						}}
+					>
+						Select
+					</button>
+					<button
+						aria-pressed={multiSelect}
+						onClick={() => {
+							setMultiSelect(!multiSelect);
+							api?.setActiveTool({ type: "selection" });
+						}}
+					>
+						Select multiple
+					</button>
+					<span>
+						{selectedCount
+							? `${selectedCount} selected`
+							: multiSelect
+								? "Tap objects to select"
+								: "Each stroke is an object"}
+					</span>
+					<button disabled={!selectedCount} onClick={copyObjects}>
+						Copy
+					</button>
+					<button disabled={!clipboard || !drawing} onClick={() => pasteObjects()}>
+						Paste
+					</button>
+					<button disabled={!selectedCount} onClick={() => pasteObjects(true)}>
+						Duplicate
+					</button>
+					<button
+						disabled={selectedCount < 2}
+						onClick={() =>
+							api &&
+							editObjects(
+								groupObjects(
+									api.getSceneElements() as unknown as BoardElement[],
+									selected,
+								),
+							)
+						}
+					>
+						Group
+					</button>
+					<button
+						disabled={!selectedCount}
+						onClick={() =>
+							api &&
+							editObjects(
+								groupObjects(
+									api.getSceneElements() as unknown as BoardElement[],
+									selected,
+									true,
+								),
+							)
+						}
+					>
+						Ungroup
+					</button>
+				</div>
+			)}
 			{!clean && (
 				<div className="board-actions">
 					{tablet && <button onClick={fitScreen}>Fit screen</button>}
+					<button
+						disabled={capturing}
+						onClick={async () => {
+							setCapturing(true);
+							try {
+								await flush();
+								apply(await transport.request<BoardState>("captureStill"));
+							} catch (e) {
+								setError(String(e));
+							} finally {
+								setCapturing(false);
+							}
+						}}
+					>
+						{capturing ? "Capturing…" : "Capture Mac screen"}
+					</button>
 					<button onClick={() => void chooseMode().catch((e) => setError(String(e)))}>
 						{cleanMode === "board" ? "Put board away" : "Open whiteboard"}
 					</button>
 					<button onClick={() => setAssets(!assets)}>Standby images</button>
+					<button
+						aria-expanded={ai}
+						onClick={() => {
+							setAi(!ai);
+							setSounds(false);
+						}}
+					>
+						<SparkleIcon size={15} />
+						<MicrophoneIcon size={16} /> AI
+					</button>
+					<button
+						aria-expanded={sounds}
+						onClick={() => {
+							setSounds(!sounds);
+							setAi(false);
+						}}
+					>
+						Soundboard
+					</button>
 					<label className="board-import">
 						Import image
 						<input
@@ -589,9 +880,18 @@ export function BoardCanvas({
 					</label>
 					<button
 						onClick={async () => {
-							if (confirm("Clear this drawing scene? Saved scenes are kept.")) {
-								await flush();
+							{
+								pending.current = null;
+								clearTimeout(timer.current);
+								timer.current = undefined;
 								setDraft(null);
+								interacted.current = false;
+								applying.current = true;
+								if (api) {
+									const activeTool = api.getAppState().activeTool;
+									api.resetScene();
+									api.updateScene({ appState: { activeTool } });
+								}
 								void transport
 									.request<BoardState>("clear", { confirmed: true })
 									.then((next) => apply(next))
@@ -599,7 +899,7 @@ export function BoardCanvas({
 							}
 						}}
 					>
-						Clear scene
+						{cleanMode === "board" ? "Clear whiteboard" : "Clear drawings"}
 					</button>
 					{!tablet && (
 						<button
@@ -609,6 +909,10 @@ export function BoardCanvas({
 						</button>
 					)}
 				</div>
+			)}
+			{!clean && ai && <FigureAssistant transport={transport} onClose={() => setAi(false)} />}
+			{!clean && sounds && (
+				<Soundboard transport={transport} onClose={() => setSounds(false)} />
 			)}
 			{tablet && draft && (
 				<div
@@ -671,7 +975,7 @@ export function BoardCanvas({
 						Tap an image to place another copy. Use Excalidraw’s Library for reusable
 						shapes and grouped drawings.
 					</p>
-					{Object.values(state.scenes[state.mode].files).map((f) => (
+					{Object.values(state.assets).map((f) => (
 						<button
 							key={f.id}
 							title="Place image"

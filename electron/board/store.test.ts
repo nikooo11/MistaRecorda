@@ -98,3 +98,66 @@ test("rejects unsafe external content and invalid geometry before persistence", 
 	).toThrow();
 	expect(() => validateScene({ ...emptyBoardScene(), zoom: 0 })).toThrow("viewport");
 });
+
+test("standby images survive clearing, saved scene reload and app restart", async () => {
+	const s = await store();
+	const file = {
+		id: "still",
+		dataURL: "data:image/png;base64,aGVsbG8=",
+		mimeType: "image/png",
+		created: 1,
+		name: "Screen still",
+	};
+	s.updateScene("screen", { ...emptyBoardScene(), files: { still: file } }, 0);
+	s.state.mode = "screen";
+	await s.saveScene("Before clearing");
+	s.updateScene("screen", emptyBoardScene(), 1);
+	expect(s.state.assets.still).toEqual(file);
+	await s.save();
+	const reopened = new BoardStore(s.root);
+	await reopened.load();
+	expect(reopened.state.scenes.screen.elements).toEqual([]);
+	expect(reopened.state.assets.still).toEqual(file);
+	reopened.state.assets = {};
+	await reopened.loadScene("Before clearing");
+	expect(reopened.state.assets.still).toEqual(file);
+});
+
+test("stroke deltas retain existing image data and reject edits predating clear", async () => {
+	const s = await store();
+	s.updateScene(
+		"screen",
+		{
+			...emptyBoardScene(),
+			files: {
+				a: {
+					id: "a",
+					dataURL: "data:image/png;base64,YQ==",
+					mimeType: "image/png",
+					created: 1,
+				},
+			},
+		},
+		0,
+	);
+	const image = s.state.scenes.screen.files.a;
+	const gallery = s.state.assets;
+	s.updateScene(
+		"screen",
+		{ ...emptyBoardScene(), elements: [makeElement({ type: "freedraw", id: "stroke" })] },
+		1,
+		true,
+	);
+	expect(s.state.scenes.screen.files.a).toBe(image);
+	expect(s.state.assets).toBe(gallery);
+	s.updateScene("screen", emptyBoardScene(), 2);
+	expect(() =>
+		s.updateScene(
+			"screen",
+			{ ...emptyBoardScene(), elements: [makeElement({ type: "rectangle" })] },
+			2,
+			true,
+		),
+	).toThrow("board changed");
+	expect(s.state.scenes.screen.elements).toHaveLength(0);
+});

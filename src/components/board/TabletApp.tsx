@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { mergeScenePatch, type ScenePatch } from "./sceneSync";
 import { BoardCanvas } from "./BoardCanvas";
 import { companionTransport } from "./transport";
 import type { BoardState } from "../../types/board";
@@ -10,6 +11,7 @@ export function TabletApp() {
 	const [state, setState] = useState<BoardState>();
 	const [drawing, setDrawing] = useState(false);
 	const [streamError, setStreamError] = useState("");
+	const [cleanPreview, setCleanPreview] = useState(false);
 	const [streamed, setStreamed] = useState(false);
 	const [fallbackFrame, setFallbackFrame] = useState("");
 	const fallbackTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -20,6 +22,9 @@ export function TabletApp() {
 	const fallbackRequested = useRef(false);
 	const streamingRequested = useRef(false);
 	useEffect(() => {
+		const patch = transport.on<ScenePatch>("sceneUpdate", (update) =>
+			setState((old) => (old ? mergeScenePatch(old, update) : old)),
+		);
 		const info = transport.on<{ state: BoardState }>("info", (data) => {
 			setState(data.state);
 		});
@@ -33,14 +38,17 @@ export function TabletApp() {
 			candidate: RTCIceCandidateInit;
 			message: string;
 			dataURL: string;
+			clean?: boolean;
 		}>("signal", async (signal) => {
 			try {
 				if (signal.type === "frame") {
+					setCleanPreview(!!signal.clean);
 					lastFrame.current = Date.now();
 					setFallbackFrame(signal.dataURL);
 					setStreamed(true);
 					setStreamError("");
 				} else if (signal.type === "offer") {
+					setCleanPreview(false);
 					lastFrame.current = Date.now();
 					setFallbackFrame("");
 					clearTimeout(fallbackTimer.current);
@@ -101,7 +109,17 @@ export function TabletApp() {
 			setFallbackFrame("");
 			setStreamed(false);
 		});
+		const refreshPreview = transport.on("refreshPreview", () => {
+			if (!streamingRequested.current) return;
+			fallbackRequested.current = false;
+			lastFrame.current = Date.now();
+			void transport
+				.request("signal", { type: "request" })
+				.catch((e) => setStreamError(String(e)));
+		});
 		return () => {
+			refreshPreview();
+			patch();
 			info();
 			stateChange();
 			off();
@@ -199,7 +217,7 @@ export function TabletApp() {
 						initial={state}
 						tablet
 						drawing={drawing}
-						streamed={streamed}
+						streamed={streamed && !cleanPreview}
 						background={
 							<>
 								<video

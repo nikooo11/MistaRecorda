@@ -19,8 +19,8 @@ const host = vi.hoisted(() => ({
 	paused: false,
 	importFile: "",
 	bindings: new Map<string, () => void>(),
-	sources: [] as Array<{id: string; display_id?: string}>,
-	selected: null as {id:string} | null,
+	sources: [] as Array<{ id: string; display_id?: string }>,
+	selected: null as { id: string } | null,
 	control: vi.fn(),
 }));
 vi.mock("electron", () => ({
@@ -56,7 +56,11 @@ vi.mock("electron", () => ({
 	globalShortcut: {
 		isRegistered: (key: string) => host.bindings.has(key),
 		unregister: (key: string) => host.bindings.delete(key),
-		register: (key: string, action: () => void) => { if (host.bindings.has(key)) return false; host.bindings.set(key, action); return true; },
+		register: (key: string, action: () => void) => {
+			if (host.bindings.has(key)) return false;
+			host.bindings.set(key, action);
+			return true;
+		},
 	},
 	ipcMain: { handle: (name: string, handler: Handler) => host.handlers.set(name, handler) },
 }));
@@ -71,8 +75,12 @@ vi.mock("../ipc/state", () => ({
 	get isCursorCaptureActive() {
 		return host.active;
 	},
-	get selectedSource() { return host.selected; },
-	setSelectedSource: (source: {id: string}) => { host.selected = source; },
+	get selectedSource() {
+		return host.selected;
+	},
+	setSelectedSource: (source: { id: string }) => {
+		host.selected = source;
+	},
 	nativeScreenRecordingActive: false,
 }));
 vi.mock("../ipc/project/manager", () => ({
@@ -116,9 +124,16 @@ test("saved source scenes apply camera only after source validation and shortcut
 	registerStudio();
 	const frame = { url: "http://127.0.0.1:9876/?windowType=studio" };
 	const event = { senderFrame: frame, sender: { mainFrame: frame } };
-	const request = (method: string, input?: unknown) => host.handlers.get("studio:request")!(event, method, input);
+	const request = (method: string, input?: unknown) =>
+		host.handlers.get("studio:request")!(event, method, input);
 	await request("info");
-	const scene = { id: crypto.randomUUID(), name: "Tutorial", source: { id: "screen:42:0", name: "Screen", display_id: "42", sourceType: "screen" }, camera: true, shortcut: "CommandOrControl+Alt+7" };
+	const scene = {
+		id: crypto.randomUUID(),
+		name: "Tutorial",
+		source: { id: "screen:42:0", name: "Screen", display_id: "42", sourceType: "screen" },
+		camera: true,
+		shortcut: "CommandOrControl+Alt+7",
+	};
 	await request("saveScene", scene);
 	host.sources = [];
 	await expect(request("applyScene", scene.id)).rejects.toThrow("unavailable");
@@ -133,7 +148,9 @@ test("saved source scenes apply camera only after source validation and shortcut
 	expect(host.bindings.has("CommandOrControl+Shift+W")).toBe(false);
 	host.bindings.get("CommandOrControl+Alt+9")!();
 	expect(host.control).toHaveBeenLastCalledWith("webcam");
-	const saved = JSON.parse(await fs.readFile(path.join(host.root, "studio/settings.json"), "utf8"));
+	const saved = JSON.parse(
+		await fs.readFile(path.join(host.root, "studio/settings.json"), "utf8"),
+	);
 	expect(saved.scenes[0]).toMatchObject(scene);
 	expect(saved.cameraShortcut).toBe("CommandOrControl+Alt+9");
 });
@@ -191,7 +208,7 @@ test("sound hotkey cues survive recording persistence, ignore pause, and cannot 
 	await request("fireSound", id);
 	host.paused = true;
 	host.time = 1800;
-	await request("fireSound", id);
+	await expect(request("fireSound", id)).rejects.toThrow("Resume recording");
 	host.paused = false;
 	const video = path.join(host.root, "take.mp4");
 	await persistStudioTake(video);

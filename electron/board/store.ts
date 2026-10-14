@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import {
 	emptyBoardState,
+	emptyBoardScene,
 	type BoardScene,
 	type BoardElement,
 	type BoardState,
@@ -83,6 +84,14 @@ export class BoardStore {
 			this.state = {
 				...emptyBoardState(),
 				...s,
+				assets: validateScene({
+					...emptyBoardScene(),
+					files: {
+						...s.scenes.screen.files,
+						...s.scenes.board.files,
+						...(s.assets ?? {}),
+					},
+				}).files,
 				enabled: false,
 				scenes: {
 					screen: validateScene(s.scenes.screen),
@@ -105,12 +114,32 @@ export class BoardStore {
 			});
 		await this.writes;
 	}
-	updateScene(mode: "screen" | "board", scene: unknown, baseRevision: number) {
+	updateScene(
+		mode: "screen" | "board",
+		scene: unknown,
+		baseRevision: number,
+		patchFiles = false,
+	) {
 		if (baseRevision !== this.state.revision)
 			throw Error("The board changed. Refresh and retry your edit.");
-		this.state.scenes[mode] = validateScene(scene);
+		const next = validateScene(scene);
+		const hasFiles = Object.keys(next.files).length > 0;
+		const assets = hasFiles ? this.mergeAssets(next.files) : this.state.assets;
+		if (patchFiles) {
+			const files = { ...this.state.scenes[mode].files, ...next.files };
+			// Stroke-only patches reuse immutable image data. Validate the complete file
+			// budget only when images change, rather than cloning it for every point.
+			if (hasFiles) validateScene({ ...next, files });
+			next.files = files;
+		}
+		this.state.scenes[mode] = next;
+		this.state.assets = assets;
 		this.state.revision++;
 		return this.state;
+	}
+	mergeAssets(files: BoardScene["files"]) {
+		return validateScene({ ...emptyBoardScene(), files: { ...this.state.assets, ...files } })
+			.files;
 	}
 	async saveScene(name: string) {
 		if (!/^[\p{L}\p{N} _-]{1,80}$/u.test(name))
@@ -129,10 +158,11 @@ export class BoardStore {
 	}
 	async loadScene(name: string) {
 		if (!(await this.listScenes()).includes(name)) throw Error("Unknown scene");
-		this.state.scenes[this.state.mode] = validateScene(
+		this.updateScene(
+			this.state.mode,
 			JSON.parse(await fs.readFile(path.join(this.root, "scenes", `${name}.json`), "utf8")),
+			this.state.revision,
 		);
-		this.state.revision++;
 	}
 }
 export function makeElement(input: Record<string, unknown>): BoardElement {

@@ -11,10 +11,20 @@ import {
 	globalShortcut,
 	desktopCapturer,
 	type IpcMainInvokeEvent,
+	safeStorage,
+	nativeImage,
 } from "electron";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import fs from "node:fs/promises";
+import { CompanionPreview } from "./preview";
+import { FigureService } from "../figures/service";
+import { FigureSettings } from "../figures/settings";
+import { publicURL } from "../figures/sources";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
+import { boardSoundList, boardSoundPreview, fireSound } from "../studio/register";
 import { getPackagedRendererBaseUrl } from "../rendererServer";
 import { BoardStore, makeElement, validateScene } from "./store";
 import { CompanionServer } from "./server";
@@ -27,6 +37,10 @@ export const BOARD_CONTROL_TITLES = [
 	"MistaRecorda Board Stream",
 ];
 let store: BoardStore;
+let figures: FigureService;
+let preview: CompanionPreview;
+let escapeReady = false;
+let lastEscape = 0;
 let panel: BrowserWindow | undefined,
 	editor: BrowserWindow | undefined,
 	surface: BrowserWindow | undefined,
@@ -72,6 +86,7 @@ function send(event: string, data: unknown) {
 	}
 }
 function publish(origin = "system") {
+	updateEscape();
 	send("state", { state: store.state, origin });
 	companion.broadcast("state", { state: store.state, origin });
 	send("info", info());
@@ -81,6 +96,12 @@ function publish(origin = "system") {
 	}, 180);
 }
 function devicesChanged() {
+	preview?.retain(
+		companion
+			.list()
+			.filter((d) => d.approved && d.connected)
+			.map((d) => d.id),
+	);
 	send("info", info());
 	send("devices", companion.list());
 }
@@ -230,6 +251,7 @@ const commandSchema = z.object({
 	mode: z.enum(["screen", "board"]).optional(),
 	scene: z.unknown().optional(),
 	revision: z.number().int().optional(),
+	tag: z.string().max(100).optional(),
 	zoom: z.number().finite().optional(),
 	scrollX: z.number().finite().optional(),
 	scrollY: z.number().finite().optional(),
@@ -312,10 +334,14 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		case "hideEditor":
 			editor?.hide();
 			return true;
+		case "escape":
+			if (store.state.mode === "board") return action("mode", { mode: "screen" }, actor);
+			return action("clear", { confirmed: true }, actor);
 		case "display":
 			if (status.recording) throw Error("Stop recording before changing displays");
 			if (!screen.getAllDisplays().some((d) => d.id === input))
 				throw Error("Unknown display");
+			preview.stop();
 			displayId = Number(input);
 			send("displayChanged", displayId);
 			{
@@ -368,10 +394,21 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			applyVisibility();
 			publish(actor);
 			return store.state;
-		case "scene":
-			store.updateScene(modeOf(input), data.scene, data.revision ?? -1);
-			publish(actor);
-			return store.state;
+		case "scene": {
+			const mode = modeOf(input);
+			const incoming = validateScene(data.scene);
+			store.updateScene(mode, incoming, data.revision ?? -1, true);
+			const patch = { mode, scene: incoming, revision: store.state.revision, tag: data.tag };
+			send("sceneUpdate", patch);
+			companion.broadcast("sceneUpdate", patch);
+			updateEscape();
+			if (saveTimer) clearTimeout(saveTimer);
+			saveTimer = setTimeout(
+				() => void store.save().catch((e) => send("error", String(e))),
+				180,
+			);
+			return { revision: store.state.revision };
+		}
 		case "viewport": {
 			const s = store.state.scenes[store.state.mode];
 			store.state.scenes[store.state.mode] = validateScene({
@@ -392,7 +429,188 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				files: {},
 			};
 			store.state.revision++;
+			send("sceneReset", store.state);
+			companion.broadcast("sceneReset", store.state);
 			publish(actor);
+			companion.broadcast("refreshPreview", { revision: store.state.revision });
+			return store.state;
+		}
+		case "aiInfo":
+			return figures.info();
+		case "aiSetKey":
+			return figures.setKey(input);
+		case "aiTestKey":
+			return figures.testKey();
+		case "aiCleanup":
+			return figures.retryCleanup();
+		case "aiSearch":
+			return figures.search(z.string().trim().min(1).max(2000).parse(input));
+		case "aiGenerate": {
+			const request = z
+				.object({ id: z.string().max(50), prompt: z.string().min(1).max(2000) })
+				.parse(input);
+			return figures.generate(request.id, request.prompt);
+		}
+		case "aiListen": {
+			await prepare();
+			await figures.listen();
+			if (stream?.webContents.isLoading())
+				await new Promise<void>((resolve) =>
+					stream!.webContents.once("did-finish-load", () => resolve()),
+				);
+			stream?.webContents.send("board:figureMic", "start");
+			return figures.info();
+		}
+		case "aiStopListening":
+			stream?.webContents.send("board:figureMic", "stop");
+			return figures.info();
+		case "aiCancel":
+			stream?.webContents.send("board:figureMic", "cancel");
+			return figures.cancel();
+		case "aiMicError":
+			figures.fail(z.string().max(300).parse(input));
+			return true;
+		case "aiAudio":
+			return figures.transcribe(
+				z
+					.object({
+						data: z
+							.string()
+							.max(4 * 1024 * 1024)
+							.regex(/^[A-Za-z0-9+/=]+$/),
+						mime: z.literal("audio/webm"),
+					})
+					.parse(input),
+			);
+		case "aiOpen": {
+			const url = publicURL(figures.result(z.string().parse(input)).url).href;
+			if (process.platform === "darwin")
+				await promisify(execFile)("open", ["-a", "Google Chrome", url]);
+			else if (process.platform === "win32") {
+				const candidates = [
+					process.env.PROGRAMFILES,
+					process.env["PROGRAMFILES(X86)"],
+					process.env.LOCALAPPDATA,
+				]
+					.filter(Boolean)
+					.map((root) =>
+						path.join(root!, "Google", "Chrome", "Application", "chrome.exe"),
+					);
+				const executable = (
+					await Promise.all(
+						candidates.map(async (file) =>
+							(await fs.stat(file).catch(() => null))?.isFile() ? file : null,
+						),
+					)
+				).find(Boolean);
+				if (!executable) throw Error("Google Chrome is not installed.");
+				await promisify(execFile)(executable, [url]);
+			} else await promisify(execFile)("google-chrome", [url]);
+			return true;
+		}
+		case "aiImport":
+		case "aiImportGenerated": {
+			if (status.recording && !store.state.enabled)
+				throw Error("Enable drawing before recording to import a visual.");
+			const buffer =
+				method === "aiImport"
+					? await figures.image(z.string().parse(input))
+					: Buffer.from(figures.state.preview?.dataURL.split(",")[1] ?? "", "base64");
+			if (buffer.length > 12 * 1024 * 1024) throw Error("Image exceeds 12 MB.");
+			const image = nativeImage.createFromBuffer(buffer);
+			if (image.isEmpty()) throw Error("No valid image to import.");
+			const size = image.getSize(),
+				width = Math.min(store.state.width * 0.75, size.width),
+				height = (width * size.height) / size.width;
+			await action("mode", { mode: "board" }, actor);
+			return action(
+				"image",
+				{
+					dataURL: image.toDataURL(),
+					x: (store.state.width - width) / 2,
+					y: 60,
+					width,
+					height,
+					name:
+						method === "aiImportGenerated"
+							? "AI-generated illustration"
+							: figures.result(String(input)).title,
+				},
+				actor,
+			);
+		}
+		case "soundboard":
+			return boardSoundList();
+		case "laser": {
+			const point = z
+				.object({
+					x: z.number().finite().min(-1e7).max(1e7),
+					y: z.number().finite().min(-1e7).max(1e7),
+					mode: z.enum(["screen", "board"]),
+				})
+				.parse(input);
+			if (store.state.enabled && point.mode === store.state.mode) send("laser", point);
+			return true;
+		}
+		case "playSound":
+			fireSound(z.string().uuid().parse(input));
+			return boardSoundList();
+		case "previewSound":
+			return boardSoundPreview(z.string().uuid().parse(input));
+		case "captureStill": {
+			if (status.recording && !store.state.enabled)
+				throw Error("Enable drawing before recording to place a still on the whiteboard.");
+			await prepare();
+			requireScreenRecordingAccess();
+			const b = bounds();
+			const sources = await desktopCapturer.getSources({
+				types: ["screen"],
+				thumbnailSize: { width: 2560, height: Math.round((2560 * b.height) / b.width) },
+			});
+			const source = sources.find((s) => s.display_id === String(displayId));
+			if (!source || source.thumbnail.isEmpty())
+				throw Error("Could not capture this display.");
+			const id = randomUUID();
+			const file = {
+				id,
+				dataURL: preview.lastFrame
+					? nativeImage.createFromDataURL(preview.lastFrame).toDataURL()
+					: source.thumbnail.toDataURL(),
+				mimeType: "image/png",
+				created: Date.now(),
+				name: `Screen still ${new Date().toLocaleTimeString()}`,
+			};
+			const scene = store.state.scenes.board;
+			const width = store.state.width * 0.8,
+				height = store.state.height * 0.8;
+			const element = {
+				...makeElement({
+					type: "rectangle",
+					x: (store.state.width - width) / 2,
+					y: (store.state.height - height) / 2,
+					width,
+					height,
+				}),
+				type: "image",
+				fileId: id,
+				status: "saved",
+				scale: [1, 1],
+				crop: null,
+			};
+			store.updateScene(
+				"board",
+				{
+					...scene,
+					scrollX: 0,
+					scrollY: 0,
+					zoom: 1,
+					elements: [...scene.elements, element],
+					files: { ...scene.files, [id]: file },
+				},
+				store.state.revision,
+			);
+			await action("mode", { mode: "board" }, actor);
+			companion.broadcast("refreshPreview", { revision: store.state.revision });
 			return store.state;
 		}
 		case "library":
@@ -489,15 +707,25 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				scale: [1, 1],
 				crop: null,
 			};
-			store.state.scenes[store.state.mode] = validateScene({
-				...s,
-				elements: [...s.elements, e],
-				files: {
-					...s.files,
-					[id]: { id, dataURL: data.dataURL ?? "", mimeType: mime, created: Date.now() },
+			store.updateScene(
+				store.state.mode,
+				{
+					...s,
+					elements: [...s.elements, e],
+					files: {
+						...s.files,
+						[id]: {
+							id,
+							dataURL: data.dataURL ?? "",
+							mimeType: mime,
+							created: Date.now(),
+							name:
+								typeof data.name === "string" ? data.name.slice(0, 160) : undefined,
+						},
+					},
 				},
-			});
-			store.state.revision++;
+				store.state.revision,
+			);
 			publish(actor);
 			return store.state;
 		}
@@ -579,6 +807,14 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			return `data:image/jpeg;base64,${source.thumbnail.toJPEG(75).toString("base64")}`;
 		}
 		case "signal":
+			if (
+				process.platform === "darwin" &&
+				["request", "fallback"].includes(data.type ?? "")
+			) {
+				requireScreenRecordingAccess();
+				preview.start(actor, displayId);
+				return true;
+			}
 			stream?.webContents.send("board:signal", { ...data, deviceId: actor });
 			return true;
 		case "signalToDevice":
@@ -619,8 +855,17 @@ export function assertBoardCaptureSource(source: { sourceType?: string; display_
 }
 export async function registerBoard() {
 	store = new BoardStore(path.join(app.getPath("userData"), "drawing-board"));
+	figures = new FigureService(
+		new FigureSettings(path.join(app.getPath("userData"), "figures"), safeStorage),
+		(state) => {
+			send("figures", state);
+			companion?.broadcast("figures", state);
+			if (state.phase !== "listening") stream?.webContents.send("board:figureMic", "cancel");
+		},
+	);
 	await store.load().catch((e) => console.error("[drawing-board] Could not load saved board", e));
 	companion = new CompanionServer(path.join(app.getAppPath(), "dist"), action, devicesChanged);
+	preview = new CompanionPreview((id, data) => companion.send(id, "signal", data));
 	mcp = new DrawingMcpServer((method, input) => action(method, input, "codex"));
 	ipcMain.handle("board:request", async (e, method, input) => {
 		if (!trusted(e)) throw Error("Untrusted board request");
@@ -651,10 +896,11 @@ export async function registerBoard() {
 		if (edgeTimer) clearInterval(edgeTimer);
 		if (saveTimer) clearTimeout(saveTimer);
 		disarm();
+		preview.stop();
+		globalShortcut.unregister("Escape");
 		companion.stop();
 		mcp.stop();
-		void store
-			.save()
+		void Promise.all([store.save(), figures.cancel()])
 			.catch((e) => console.error("Could not save board at exit", e))
 			.finally(() => app.quit());
 	});
@@ -726,4 +972,25 @@ export async function prepareBoardCapture() {
 			else await loadWindow(surface, "board-surface");
 		},
 	});
+}
+
+export function isFigureMicrophoneWebContents(contents: Electron.WebContents | null) {
+	return !!contents && stream?.webContents === contents && figures?.state.phase === "listening";
+}
+
+function updateEscape() {
+	const active =
+		store.state.enabled &&
+		(store.state.mode === "board" ||
+			store.state.scenes.screen.elements.some((e) => !e.isDeleted));
+	if (active && !escapeReady)
+		escapeReady = globalShortcut.register("Escape", () => {
+			if (Date.now() - lastEscape < 600) return;
+			lastEscape = Date.now();
+			void action("escape", undefined).catch((e) => send("error", String(e)));
+		});
+	else if (!active && escapeReady) {
+		globalShortcut.unregister("Escape");
+		escapeReady = false;
+	}
 }

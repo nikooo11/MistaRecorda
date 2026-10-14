@@ -136,8 +136,10 @@ export class CompanionServer {
 					queued--;
 					return;
 				}
+				let requestId: unknown;
 				try {
 					const message = JSON.parse(bytes.toString());
+					requestId = message.id;
 					if (message.type === "pair") {
 						if (device) throw Error("This connection is already paired");
 						if (++tries > 3) throw Error("Pairing limit reached");
@@ -197,7 +199,22 @@ export class CompanionServer {
 						if (
 							![
 								"tabletInfo",
+								"aiInfo",
+								"aiSearch",
+								"aiGenerate",
+								"aiListen",
+								"aiStopListening",
+								"aiCancel",
+								"aiCleanup",
+								"aiOpen",
+								"aiImport",
+								"aiImportGenerated",
 								"annotate",
+								"captureStill",
+								"laser",
+								"soundboard",
+								"playSound",
+								"previewSound",
 								"scene",
 								"mode",
 								"viewport",
@@ -217,6 +234,7 @@ export class CompanionServer {
 					socket.send(
 						JSON.stringify({
 							type: "error",
+							id: requestId,
 							message: error instanceof Error ? error.message : "Operation failed",
 						}),
 					);
@@ -255,7 +273,7 @@ export class CompanionServer {
 		if (
 			type === "signal" &&
 			(data as { type?: string })?.type === "frame" &&
-			(d?.socket?.bufferedAmount ?? 0) > 1024 * 1024
+			(d?.socket?.bufferedAmount ?? 0) > 256 * 1024
 		)
 			return;
 		if (d?.approved && d.socket?.readyState === WebSocket.OPEN)

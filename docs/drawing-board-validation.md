@@ -1,5 +1,16 @@
 # Drawing board validation
 
+## Presenter objects, figures and preview update — 2026-10-14
+
+- **1,171 tests across 138 files** passed, plus TypeScript, scoped lint, production Vite build and Electron main CJS smoke. Both arm64 and x64 clean-preview helpers compiled. The arm64 app passed persistent-signature and strict/deep package verification.
+- Added coverage for reusable standby assets after clear/restart, object duplication/group relationships, stale updates after clear, image reuse during stroke deltas, restricted companion capabilities, encrypted API-key storage, source download validation, bounded research/delegation, hosted-session cleanup and cancelled transcription.
+- Browser playtesting of the real BoardCanvas with a mock transport: draw two independent strokes; tap multi-select; group; copy/paste; duplicate; ungroup; drag; clear; verify zero objects with no delayed resurrection. Laser events did not create permanent objects. Typing remained at zero scene writes until Done, which published one text object. AI and soundboard trays opened/closed with correct empty states.
+- The signed app was installed and its new Mac presenter controls, secure OpenAI-key field and soundboard empty state were verified through the native interface. No OpenAI key was configured, so paid transcription, hosted research, generation and actual result imports have not been tested live; service tests use mocks.
+- A browser companion was paired to the installed Mac app. The native clean-preview helper streamed the desktop; drawing appeared and Clear removed it without pressing Start screen again. Capture Mac screen opened a still on the whiteboard, retained it in Standby images after Clear, and placed it again successfully.
+- A silent 96-second native screen recording completed and opened in the editor. Inspection of the recorded frames confirmed the red laser trail (41.4 seconds), the persistent marker stroke, and its removal after Clear. The whiteboard remained visible without the companion/editor toolbars. This check inspected the captured MP4; it did not repeat the earlier export tests or measure physical Pencil latency.
+- Automated Escape keystrokes did not reliably reach the native app. Physical-key acceptance is still required for Escape closing the board and clearing screen annotations.
+- Physical iPad Safari/Apple Pencil latency and Wi-Fi performance require device acceptance. The 30 fps preview setting is a requested maximum, not a measured end-to-end latency guarantee.
+
 ## macOS / iPad interaction update — 2026-10-14
 
 - TypeScript, scoped lint, production bundle smoke, and all **1,155 tests across 133 files** passed. New coverage checks hidden-board mode, tablet viewport alignment, and private text filtering.

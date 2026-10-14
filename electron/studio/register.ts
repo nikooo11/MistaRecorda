@@ -109,11 +109,12 @@ async function save() {
 	await fs.rename(tmp, path.join(root(), "settings.json"));
 	publish();
 }
-function fireSound(id: string) {
+export function fireSound(id: string) {
 	const sound = settings.sounds.find((s) => s.id === id);
 	if (!sound) throw Error("Sound not found.");
 	if (!isCursorCaptureActive)
 		throw Error("Start recording to add a sound. Use Preview to listen first.");
+	if (isCursorCapturePaused()) throw Error("Resume recording before adding a sound.");
 	if (
 		take.trigger(
 			id,
@@ -127,6 +128,23 @@ function fireSound(id: string) {
 		message = `${sound.name} added to your take`;
 		publish();
 	}
+}
+export function boardSoundList() {
+	return {
+		recording: isCursorCaptureActive,
+		paused: isCursorCapturePaused(),
+		sounds: settings.sounds.map(({ file: _file, ...sound }) => sound),
+	};
+}
+export async function boardSoundPreview(id: string) {
+	if (isCursorCaptureActive)
+		throw Error("Preview is available before recording. Use Add to take while recording.");
+	const sound = settings.sounds.find((s) => s.id === id);
+	if (!sound) throw Error("Sound not found.");
+	return {
+		dataURL: `data:audio/wav;base64,${(await fs.readFile(path.join(root(), sound.file))).toString("base64")}`,
+		volume: Math.min(1, sound.volume),
+	};
 }
 function bindAll(next: StudioSettings) {
 	const desired = [

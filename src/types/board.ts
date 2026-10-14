@@ -10,6 +10,7 @@ export interface BoardFile {
 	dataURL: string;
 	mimeType: string;
 	created: number;
+	name?: string;
 }
 export interface BoardScene {
 	elements: BoardElement[];
@@ -28,6 +29,7 @@ export interface BoardState {
 	height: number;
 	scenes: Record<BoardMode, BoardScene>;
 	library: unknown[];
+	assets: Record<string, BoardFile>;
 }
 export const emptyBoardScene = (): BoardScene => ({
 	elements: [],
@@ -46,6 +48,7 @@ export const emptyBoardState = (): BoardState => ({
 	height: 720,
 	scenes: { screen: emptyBoardScene(), board: emptyBoardScene() },
 	library: [],
+	assets: {},
 });
 export interface BoardStatus {
 	recording: boolean;
