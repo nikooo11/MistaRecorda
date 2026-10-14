@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { accessSync, constants, existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { extractFile } from "@electron/asar";
 
 const projectRoot = process.cwd();
 const releaseRoot = path.join(projectRoot, "release");
@@ -86,6 +87,16 @@ function findFirstExistingFile(candidates) {
 
 function assertPackagedAppExecutable(unpackedRoot) {
 	const resourcesDir = path.dirname(unpackedRoot);
+	const archive = path.join(resourcesDir, "app.asar");
+	const manifest = JSON.parse(extractFile(archive, "package.json").toString("utf8"));
+	if (typeof manifest.main !== "string") fail("packaged manifest has no main entry");
+	for (const entry of [manifest.main, "dist/index.html"]) {
+		const packaged = extractFile(archive, entry);
+		if (!packaged.equals(readFileSync(path.join(projectRoot, entry)))) {
+			fail(`packaged ${entry} differs from the completed build; rebuild before packaging`);
+		}
+	}
+	console.log("[packaged-smoke] archive manifest and entry contents verified");
 
 	if (process.platform === "darwin") {
 		const appBundleDir = findAppBundleDir(resourcesDir);

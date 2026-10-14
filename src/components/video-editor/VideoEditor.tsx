@@ -1,4 +1,4 @@
-import { VoiceRecordingControls } from "../voice/VoiceRecordingControls";
+import { VoicePanel } from "../voice/VoicePanel";
 import {
 	BookmarkSimple,
 	Check,
@@ -9,6 +9,7 @@ import {
 	DownloadSimple as Download,
 	FolderOpen,
 	Gear,
+	Waveform,
 	Pause,
 	Camera as PhCameraRegular,
 	Play,
@@ -109,6 +110,9 @@ const PhCamera = (props: { className?: string; weight?: "fill" | "regular" }) =>
 );
 const PhCaptions = (props: { className?: string; weight?: "fill" | "regular" }) => (
 	<ClosedCaptioning weight={props.weight ?? "regular"} className={props.className} />
+);
+const PhVoice = (props: { className?: string; weight?: "fill" | "regular" }) => (
+	<Waveform weight={props.weight ?? "regular"} className={props.className} />
 );
 const PhPuzzle = (props: { className?: string; weight?: "fill" | "regular" }) => (
 	<PuzzlePiece weight={props.weight ?? "regular"} className={props.className} />
@@ -1673,6 +1677,11 @@ export default function VideoEditor() {
 				icon: PhCaptions,
 			},
 			{
+				id: "voice" as const,
+				label: "Voice / ElevenLabs",
+				icon: PhVoice,
+			},
+			{
 				id: "settings" as const,
 				label: t("settings.sections.settings", "Settings"),
 				icon: PhSettings,
@@ -2061,6 +2070,7 @@ export default function VideoEditor() {
 						videoPath: sourcePath,
 						webcamPath: normalizedEditor.webcam.sourcePath,
 						timeOffsetMs: normalizedEditor.webcam.timeOffsetMs,
+						webcamVisibility: normalizedEditor.webcam.visibility,
 					},
 					{
 						preserveProjectPath: Boolean(path),
@@ -2258,6 +2268,7 @@ export default function VideoEditor() {
 				{
 					videoPath: currentSourcePath,
 					webcamPath,
+					webcamVisibility: webcamPath === webcam.sourcePath ? webcam.visibility : undefined,
 					timeOffsetMs:
 						webcamPath && Number.isFinite(timeOffsetMs)
 							? (timeOffsetMs ?? DEFAULT_WEBCAM_TIME_OFFSET_MS)
@@ -2270,7 +2281,7 @@ export default function VideoEditor() {
 				},
 			);
 		},
-		[currentProjectPath, currentSourcePath, webcam.timeOffsetMs],
+		[currentProjectPath, currentSourcePath, webcam.timeOffsetMs, webcam.sourcePath, webcam.visibility],
 	);
 
 	const syncActiveVideoSource = useCallback(
@@ -2281,6 +2292,7 @@ export default function VideoEditor() {
 						videoPath: sourcePath,
 						webcamPath,
 						timeOffsetMs: webcam.timeOffsetMs,
+						webcamVisibility: webcam.visibility,
 					},
 					{
 						preserveProjectPath: Boolean(currentProjectPath),
@@ -2293,7 +2305,7 @@ export default function VideoEditor() {
 				preserveProjectPath: Boolean(currentProjectPath),
 			});
 		},
-		[currentProjectPath, webcam.timeOffsetMs],
+		[currentProjectPath, webcam.timeOffsetMs, webcam.visibility],
 	);
 
 	const resetSourceScopedEditorState = useCallback(() => {
@@ -2342,6 +2354,7 @@ export default function VideoEditor() {
 			enabled: true,
 			sourcePath: result.path ?? null,
 			timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
+			visibility: undefined,
 		}));
 
 		await syncRecordingSessionWebcam(result.path, DEFAULT_WEBCAM_TIME_OFFSET_MS);
@@ -2354,6 +2367,7 @@ export default function VideoEditor() {
 			enabled: false,
 			sourcePath: null,
 			timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
+			visibility: undefined,
 		}));
 
 		await syncRecordingSessionWebcam(null);
@@ -2428,6 +2442,7 @@ export default function VideoEditor() {
 						enabled: Boolean(webcamSourcePath),
 						sourcePath: webcamSourcePath,
 						timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
+			visibility: undefined,
 					}));
 					setError(null);
 					return;
@@ -2455,6 +2470,7 @@ export default function VideoEditor() {
 						enabled: !!smokeWebcamSourcePath,
 						sourcePath: smokeWebcamSourcePath,
 						timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
+			visibility: undefined,
 						shadow:
 							smokeExportConfig.webcamShadow === undefined
 								? prev.shadow
@@ -2523,6 +2539,7 @@ export default function VideoEditor() {
 						...prev,
 						enabled: Boolean(sessionResult.session?.webcamPath),
 						sourcePath: sessionResult.session?.webcamPath ?? null,
+						visibility: sessionResult.session?.webcamVisibility,
 						timeOffsetMs:
 							sessionResult.session?.timeOffsetMs ?? DEFAULT_WEBCAM_TIME_OFFSET_MS,
 					}));
@@ -2545,6 +2562,7 @@ export default function VideoEditor() {
 						enabled: false,
 						sourcePath: null,
 						timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
+			visibility: undefined,
 					}));
 				} else {
 					setError("No video to load. Please record or select a video.");
@@ -2597,6 +2615,7 @@ export default function VideoEditor() {
 				...prev,
 				enabled: Boolean(sessionWebcamPath),
 				sourcePath: sessionWebcamPath,
+				visibility: session.webcamVisibility,
 				timeOffsetMs: sessionWebcamPath
 					? (session.timeOffsetMs ?? prev.timeOffsetMs)
 					: DEFAULT_WEBCAM_TIME_OFFSET_MS,
@@ -3346,6 +3365,7 @@ export default function VideoEditor() {
 			enabled: false,
 			sourcePath: null,
 			timeOffsetMs: DEFAULT_WEBCAM_TIME_OFFSET_MS,
+			visibility: undefined,
 		}));
 		applySessionPresentation(null);
 		await window.electronAPI.setCurrentVideoPath(sourcePath, { preserveProjectPath: false });
@@ -3392,19 +3412,31 @@ export default function VideoEditor() {
 			return;
 		}
 		let disposed = false;
-		void window.electronAPI.recordingZoom.getRegions(videoSourcePath).then((result) => {
-			if (disposed) return;
-			recordedZoomsImportedPath.current = videoSourcePath;
-			if (result.success && result.regions.length) {
-				// Recorded gestures retain their manual/auto modes. Project saves (including deletions)
-				// take precedence over this one-time import from the original recording.
-				pendingFreshRecordingAutoZoomPathRef.current = null;
-				setZoomRegions((existing) => existing.length ? existing : result.regions);
-			}
-		}).catch(() => { /* Keep existing editor regions if sidecar loading is unavailable. */ }).finally(() => {
-			if (!disposed) setRecordedZoomsReadyPath(videoSourcePath);
-		});
-		return () => { disposed = true; };
+		void Promise.all([
+			window.electronAPI.recordingZoom.getRegions(videoSourcePath),
+			window.electronAPI.studio.getSounds(videoSourcePath),
+		])
+			.then(([result, sounds]) => {
+				if (disposed) return;
+				recordedZoomsImportedPath.current = videoSourcePath;
+				if (sounds.length)
+					setAudioRegions((existing) => (existing.length ? existing : sounds));
+				if (result.success && result.regions.length) {
+					// Recorded gestures retain their manual/auto modes. Project saves (including deletions)
+					// take precedence over this one-time import from the original recording.
+					pendingFreshRecordingAutoZoomPathRef.current = null;
+					setZoomRegions((existing) => (existing.length ? existing : result.regions));
+				}
+			})
+			.catch(() => {
+				/* Keep existing editor regions if sidecar loading is unavailable. */
+			})
+			.finally(() => {
+				if (!disposed) setRecordedZoomsReadyPath(videoSourcePath);
+			});
+		return () => {
+			disposed = true;
+		};
 	}, [videoSourcePath, currentProjectPath, loading]);
 
 	useEffect(() => {
@@ -5280,7 +5312,13 @@ export default function VideoEditor() {
 			return;
 		}
 
-		if (!videoPath || loading || !isPreviewReady || duration <= 0) {
+		if (
+			!videoPath ||
+			loading ||
+			!isPreviewReady ||
+			duration <= 0 ||
+			recordedZoomsReadyPath !== videoSourcePath
+		) {
 			return;
 		}
 
@@ -5315,6 +5353,7 @@ export default function VideoEditor() {
 		smokeExportConfig.projectPath,
 		videoPath,
 		videoSourcePath,
+		recordedZoomsReadyPath,
 	]);
 
 	const handleOpenExportDropdown = useCallback(() => {
@@ -5808,8 +5847,7 @@ export default function VideoEditor() {
 				{projectSaveDialog}
 				{unsavedChangesDialog}
 				{nativeCaptureUnavailableDialog}
-				<div className="fixed top-0 left-1/2 -translate-x-1/2 z-50"><VoiceRecordingControls videoPath={currentSourcePath} /></div>
-			<Toaster className="pointer-events-auto" />
+				<Toaster className="pointer-events-auto" />
 			</div>
 		);
 	}
@@ -5831,8 +5869,7 @@ export default function VideoEditor() {
 				{projectSaveDialog}
 				{unsavedChangesDialog}
 				{nativeCaptureUnavailableDialog}
-				<div className="fixed top-0 left-1/2 -translate-x-1/2 z-50"><VoiceRecordingControls videoPath={currentSourcePath} /></div>
-			<Toaster className="pointer-events-auto" />
+				<Toaster className="pointer-events-auto" />
 			</div>
 		);
 	}
@@ -5946,6 +5983,18 @@ export default function VideoEditor() {
 					className="flex items-center justify-self-end pr-3"
 					style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
 				>
+					<button
+						type="button"
+						className="mr-3 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-foreground/5"
+						data-help="Connect an iPad to draw over your live screen. Open the pairing panel, then show its QR code."
+						onClick={() =>
+							void window.electronAPI.board
+								.request("open", { tab: "ipad" })
+								.catch(() => toast.error("Could not open iPad pairing."))
+						}
+					>
+						Connect iPad
+					</button>
 					<Popover open={presetPopoverOpen} onOpenChange={setPresetPopoverOpen}>
 						<PopoverTrigger asChild>
 							<button
@@ -6294,12 +6343,12 @@ export default function VideoEditor() {
 				</div>
 			</div>
 
-			<div className="relative flex min-h-0 flex-1 flex-col gap-3 p-4">
-				<div className="flex min-h-0 flex-1 gap-3 relative z-10">
+			<div className="relative flex min-h-0 flex-1 flex-col gap-2 p-2">
+				<div className="flex min-h-0 flex-1 gap-2 relative z-10">
 					{/* Settings sidebar */}
 					<div className="flex flex-shrink-0 gap-1.5">
 						{/* Icon rail */}
-						<div className="flex flex-shrink-0 flex-col items-center gap-0.5 px-2 py-2">
+						<div className="flex flex-shrink-0 flex-col items-center gap-1 border-r border-foreground/10 px-1 py-1">
 							{editorSectionButtons.map((section) => {
 								const isActive = activeEffectSection === section.id;
 								return (
@@ -6308,14 +6357,14 @@ export default function VideoEditor() {
 											type="button"
 											onClick={() => setActiveEffectSection(section.id)}
 											title={section.label}
-											className="group relative flex h-9 w-9 items-center justify-center rounded-lg outline-none focus:outline-none focus-visible:outline-none"
+											className="group relative flex h-12 w-14 flex-col gap-1 items-center justify-center rounded-[3px] outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
 											animate={{ opacity: isActive ? 1 : 0.55 }}
 											transition={{ duration: 0.14 }}
 										>
 											{isActive && (
 												<motion.span
 													layoutId="rail-active-bg"
-													className="absolute inset-0 rounded-lg bg-foreground/[0.08]"
+													className="absolute inset-0 rounded-[3px] bg-foreground/[0.08]"
 													transition={{
 														type: "spring",
 														stiffness: 450,
@@ -6336,15 +6385,18 @@ export default function VideoEditor() {
 													<ExtensionIcon
 														icon={section.icon}
 														extensionPath={section.extensionPath}
-														className="h-[27px] w-[27px]"
+														className="h-[20px] w-[20px]"
 													/>
 												) : (
 													<section.icon
-														className="h-[27px] w-[27px]"
+														className="h-[20px] w-[20px]"
 														weight={isActive ? "fill" : "regular"}
 													/>
 												)}
 											</motion.span>
+											<span className="relative z-10 max-w-full truncate text-[9px] leading-none">
+												{section.id === "voice" ? "Voice" : section.label}
+											</span>
 										</motion.button>
 										<div className="ml-1.5 h-1.5 w-1.5 flex-shrink-0">
 											{isActive && (
@@ -6380,7 +6432,9 @@ export default function VideoEditor() {
 							</div>
 						</div>
 						{/* Panel */}
-						{activeEffectSection === "extensions" ? (
+						{activeEffectSection === "voice" ? (
+							<VoicePanel embedded videoPath={currentSourcePath} />
+						) : activeEffectSection === "extensions" ? (
 							<ExtensionManager />
 						) : (
 							<SettingsPanel
@@ -6985,7 +7039,6 @@ export default function VideoEditor() {
 			{unsavedChangesDialog}
 			{nativeCaptureUnavailableDialog}
 
-			<div className="fixed top-0 left-1/2 -translate-x-1/2 z-50"><VoiceRecordingControls videoPath={currentSourcePath} /></div>
 			<Toaster className="pointer-events-auto" />
 		</div>
 	);

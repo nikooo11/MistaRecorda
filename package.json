@@ -39,6 +39,7 @@
 		"normalize:electron-main-cjs": "node scripts/normalize-electron-main-cjs.mjs",
 		"smoke:electron-main-cjs": "node scripts/smoke-electron-main-cjs.mjs",
 		"smoke:packaged-binaries": "node scripts/smoke-packaged-binaries.mjs",
+		"package:local:mac": "node scripts/package-local-mac.mjs",
 		"checksums:release": "node scripts/write-release-checksums.mjs",
 		"release:create": "node scripts/create-release.mjs",
 		"test": "vitest --run",

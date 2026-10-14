@@ -1,11 +1,26 @@
-import { BoardCamera } from "./BoardCamera";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+	PencilSimpleIcon,
+	DeviceTabletIcon,
+	StackIcon,
+	GearSixIcon,
+	XIcon,
+	ArrowLeftIcon,
+	QrCodeIcon,
+	RecordIcon,
+	PauseIcon,
+	PlayIcon,
+	WebcamIcon,
+	ArrowsOutSimpleIcon,
+} from "@phosphor-icons/react";
 import QRCode from "qrcode";
+import { BoardCamera } from "./BoardCamera";
 import { BoardCanvas } from "./BoardCanvas";
+import { BoardStream } from "./BoardStream";
 import { desktopBoard } from "./transport";
 import type { BoardInfo, BoardStatus } from "../../types/board";
-import { BoardStream } from "./BoardStream";
 import "./board.css";
+
 export function BoardWindow({ kind }: { kind: string }) {
 	const transport = useMemo(desktopBoard, []);
 	const [info, setInfo] = useState<BoardInfo>();
@@ -15,6 +30,9 @@ export function BoardWindow({ kind }: { kind: string }) {
 	const [name, setName] = useState("Introduction");
 	const [scenes, setScenes] = useState<string[]>([]);
 	const [compact, setCompact] = useState(false);
+	const [tab, setTab] = useState<"draw" | "ipad" | "scenes" | "settings">("draw");
+	const [notice, setNotice] = useState("");
+	const [now, setNow] = useState(Date.now());
 	const run = useCallback(
 		async (method: string, input?: unknown) => {
 			try {
@@ -30,13 +48,18 @@ export function BoardWindow({ kind }: { kind: string }) {
 		[transport],
 	);
 	useEffect(() => {
-		void run("info");
+		void run("info").then((value) => {
+			const initial = value as BoardInfo | undefined;
+			if (initial?.panelTab) setTab(initial.panelTab);
+		});
+		const navigate = transport.on<"draw" | "ipad" | "scenes" | "settings">("navigate", setTab);
 		const off = transport.on("info", setInfo);
 		const status = transport.on("status", (status: BoardStatus) =>
 			setInfo((i) => (i ? { ...i, status } : i)),
 		);
 		const fail = transport.on("error", setError);
 		return () => {
+			navigate();
 			off();
 			status();
 			fail();
@@ -47,13 +70,41 @@ export function BoardWindow({ kind }: { kind: string }) {
 		setPairUrl(preferredUrl);
 	}, [preferredUrl]);
 	useEffect(() => {
-		if (pairUrl) void QRCode.toDataURL(pairUrl, { width: 300, margin: 2 }).then(setQr);
-		else setQr("");
+		let cancelled = false;
+		setQr("");
+		if (pairUrl)
+			void QRCode.toDataURL(pairUrl, { width: 300, margin: 2 })
+				.then((value) => {
+					if (!cancelled) setQr(value);
+				})
+				.catch(() => setError("Could not create the pairing code. Try again."));
+		return () => {
+			cancelled = true;
+		};
 	}, [pairUrl]);
+	useEffect(() => {
+		if (!info?.pairing?.expires) return;
+		setNow(Date.now());
+		const timer = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(timer);
+	}, [info?.pairing?.expires]);
 	if (kind === "board-hint")
-		return <p className="board-hint">Press Space to open drawing board</p>;
+		return (
+			<button
+				className="board-edge-handle"
+				title="Open whiteboard. Shortcut: Command/Control + Shift + B."
+				aria-label="Open whiteboard"
+				onClick={() => void run("toggleBoard")}
+			>
+				<span />
+				<PencilSimpleIcon size={16} />
+			</button>
+		);
 	if (kind === "board-stream") return <BoardStream transport={transport} />;
-	if (!info) return <div className="board-panel">{error || "Opening drawing board…"}</div>;
+	if (!info)
+		return (
+			<div className="board-panel board-loading">{error || "Opening drawing studio…"}</div>
+		);
 	if (kind === "board-surface" || kind === "board-editor")
 		return (
 			<>
@@ -70,218 +121,424 @@ export function BoardWindow({ kind }: { kind: string }) {
 				)}
 			</>
 		);
-	const mcpConfig = info.mcp
-		? `[mcp_servers.mistarecorda]\nurl = "${info.mcp.url}"\nbearer_token_env_var = "MISTARECORDA_MCP_TOKEN"`
-		: "";
+	const expiresIn = Math.max(0, Math.ceil(((info.pairing?.expires ?? 0) - now) / 1000));
+	const connected = info.devices.filter((d) => d.approved && d.connected).length;
 	return (
-		<main className="board-panel">
-			<header>
-				<h1>{compact ? "Presenter" : "Drawing board"}</h1>
-				<button onClick={() => window.close()} aria-label="Hide presenter panel">
-					×
+		<main className={`board-panel ${compact ? "board-compact" : ""}`}>
+			<header className="board-panel-heading">
+				<div>
+					<h1>{compact ? "Recording controls" : "Drawing"}</h1>
+				</div>
+				<button
+					className="studio-icon"
+					title="Hide this panel. Your drawing and recording continue."
+					onClick={() => window.close()}
+					aria-label="Hide presenter panel"
+				>
+					<XIcon size={18} />
 				</button>
 			</header>
 			<div className="board-status" data-recording={info.status.recording}>
-				{info.status.recording
-					? info.status.paused
-						? "Paused"
-						: "● Recording"
-					: "Not recording"}{" "}
-				· {Math.floor(info.status.elapsed / 60)}:
-				{String(info.status.elapsed % 60).padStart(2, "0")}
+				<span
+					className={`studio-dot ${info.status.recording && !info.status.paused ? "is-live" : ""}`}
+				/>
+				<span>
+					{info.status.recording
+						? info.status.paused
+							? "Recording paused"
+							: "Recording"
+						: "Ready"}
+				</span>
+				<time>
+					{Math.floor(info.status.elapsed / 60)}:
+					{String(info.status.elapsed % 60).padStart(2, "0")}
+				</time>
 			</div>
-			<div>
-				<button onClick={() => void run("control", "record")}>
-					{info.status.recording ? "Stop recording" : "Start recording"}
-				</button>
-				<button
-					disabled={!info.status.recording}
-					onClick={() => void run("control", "pause")}
-				>
-					{info.status.paused ? "Resume" : "Pause"}
-				</button>
-				<button onClick={() => void run("control", "webcam")}>
-					{info.status.webcam ? "Hide webcam" : "Show webcam"}
-				</button>
-			</div>
-			<p>Ctrl/⌘ + Shift + R: start/stop · P: pause/resume · W: webcam</p>
-			<button
-				onClick={() => {
-					setCompact(!compact);
-					void run("compact", !compact);
-				}}
-			>
-				{compact ? "Board settings" : "Compact controls"}
-			</button>
 			{!compact && (
 				<>
-					<label>
-						<input
-							type="checkbox"
-							checked={info.state.enabled}
-							disabled={info.status.recording}
-							onChange={(e) => void run("enable", e.target.checked)}
-						/>{" "}
-						Enable drawing overlay
-					</label>
-					<button onClick={() => void run("edit")}>Draw on computer</button>
-					<button
-						onClick={() =>
-							void run("mode", {
-								mode: info.state.mode === "board" ? "screen" : "board",
-							})
-						}
-					>
-						{info.state.mode === "board" ? "Return to screen" : "Open opaque board"}
-					</button>
-					<p>
-						Move to the far-left edge, then press Space to open the board. Drawings stay
-						until you clear them. Pinch zoom is shared with the recording.
-					</p>
-					<label>
-						Display{" "}
-						<select
-							disabled={info.status.recording}
-							value={info.displayId}
-							onChange={(e) => void run("display", Number(e.target.value))}
-						>
-							{info.displays.map((d) => (
-								<option value={d.id} key={d.id}>
-									{d.name}
-								</option>
-							))}
-						</select>
-					</label>
-					<label>
-						Recording shows{" "}
-						<select
-							value={info.state.output}
-							onChange={(e) => void run("output", e.target.value)}
-						>
-							<option value="screen-board">Screen and drawing overlay</option>
-							<option value="screen">Screen only</option>
-							<option value="board">Opaque board only</option>
-						</select>
-					</label>
-					<p>
-						Select this same full display in the recorder. Drawing tools and this
-						presenter panel are excluded from native Mac/Windows capture.
-					</p>
-					<h2>Prepared scenes</h2>
-					<input
-						aria-label="Scene name"
-						value={name}
-						onChange={(e) => setName(e.target.value)}
-					/>
-					<button onClick={() => void run("saveScene", { name })}>Save scene</button>
-					<button
-						onClick={() =>
-							void run("listScenes").then(
-								(v) => Array.isArray(v) && setScenes(v as string[]),
-							)
-						}
-					>
-						Browse scenes
-					</button>
-					{scenes.map((n) => (
-						<button
-							key={n}
-							onClick={() => {
-								if (
-									confirm(
-										`Load “${n}” in place of the current scene? Save your current scene first if needed.`,
-									)
-								)
-									void run("loadScene", { name: n });
-							}}
-						>
-							{n}
-						</button>
-					))}
-					<h2>Connect iPad</h2>
-					<p>Use the same Wi-Fi. Scan, then approve your device below.</p>
-					<button onClick={() => void run("pair")}>
-						{info.pairing ? "New QR code" : "Show pairing QR"}
-					</button>
-					{info.pairing && (
-						<button onClick={() => void run("stopPairing")}>Stop sharing</button>
-					)}
-					{qr && (
-						<>
-							<img
-								className="board-qr"
-								src={qr}
-								alt="Scan to pair your drawing device"
-							/>
-							<select
-								aria-label="Network address"
-								value={pairUrl}
-								onChange={(e) => setPairUrl(e.target.value)}
-							>
-								{info.pairing?.urls.map((u) => (
-									<option key={u} value={u}>
-										{u.split("/#")[0]}
-									</option>
-								))}
-							</select>
-							<p>
-								QR code expires after five minutes. Choose your Wi-Fi address if
-								more than one is listed.
-							</p>
-						</>
-					)}
-					{info.devices.map((d) => (
-						<div key={d.id}>
-							{d.name} ·{" "}
-							{d.connected
-								? d.approved
-									? "Connected"
-									: "Awaiting approval"
-								: "Disconnected"}
-							{!d.approved && (
-								<button onClick={() => void run("approve", d.id)}>Approve</button>
-							)}
-							<button onClick={() => void run("disconnect", d.id)}>Disconnect</button>
-						</div>
-					))}
-					<h2>Codex / MCP</h2>
-					<button onClick={() => void run("mcp", !info.mcp)}>
-						{info.mcp ? "Disable MCP" : "Enable MCP drawing tools"}
-					</button>
-					{info.mcp && (
-						<>
-							<p>
-								For Codex on this computer, add this to its MCP configuration and
-								set MISTARECORDA_MCP_TOKEN to the session token below. Connections
-								reset when the app restarts. Read the included drawing guide through
-								MCP before drawing.
-							</p>
-							<textarea
-								aria-label="Codex MCP configuration"
-								rows={4}
-								readOnly
-								value={mcpConfig}
-							/>
-							<input
-								type="password"
-								aria-label="MCP session token"
-								readOnly
-								value={info.mcp.token}
-							/>
+					<nav className="studio-tabs" aria-label="Drawing studio">
+						{(
+							[
+								{ id: "draw", label: "Draw", Icon: PencilSimpleIcon },
+								{ id: "ipad", label: "iPad", Icon: DeviceTabletIcon },
+								{ id: "scenes", label: "Drawings", Icon: StackIcon },
+								{ id: "settings", label: "Setup", Icon: GearSixIcon },
+							] as const
+						).map(({ id, label, Icon }) => (
 							<button
-								onClick={() => void navigator.clipboard.writeText(info.mcp!.token)}
+								key={id}
+								aria-pressed={tab === id}
+								title={
+									{
+										draw: "Draw over your screen or open a clean whiteboard.",
+										ipad: "Pair your iPad and draw over a live view of this display.",
+										scenes: "Save and reopen reusable drawings.",
+										settings:
+											"Choose the display, recording output, and optional drawing tools.",
+									}[id]
+								}
+								onClick={() => {
+									setTab(id);
+									setNotice("");
+								}}
 							>
-								Copy token
+								<Icon size={19} />
+								{label}
+								{id === "ipad" && connected > 0 && (
+									<span className="connected-dot" />
+								)}
 							</button>
-							<p>
-								Cloud clients need an authenticated connection to this computer.
-								This button does not publish your board to the internet.
+						))}
+					</nav>
+					<div className="board-panel-content">
+						{tab === "draw" && (
+							<>
+								<div className="board-intro">
+									<h2>Screen annotations</h2>
+									<p>Draw over the display or open a separate whiteboard.</p>
+								</div>
+								<label className="studio-switch-row">
+									<span>
+										<strong>Drawing overlay</strong>
+										<small>Included in your recording</small>
+									</span>
+									<input
+										type="checkbox"
+										role="switch"
+										checked={info.state.enabled}
+										disabled={info.status.recording}
+										onChange={(e) => void run("enable", e.target.checked)}
+									/>
+								</label>
+								<div className="studio-action-grid">
+									<button
+										className="studio-primary"
+										title="Draw arrows, shapes, text, or freehand ink over your desktop. Choose Done drawing to click your apps again."
+										onClick={() => void run("edit")}
+									>
+										<PencilSimpleIcon size={20} /> Draw on screen
+									</button>
+									<button
+										title="Slide in a full whiteboard. Screen annotations are saved separately, so you can return to them."
+										onClick={() =>
+											void run("mode", {
+												mode:
+													info.state.mode === "board"
+														? "screen"
+														: "board",
+											})
+										}
+									>
+										{info.state.mode === "board" ? (
+											<ArrowLeftIcon size={20} />
+										) : (
+											<ArrowsOutSimpleIcon size={20} />
+										)}
+										{info.state.mode === "board"
+											? "Return to screen"
+											: "Open whiteboard"}
+									</button>
+								</div>
+								<div className="studio-tip">
+									<span className="edge-gesture" aria-hidden="true">
+										↦
+									</span>
+									<p>
+										<strong>Whiteboard access</strong>Move to the far-left edge
+										and click the small board tab. Put it away when you’re done;
+										your drawings stay.
+									</p>
+								</div>
+								<button
+									className="studio-link"
+									onClick={() => setTab("ipad")}
+									title="Show a QR code to connect your iPad on the same Wi-Fi."
+								>
+									<DeviceTabletIcon size={18} /> Draw with your iPad{" "}
+									<span>→</span>
+								</button>
+							</>
+						)}
+						{tab === "ipad" && (
+							<>
+								<h2>Connect iPad</h2>
+								<p>
+									See your computer live, then draw with Apple Pencil or your
+									finger.
+								</p>
+								<ol className="pair-steps">
+									<li>
+										<span>1</span>Connect both devices to the same Wi-Fi.
+									</li>
+									<li>
+										<span>2</span>Scan the code with your iPad camera.
+									</li>
+									<li>
+										<span>3</span>Approve it here, then tap Start screen.
+									</li>
+								</ol>
+								{qr ? (
+									<div className="qr-card">
+										<img
+											className="board-qr"
+											src={qr}
+											alt="Scan to pair your iPad"
+										/>
+										<span className="qr-caption">
+											{expiresIn
+												? `Ready to scan · ${Math.floor(expiresIn / 60)}:${String(expiresIn % 60).padStart(2, "0")}`
+												: "Code expired · create a new one below"}
+										</span>
+									</div>
+								) : (
+									<div className="qr-placeholder">
+										<QrCodeIcon size={56} weight="light" />
+										<p>Generate a code to pair a device</p>
+									</div>
+								)}
+								<button
+									className="studio-primary studio-wide"
+									onClick={() => void run("pair")}
+									title="Start local pairing and create a code that expires in five minutes. Only devices you approve can connect."
+								>
+									<QrCodeIcon size={20} />
+									{info.pairing ? "New QR code" : "Show pairing QR"}
+								</button>
+								{info.pairing && (
+									<details className="studio-details">
+										<summary>Connection options</summary>
+										<label>
+											Network address
+											<select
+												aria-label="Network address"
+												value={pairUrl}
+												onChange={(e) => setPairUrl(e.target.value)}
+											>
+												{info.pairing.urls.map((u) => (
+													<option key={u} value={u}>
+														{u.split("/#")[0]}
+													</option>
+												))}
+											</select>
+										</label>
+										<button
+											onClick={() => void run("stopPairing")}
+											title="Disconnect every paired device and stop the local screen stream."
+										>
+											Stop sharing
+										</button>
+									</details>
+								)}
+								{info.devices.map((d) => (
+									<div className="studio-device" key={d.id}>
+										<DeviceTabletIcon size={24} />
+										<div>
+											<strong>{d.name}</strong>
+											<small>
+												{d.connected
+													? d.approved
+														? "Connected"
+														: "Awaiting your approval"
+													: "Disconnected"}
+											</small>
+										</div>
+										{!d.approved && (
+											<button
+												className="studio-primary"
+												onClick={() => void run("approve", d.id)}
+												title="Allow this device to see your screen and edit drawings."
+											>
+												Approve
+											</button>
+										)}
+										<button
+											onClick={() => void run("disconnect", d.id)}
+											title="Revoke this device’s access. It will need to pair again."
+										>
+											Disconnect
+										</button>
+									</div>
+								))}
+							</>
+						)}
+						{tab === "scenes" && (
+							<>
+								<h2>Saved drawings</h2>
+								<p>Save the current drawing or load one you saved.</p>
+								<label className="studio-field">
+									Scene name
+									<input
+										aria-label="Scene name"
+										value={name}
+										onChange={(e) => setName(e.target.value)}
+									/>
+								</label>
+								<div className="studio-action-grid">
+									<button
+										className="studio-primary"
+										disabled={!name.trim()}
+										onClick={() =>
+											void run("saveScene", { name }).then((v) => {
+												if (v) setNotice(`Saved “${name}”`);
+											})
+										}
+										title="Save the current scene under this name. Using an existing name replaces that saved scene."
+									>
+										Save drawing
+									</button>
+									<button
+										onClick={() =>
+											void run("listScenes").then((v) => {
+												if (Array.isArray(v)) {
+													setScenes(v as string[]);
+													if (!v.length)
+														setNotice(
+															"No saved drawings yet. Save your first drawing above.",
+														);
+												}
+											})
+										}
+										title="List previously saved scenes so you can load one."
+									>
+										Browse drawings
+									</button>
+								</div>
+								{scenes.map((n) => (
+									<button
+										className="studio-scene"
+										key={n}
+										onClick={() => {
+											if (
+												confirm(
+													`Load “${n}” in place of the current scene? Save your current scene first if needed.`,
+												)
+											)
+												void run("loadScene", { name: n });
+										}}
+										title="Replace the current canvas with this saved scene."
+									>
+										<StackIcon size={20} />
+										{n}
+										<span>↗</span>
+									</button>
+								))}
+							</>
+						)}
+						{tab === "settings" && (
+							<>
+								<h2>Drawing settings</h2>
+								<label className="studio-field">
+									Display
+									<select
+										disabled={info.status.recording}
+										value={info.displayId}
+										onChange={(e) =>
+											void run("display", Number(e.target.value))
+										}
+									>
+										{info.displays.map((d) => (
+											<option value={d.id} key={d.id}>
+												{d.name}
+											</option>
+										))}
+									</select>
+								</label>
+								<label className="studio-field">
+									Recording shows
+									<select
+										value={info.state.output}
+										onChange={(e) => void run("output", e.target.value)}
+									>
+										<option value="screen-board">Screen and drawings</option>
+										<option value="screen">Screen only</option>
+										<option value="board">Whiteboard only</option>
+									</select>
+								</label>
+								<p className="studio-note">
+									Select this same full display in the recorder to include
+									drawings. Your tools and presenter controls stay out of native
+									Mac and Windows recordings.
+								</p>
+								<details className="studio-details">
+									<summary>Codex drawing tools</summary>
+									<p>Prepare editable diagrams from a local MCP connection.</p>
+									<button
+										onClick={() => void run("mcp", !info.mcp)}
+										title="Enable or stop the authenticated local server for compatible drawing agents."
+									>
+										{info.mcp ? "Disable MCP" : "Enable MCP drawing tools"}
+									</button>
+									{info.mcp && (
+										<>
+											<textarea
+												aria-label="Codex MCP configuration"
+												readOnly
+												value={`[mcp_servers.mistarecorda]\nurl = "${info.mcp.url}"\nbearer_token_env_var = "MISTARECORDA_MCP_TOKEN"`}
+											/>
+											<label>
+												Session token
+												<input
+													type="password"
+													readOnly
+													value={info.mcp.token}
+												/>
+											</label>
+										</>
+									)}
+								</details>
+							</>
+						)}
+						{notice && (
+							<p className="studio-notice" role="status">
+								{notice}
 							</p>
-						</>
-					)}
+						)}
+					</div>
 				</>
 			)}
-			{error && <p role="alert">{error}</p>}
+			{error && (
+				<p className="studio-error" role="alert">
+					{error}
+				</p>
+			)}
+			<footer className="board-panel-footer">
+				<div className="studio-record-controls">
+					<button
+						className={info.status.recording ? "studio-stop" : "studio-primary"}
+						onClick={() => void run("control", "record")}
+						title="Start or stop the current recording. Shortcut: Command/Control + Shift + R."
+					>
+						<RecordIcon size={18} weight="fill" />
+						{info.status.recording ? "Stop recording" : "Record"}
+					</button>
+					<button
+						disabled={!info.status.recording}
+						onClick={() => void run("control", "pause")}
+						title="Pause or resume without adding the paused time to your video. Shortcut: Command/Control + Shift + P."
+					>
+						{info.status.paused ? <PlayIcon size={18} /> : <PauseIcon size={18} />}{" "}
+						{info.status.paused ? "Resume" : "Pause"}
+					</button>
+					<button
+						aria-label={info.status.webcam ? "Hide webcam" : "Show webcam"}
+						aria-pressed={info.status.webcam}
+						onClick={() => void run("control", "webcam")}
+						title="Turn the face camera on or off in your recording."
+					>
+						<WebcamIcon size={20} />
+					</button>
+				</div>
+				<button
+					className="studio-link compact-link"
+					onClick={() => {
+						setCompact(!compact);
+						void run("compact", !compact);
+					}}
+					title="Switch between the full drawing studio and small presenter controls."
+				>
+					{compact ? "Expand studio" : "Compact controls"}
+				</button>
+			</footer>
 		</main>
 	);
 }

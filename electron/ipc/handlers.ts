@@ -1,3 +1,4 @@
+import { registerStudio } from "../studio/register";
 import { registerVoiceHandlers } from "./voice/register";
 import { registerRecordingZoomHandlers } from "./zoom/register";
 import { BrowserWindow } from "electron";
@@ -73,4 +74,5 @@ export function registerIpcHandlers(
 	registerSettingsHandlers();
 	registerVoiceHandlers();
 	registerRecordingZoomHandlers();
+	registerStudio();
 }

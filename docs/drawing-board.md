@@ -6,7 +6,7 @@ MistaRecorda embeds the [Excalidraw](https://github.com/excalidraw/excalidraw) e
 
 1. Open **Board** on the recorder. Choose the display you will record and enable the drawing overlay **before** recording. Select that same full display in the recorder's source picker.
 2. Choose **Draw on computer** for desktop editing, or connect your iPad below. Select an arrow, shape, text or freehand tool from the Excalidraw toolbar. Click **Done drawing** to return mouse control to your desktop.
-3. To deploy the opaque whiteboard, move your pointer within 12 pixels of the selected display's left edge. The grey **Press Space** hint appears; press Space. The board slides over the screen. **Return to screen** restores your transparent annotation scene. The two scenes retain their contents independently.
+3. To deploy the whiteboard, move your pointer to the selected display's far-left edge and click the narrow board handle. The framed board swings over the screen. **Put board away** swings it back off the left edge. **⌘/Ctrl + Shift + B** toggles it directly. Hovering alone only reveals the handle. Returning to the screen restores your transparent annotation scene. The two scenes retain their contents independently.
 4. Pinch with two fingers on the board to pan/zoom, or use its zoom controls. Desktop, iPad and recorded board share the same view. On a trackpad, pinch zooms and two-finger scrolling pans. This changes the drawing viewport, not the underlying desktop application's zoom.
 5. Use **Recording shows** to choose screen plus drawings, screen only, or the opaque board. The choice is visible immediately. Drawings persist when hidden and across app restarts. The overlay starts disabled after reopening the app.
 
@@ -18,7 +18,7 @@ The clean surface contains the drawing without editor toolbars. This screenshot 
 
 ## Connect an iPad
 
-1. Put both devices on the same trusted Wi-Fi network. In **Board → Connect iPad**, click **Show pairing QR**. Choose your Wi-Fi address if several interfaces appear.
+1. Put both devices on the same trusted Wi-Fi network. In **Drawing studio → iPad**, click **Show pairing QR**. Choose your Wi-Fi address if several interfaces appear.
 2. Scan with the iPad camera and open the page in Safari. The QR expires in five minutes; generate another if necessary.
 3. Keep the page open. Click **Approve** for the device on your computer. Then tap **Start screen** on the iPad. The computer streams its selected display without audio; the iPad does not need microphone or camera access.
 4. Select the freehand tool to draw with a finger or Apple Pencil. Use arrows, circles and text for structured explanations. The opaque board also appears on the iPad when deployed. Two-finger navigation changes the shared board viewport.
@@ -38,6 +38,8 @@ Undo/redo belongs to the active editor. Work from one editing device at a time: 
 
 ## Recording controls
 
+Recorder menus now hide before recording starts. **⌘/Ctrl + Shift + H** shows or hides the recorder toolbar. New native Mac capture excludes the entire control app, including panels opened during a take. See the [current Capture studio guide](capture-studio.md); screenshots below show the earlier interface.
+
 Click **Compact controls** for a small presenter window showing recording, paused or idle state and elapsed time. **Board settings** expands it again. It provides Start/Stop, Pause/Resume and Show/Hide webcam buttons. Keyboard shortcuts are **Ctrl/⌘ + Shift + R**, **Ctrl/⌘ + Shift + P**, and **Ctrl/⌘ + Shift + W** respectively. Other applications may reserve these shortcuts; the buttons remain available.
 
 Native macOS capture filters out MistaRecorda's presenter/editor windows; Windows uses capture exclusion for those windows. The separate clean drawing surface is included. Board recording is supported on macOS and Windows; Linux can preview/edit the board but requires the overlay disabled to record. Use a full display capture with the board enabled; individual-window capture cannot contain a separate overlay. In board mode the webcam is included in the clean surface, so its shown/hidden state is recorded into the video rather than a separately editable webcam track. The normal recorder retains its existing webcam workflow when the drawing overlay is disabled.
@@ -48,7 +50,7 @@ Make a short sample recording on your computer before a tutorial to confirm perm
 
 ## Let Codex prepare diagrams
 
-1. Open **Board → Codex / MCP → Enable MCP drawing tools**. Copy the configuration shown there into your Codex MCP configuration. It uses a localhost HTTP URL and `bearer_token_env_var = "MISTARECORDA_MCP_TOKEN"`.
+1. Open **Drawing studio → Setup → Codex / MCP → Enable MCP drawing tools**. Copy the configuration shown there into your Codex MCP configuration. It uses a localhost HTTP URL and `bearer_token_env_var = "MISTARECORDA_MCP_TOKEN"`.
 2. Set that environment variable in the environment that starts Codex to the copied session token. Keep the token private. Restart/reconnect Codex as required by your client. The URL and token change when the server/app restarts.
 3. Ask: “Read MistaRecorda's drawing guide, prepare an editable diagram explaining [topic], inspect it, and save it as [scene name].” The server advertises a drawing guide, a prepare-tutorial prompt and tools to inspect, draw, update, delete, frame, save/load and screenshot the board.
 4. For an additional reusable Codex skill, copy [the `mistarecorda-board` folder](skills/mistarecorda-board/SKILL.md) into a skill directory supported by your Codex installation. The server's built-in instructions work even without installing this file.

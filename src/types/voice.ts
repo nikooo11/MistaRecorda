@@ -3,7 +3,7 @@ export interface VoiceSettings {
 	noticeAccepted: boolean;
 	voiceId: string;
 	voiceName: string;
-	modelId: "eleven_multilingual_sts_v2" | "eleven_english_sts_v2";
+	modelId: string;
 	stability: number;
 	similarityBoost: number;
 	style: number;
@@ -27,7 +27,14 @@ export const defaultVoiceSettings: VoiceSettings = {
 	postFx: { loudnessLufs: -16, eqPreset: "none", pitchSemitones: 0 },
 	teamFolder: "",
 };
+export interface VoiceModel {
+	modelId: string;
+	name: string;
+	canConvert: boolean;
+	canSpeak: boolean;
+}
 export interface VoiceInfo {
+	highQualityModelIds?: string[];
 	voiceId: string;
 	name: string;
 	category: string;
@@ -61,6 +68,9 @@ export interface VoiceRecording {
 	changedMicPath?: string;
 	voiceVideoPath?: string;
 	micSelection?: "original" | "changed";
+	changedVoiceName?: string;
+	changedVoiceId?: string;
+	changedModelId?: string;
 }
 export interface VoiceRequests {
 	storeBrowserAudio: {
@@ -123,7 +133,12 @@ export interface VoiceRequests {
 	outputAction: { input: { videoPath: string; action: "open" | "reveal" }; output: boolean };
 	recording: { input: string; output: VoiceRecording | null };
 	selectMic: { input: { videoPath: string; selection: "original" | "changed" }; output: boolean };
-	start: { input: string; output: string };
+	start: { input: string | { videoPath: string; settings: VoiceSettings }; output: string };
+	models: { input: undefined; output: VoiceModel[] };
+	chooseVoice: {
+		input: { voiceId: string; name: string; publicOwnerId?: string | null };
+		output: VoiceSettings & { hasKey: boolean };
+	};
 	cancel: { input: string; output: boolean };
 	progress: { input: undefined; output: VoiceProgress[] };
 	getSettings: { input: undefined; output: VoiceSettings & { hasKey: boolean } };

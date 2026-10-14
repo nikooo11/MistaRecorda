@@ -514,6 +514,14 @@ describe("ModernFrameRenderer webcam frame cache", () => {
 });
 
 describe("ModernFrameRenderer webcam export fallback", () => {
+	it("hides a captured camera frame for a recorded off interval", () => {
+		const renderer = createRenderer() as any;
+		renderer.config.webcam = { ...DEFAULT_WEBCAM_OVERLAY, enabled: true, visibility: [{ timeMs: 0, visible: true }, { timeMs: 500, visible: false }, { timeMs: 900, visible: true }] };
+		renderer.webcamRootContainer = { visible: true };
+		renderer.webcamMaskGraphics = {};
+		renderer.updateWebcamOverlay(0.6);
+		expect(renderer.webcamRootContainer.visible).toBe(false);
+	});
 	beforeEach(() => {
 		vi.clearAllMocks();
 		initializeForwardFrameSourceMock.mockResolvedValue(undefined);

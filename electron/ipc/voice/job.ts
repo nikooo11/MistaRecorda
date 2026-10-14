@@ -147,7 +147,14 @@ export async function startVoiceJob(
 	const metadata = await readAudioMetadata(videoPath);
 	if (!metadata?.micPath) throw new Error("missingMic");
 	// Resolve real paths too: a crafted sidecar symlink must not upload another file.
-	if ((await fs.realpath(metadata.micPath)) !== path.resolve(metadata.micPath))
+	if (
+		!(await fs.lstat(metadata.micPath)).isFile() ||
+		(await fs.realpath(metadata.micPath)) !==
+			path.join(
+				await fs.realpath(path.dirname(metadata.micPath)),
+				path.basename(metadata.micPath),
+			)
+	)
 		throw new Error("invalidAudio");
 	const jobId = crypto.randomUUID();
 	const controller = new AbortController();
@@ -206,8 +213,14 @@ async function run(
 			...(await readAudioMetadata(metadata.videoPath)),
 			changedMicPath: mic,
 			voiceVideoPath: video,
+			micSelection: "changed",
+			changedVoiceId: settings.voiceId,
+			changedVoiceName: settings.voiceName,
+			changedModelId: settings.modelId,
 		});
 		committed = true;
+		for (const win of BrowserWindow.getAllWindows())
+			if (!win.isDestroyed()) win.webContents.send("voice:audioChanged", metadata.videoPath);
 		Object.assign(progress, { state: "done", outputPath: video });
 	} catch (e) {
 		Object.assign(progress, {

@@ -10,7 +10,7 @@ vi.mock("electron", () => ({
 import { audioDuration, durationFilter, ffmpeg, joinFilter, planChunks } from "./chunker";
 import { ElevenLabs, errorCode, mapVoice, voiceForm } from "./elevenlabs";
 import { convertMicrophone, startVoiceJob, jobProgress } from "./job";
-import { prepareRecordingAudio, readAudioMetadata } from "../recording/library";
+import { prepareRecordingAudio, readAudioMetadata, writeAudioMetadata } from "../recording/library";
 import { mixArgs } from "./mix";
 import { validateSettings, VoiceSettingsStore } from "./settings";
 const dirs: string[] = [];
@@ -133,6 +133,90 @@ describe("ElevenLabs", () => {
 		expect(r.format).toBe("mp3_44100_192");
 		expect(f.mock.calls[1][0]).toContain("voice%2F1?output_format=mp3_44100_192");
 	});
+	test("restricted output formats fall back to 128 kbps, including modern 403 errors", async () => {
+		const denied = () =>
+			new Response(JSON.stringify({ detail: { code: "output_format_not_allowed" } }), {
+				status: 403,
+			});
+		const f = vi
+			.fn()
+			.mockResolvedValueOnce(denied())
+			.mockResolvedValueOnce(denied())
+			.mockResolvedValueOnce(new Response(new Uint8Array([1])));
+		const result = await new ElevenLabs("test", f).speech(
+			new Uint8Array([1]),
+			defaultVoiceSettings,
+			new AbortController().signal,
+		);
+		expect(result.format).toBe("mp3_44100_128");
+		expect(f).toHaveBeenCalledTimes(3);
+	});
+	test("recognizes an explicit format-tier subscription denial without exposing the body", async () => {
+		const f = vi
+			.fn()
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						detail: {
+							status: "subscription_required",
+							message:
+								"Output format 'pcm_44100' is only available on the Pro tier and above.",
+						},
+					}),
+					{ status: 403 },
+				),
+			)
+			.mockResolvedValueOnce(new Response(new Uint8Array([1])));
+		expect(
+			(
+				await new ElevenLabs("test", f).speech(
+					new Uint8Array([1]),
+					defaultVoiceSettings,
+					new AbortController().signal,
+				)
+			).format,
+		).toBe("mp3_44100_192");
+		expect(f).toHaveBeenCalledTimes(2);
+	});
+	test("does not retry an unrelated subscription restriction", async () => {
+		const f = vi.fn().mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					detail: {
+						status: "subscription_required",
+						message: "This voice requires a paid plan.",
+					},
+				}),
+				{ status: 403 },
+			),
+		);
+		await expect(
+			new ElevenLabs("test", f).speech(
+				new Uint8Array([1]),
+				defaultVoiceSettings,
+				new AbortController().signal,
+			),
+		).rejects.toThrow("planRequired");
+		expect(f).toHaveBeenCalledTimes(1);
+	});
+	test.each([
+		"missing_permissions",
+		"insufficient_permissions",
+	])("explains %s without retrying or leaking response content", async (code) => {
+		const f = vi.fn().mockResolvedValue(
+			new Response(JSON.stringify({ detail: { code, message: "private response" } }), {
+				status: 403,
+			}),
+		);
+		await expect(
+			new ElevenLabs("test", f).speech(
+				new Uint8Array([1]),
+				defaultVoiceSettings,
+				new AbortController().signal,
+			),
+		).rejects.toThrow("missingApiPermission");
+		expect(f).toHaveBeenCalledTimes(1);
+	});
 	test("category never establishes voice ownership", () => {
 		expect(mapVoice({ voice_id: "a", name: "A", category: "cloned" }).canEdit).toBe(false);
 		expect(
@@ -149,6 +233,24 @@ describe("ElevenLabs", () => {
 	});
 });
 describe("settings and secrets", () => {
+	test("startup settings never unlock Keychain, even with a saved key", async () => {
+		const dir = await temp();
+		const storage = {
+			isEncryptionAvailable: vi.fn(() => true),
+			encryptString: vi.fn(Buffer.from),
+			decryptString: vi.fn(() => "test-key"),
+		};
+		const store = new VoiceSettingsStore(dir, storage, () => undefined);
+		expect((await store.publicSettings()).hasKey).toBe(false);
+		expect(await store.key()).toBeUndefined();
+		await fs.writeFile(path.join(dir, "voice-key.enc"), "encrypted-test");
+		expect((await store.publicSettings()).hasKey).toBe(true);
+		await store.save(defaultVoiceSettings);
+		expect(storage.isEncryptionAvailable).not.toHaveBeenCalled();
+		expect(storage.decryptString).not.toHaveBeenCalled();
+		expect(await store.key()).toBe("test-key");
+		expect(storage.decryptString).toHaveBeenCalledTimes(1);
+	});
 	test("encrypted key is never in public settings or JSON", async () => {
 		const dir = await temp();
 		const store = new VoiceSettingsStore(
@@ -345,7 +447,12 @@ test.each([
 	expect(await fs.readFile(source)).toEqual(originalMic);
 	expect(await fs.readFile(system)).toEqual(originalSystem);
 	expect(await fs.readFile(video)).toEqual(originalVideo);
-	expect((await readAudioMetadata(video))?.voiceVideoPath).toBe(`${base}.voice.mp4`);
+	expect(await readAudioMetadata(video)).toMatchObject({
+		voiceVideoPath: `${base}.voice.mp4`,
+		micSelection: "changed",
+		changedVoiceId: "favorite",
+		changedModelId: "eleven_multilingual_sts_v2",
+	});
 }, 20000);
 
 test("system-only recording cannot be uploaded as a microphone fallback", async () => {
@@ -362,4 +469,68 @@ test("system-only recording cannot be uploaded as a microphone fallback", async 
 		),
 	).rejects.toThrow("missingMic");
 	expect(fetcher).not.toHaveBeenCalled();
+});
+
+test("a symlink microphone sidecar cannot redirect the voice upload", async () => {
+	const dir = await temp();
+	const video = path.join(dir, "recording-999.mp4");
+	const microphone = path.join(dir, "recording-999.mic.wav");
+	const unrelated = path.join(dir, "unrelated.wav");
+	await fs.writeFile(unrelated, "not a recording");
+	await fs.symlink(unrelated, microphone);
+	await writeAudioMetadata({
+		version: 1,
+		videoPath: video,
+		micPath: microphone,
+		systemAudioPath: null,
+		micOffsetMs: 0,
+	});
+	const fetcher = vi.fn<typeof fetch>();
+	await expect(
+		startVoiceJob(
+			video,
+			{ ...defaultVoiceSettings, noticeAccepted: true, voiceId: "test" },
+			new ElevenLabs("mock", fetcher),
+		),
+	).rejects.toThrow("invalidAudio");
+	expect(fetcher).not.toHaveBeenCalled();
+});
+
+test("loads model capability flags without assuming a newer TTS model can convert speech", async () => {
+	const client = new ElevenLabs(
+		"test",
+		vi.fn().mockResolvedValue(
+			new Response(
+				JSON.stringify([
+					{
+						model_id: "eleven_multilingual_sts_v2",
+						name: "Multilingual v2",
+						can_do_voice_conversion: true,
+						can_do_text_to_speech: false,
+					},
+					{
+						model_id: "eleven_v3",
+						name: "Eleven v3",
+						can_do_voice_conversion: false,
+						can_do_text_to_speech: true,
+					},
+				]),
+			),
+		),
+	);
+	const models = await client.models();
+	expect(models.filter((m) => m.canConvert).map((m) => m.modelId)).toEqual([
+		"eleven_multilingual_sts_v2",
+	]);
+	expect(models[1].canSpeak).toBe(true);
+});
+test("preserves provider voice quality models without inventing versions", () => {
+	expect(
+		mapVoice({
+			voice_id: "a",
+			name: "A",
+			high_quality_base_model_ids: ["eleven_v3", "eleven_multilingual_v2", null, 1],
+		}).highQualityModelIds,
+	).toEqual(["eleven_v3", "eleven_multilingual_v2"]);
+	expect(mapVoice({ voice_id: "b", name: "B" }).highQualityModelIds).toEqual([]);
 });

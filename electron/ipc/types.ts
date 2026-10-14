@@ -47,6 +47,7 @@ export type RecordingSessionData = {
 	videoPath: string;
 	webcamPath?: string | null;
 	timeOffsetMs?: number;
+			webcamVisibility?: import("../../src/lib/webcamVisibility").WebcamVisibilityEvent[];
 	hideOverlayCursorByDefault?: boolean;
 };
 
@@ -60,6 +61,7 @@ export type RecordingSessionManifest = {
 	videoFileName: string;
 	webcamFileName?: string | null;
 	timeOffsetMs?: number;
+			webcamVisibility?: import("../../src/lib/webcamVisibility").WebcamVisibilityEvent[];
 };
 
 export type ProjectLibraryEntry = {

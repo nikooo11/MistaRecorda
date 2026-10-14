@@ -4,6 +4,11 @@ import { normalizeProjectEditor } from "./projectPersistence";
 import { ADVANCED_VERTICAL_PADDING_MAX } from "./types";
 
 describe("normalizeProjectEditor", () => {
+	it("preserves recorded camera toggles through a project round trip", () => {
+		const visibility = [{ timeMs: 0, visible: true }, { timeMs: 1200, visible: false }, { timeMs: 3000, visible: true }];
+		const editor = normalizeProjectEditor({ webcam: { visibility } });
+		expect(normalizeProjectEditor(JSON.parse(JSON.stringify(editor))).webcam.visibility).toEqual(visibility);
+	});
 	it("preserves the extended advanced vertical padding range", () => {
 		const editor = normalizeProjectEditor({
 			padding: {

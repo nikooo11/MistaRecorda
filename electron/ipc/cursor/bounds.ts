@@ -15,6 +15,7 @@ import {
 } from "../state";
 import { parseWindowId } from "../utils";
 import { ensureNativeWindowListBinary } from "../paths/binaries";
+import { requireScreenRecordingAccess } from "../../screenCaptureAccess";
 
 const execFileAsync = promisify(execFile);
 
@@ -22,6 +23,7 @@ export async function getNativeMacWindowSources(options?: { maxAgeMs?: number })
 	if (process.platform !== "darwin") {
 		return [] as NativeMacWindowSource[];
 	}
+	requireScreenRecordingAccess();
 
 	const maxAgeMs = options?.maxAgeMs ?? 5000;
 	const now = Date.now();
@@ -119,7 +121,9 @@ export function parseXwininfoBounds(stdout: string): WindowBounds | null {
 	};
 }
 
-export async function resolveLinuxWindowBounds(source: SelectedSource): Promise<WindowBounds | null> {
+export async function resolveLinuxWindowBounds(
+	source: SelectedSource,
+): Promise<WindowBounds | null> {
 	const windowId = parseWindowId(source?.id);
 
 	if (windowId) {
@@ -153,7 +157,9 @@ export async function resolveLinuxWindowBounds(source: SelectedSource): Promise<
 	}
 }
 
-export async function resolveWindowsWindowBounds(source: SelectedSource): Promise<WindowBounds | null> {
+export async function resolveWindowsWindowBounds(
+	source: SelectedSource,
+): Promise<WindowBounds | null> {
 	const windowId = parseWindowId(source?.id);
 	const windowTitle =
 		typeof source.windowTitle === "string" ? source.windowTitle.trim() : source.name.trim();
@@ -235,6 +241,7 @@ async function refreshSelectedWindowBounds() {
 		return;
 	}
 
+	const sourceId = selectedSource.id;
 	let bounds: WindowBounds | null = null;
 
 	if (process.platform === "darwin") {
@@ -245,10 +252,10 @@ async function refreshSelectedWindowBounds() {
 		bounds = await resolveLinuxWindowBounds(selectedSource);
 	}
 
-	setSelectedWindowBounds(bounds);
+	if (selectedSource?.id === sourceId) setSelectedWindowBounds(bounds);
 }
 
-export function startWindowBoundsCapture() {
+export async function startWindowBoundsCapture() {
 	stopWindowBoundsCapture();
 
 	if (
@@ -258,8 +265,10 @@ export function startWindowBoundsCapture() {
 		return;
 	}
 
-	void refreshSelectedWindowBounds();
-	setWindowBoundsCaptureInterval(setInterval(() => {
-		void refreshSelectedWindowBounds();
-	}, 250));
+	await refreshSelectedWindowBounds();
+	setWindowBoundsCaptureInterval(
+		setInterval(() => {
+			void refreshSelectedWindowBounds();
+		}, 250),
+	);
 }

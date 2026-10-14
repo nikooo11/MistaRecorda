@@ -37,6 +37,9 @@ export function BoardCanvas({
 	const [state, setState] = useState(initial);
 	const [error, setError] = useState("");
 	const [assets, setAssets] = useState(false);
+	const [boardClosing, setBoardClosing] = useState(false);
+	const closing = useRef(false);
+	const closeTimer = useRef<ReturnType<typeof setTimeout>>();
 	const current = useRef(initial);
 	const applying = useRef(false);
 	const interacted = useRef(false);
@@ -61,6 +64,8 @@ export function BoardCanvas({
 		return () => observer.disconnect();
 	}, [tablet, state.width, state.height]);
 	const cleanMode = clean && state.output === "board" ? "board" : state.mode;
+
+	useEffect(() => () => clearTimeout(closeTimer.current), []);
 	async function flush(): Promise<void> {
 		if (inFlight.current) {
 			await inFlight.current;
@@ -96,7 +101,7 @@ export function BoardCanvas({
 	}
 
 	const apply = useCallback(
-		(next: BoardState, origin?: string) => {
+		(next: BoardState, origin?: string, finishClose = false): void => {
 			if (!clean && (saving.current || pending.current) && next.mode === modeRef.current)
 				return;
 			current.current = next;
@@ -107,6 +112,23 @@ export function BoardCanvas({
 					document.documentElement.dataset.boardRevision = String(next.revision);
 				});
 			const mode = clean && next.output === "board" ? "board" : next.mode;
+			if (mode === "board") {
+				clearTimeout(closeTimer.current);
+				closing.current = false;
+				setBoardClosing(false);
+			} else if (modeRef.current === "board" && !finishClose) {
+				if (!closing.current) {
+					closing.current = true;
+					applying.current = true;
+					setBoardClosing(true);
+					closeTimer.current = setTimeout(() => {
+						closing.current = false;
+						setBoardClosing(false);
+						apply(current.current, origin, true);
+					}, 440);
+				}
+				return;
+			}
 			const scene = next.scenes[mode];
 			const signature = JSON.stringify(scene);
 			if (
@@ -134,7 +156,7 @@ export function BoardCanvas({
 					scrollX: scene.scrollX,
 					scrollY: scene.scrollY,
 					zoom: { value: (scene.zoom * fit.scale) as AppState["zoom"]["value"] },
-					viewBackgroundColor: mode === "board" ? "#ffffff" : "transparent",
+					viewBackgroundColor: "transparent",
 				},
 			});
 
@@ -213,6 +235,7 @@ export function BoardCanvas({
 	return (
 		<div
 			ref={stage}
+			data-board-ready={clean && api ? "true" : undefined}
 			onPointerDownCapture={() => {
 				interacted.current = true;
 			}}
@@ -222,11 +245,28 @@ export function BoardCanvas({
 			onKeyDownCapture={() => {
 				interacted.current = true;
 			}}
-			className={`board-stage ${clean ? "board-clean" : ""} ${tablet ? "board-tablet" : ""}`}
+			className={`board-stage ${cleanMode === "board" || boardClosing ? "has-whiteboard" : ""} ${clean ? "board-clean" : ""} ${tablet ? "board-tablet" : ""}`}
 		>
 			{background && <div className="board-video">{background}</div>}
+			{!(clean && state.output === "screen") && (cleanMode === "board" || boardClosing) && (
+				<div
+					className={`physical-board ${boardClosing ? "is-closing" : ""}`}
+					aria-hidden="true"
+				>
+					<div className="board-enamel" />
+					<span className="board-brand">
+						MISTARECORDA <i>STUDIO</i>
+					</span>
+					<div className="marker-tray">
+						<i />
+						<i />
+						<i />
+						<b />
+					</div>
+				</div>
+			)}
 			<div
-				className={`board-paper ${cleanMode === "board" ? "board-deployed" : ""} ${tablet && streamed && cleanMode === "screen" ? "board-streamed-ink" : ""}`}
+				className={`board-paper ${boardClosing ? "board-putting-away" : cleanMode === "board" ? "board-deployed" : ""} ${tablet && streamed && cleanMode === "screen" ? "board-streamed-ink" : ""}`}
 				style={{
 					width: state.width * fit.scale,
 					height: state.height * fit.scale,
@@ -249,7 +289,7 @@ export function BoardCanvas({
 						files: initial.scenes[cleanMode].files as BinaryFiles,
 						libraryItems: initial.library as LibraryItems,
 						appState: {
-							viewBackgroundColor: cleanMode === "board" ? "#fff" : "transparent",
+							viewBackgroundColor: "transparent",
 							scrollX: initial.scenes[cleanMode].scrollX,
 							scrollY: initial.scenes[cleanMode].scrollY,
 							zoom: {
@@ -299,7 +339,7 @@ export function BoardCanvas({
 			{!clean && (
 				<div className="board-actions">
 					<button onClick={() => void chooseMode().catch((e) => setError(String(e)))}>
-						{state.mode === "board" ? "Return to screen" : "Open whiteboard"}
+						{state.mode === "board" ? "Put board away" : "Open whiteboard"}
 					</button>
 					<button onClick={() => setAssets(!assets)}>Standby images</button>
 					<label className="board-import">

@@ -222,11 +222,15 @@ describe("local media path policy", () => {
 			"utf-8",
 		);
 
-		const { loadProjectFromPath, resolveApprovedLocalMediaPath } = await import("./manager");
+		const { loadProjectFromPath, resolveApprovedLocalMediaPath, refreshSessionLocalReadPaths } =
+			await import("./manager");
 		const resolvedAudioPath = await fs.realpath(audioPath);
 
 		const result = await loadProjectFromPath(projectPath);
 		expect(result.success).toBe(true);
+		await refreshSessionLocalReadPaths([videoPath, null], true);
 		await expect(resolveApprovedLocalMediaPath(audioPath)).resolves.toBe(resolvedAudioPath);
+		await refreshSessionLocalReadPaths([videoPath, null], false);
+		await expect(resolveApprovedLocalMediaPath(audioPath)).resolves.toBeNull();
 	});
 });

@@ -43,6 +43,12 @@ let excludedWindowTitles: Set<String> = [
 // as a standalone CLI process from Electron.
 let _ = CGMainDisplayID()
 
+// A background source refresh must not ask for access or return stale sources.
+guard CGPreflightScreenCaptureAccess() else {
+	fputs("SCREEN_RECORDING_PERMISSION_DENIED\n", stderr)
+	exit(1)
+}
+
 let group = DispatchGroup()
 group.enter()
 

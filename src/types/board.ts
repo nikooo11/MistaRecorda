@@ -63,6 +63,7 @@ export interface BoardDevice {
 	connected: boolean;
 }
 export interface BoardInfo {
+	panelTab?: "draw" | "ipad" | "scenes" | "settings";
 	state: BoardState;
 	status: BoardStatus;
 	devices: BoardDevice[];

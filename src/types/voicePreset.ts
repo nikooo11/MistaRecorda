@@ -6,7 +6,7 @@ export const voicePresetSchema = z
 		version: z.literal(1),
 		id: z.string().uuid(),
 		name: z.string().trim().min(1).max(160),
-		createdBy: z.string().min(1).max(320),
+		createdBy: z.string().trim().max(320),
 		createdAt: z.string().datetime(),
 		updatedAt: z.string().datetime(),
 		voice: z
@@ -20,7 +20,7 @@ export const voicePresetSchema = z
 			.strict(),
 		settings: z
 			.object({
-				modelId: z.enum(["eleven_multilingual_sts_v2", "eleven_english_sts_v2"]),
+				modelId: z.string().regex(/^eleven_[a-z0-9_]{1,80}$/),
 				stability: unit,
 				similarityBoost: unit,
 				style: unit,

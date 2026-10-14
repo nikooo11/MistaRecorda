@@ -41,14 +41,14 @@ export class HeldZoomCapture {
 			endMs: 0,
 			depth,
 			focus: { cx: target.cx, cy: target.cy },
-			mode: "manual",
+			mode: "auto",
 		};
 	}
-	/** A quick release latches cursor-follow; a held release ends the fixed zoom. */
+	/** A quick release locks the initial focus; a held release ends cursor-follow. */
 	releaseKey(timeMs: number) {
-		if (!this.active || this.active.mode === "auto") return;
+		if (!this.active || this.active.mode === "manual") return;
 		if (timeMs - this.active.startMs < ZOOM_TAP_THRESHOLD_MS) {
-			this.active.mode = "auto";
+			this.active.mode = "manual";
 		} else {
 			this.release(timeMs);
 		}

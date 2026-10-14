@@ -177,6 +177,20 @@ export async function replaceApprovedSessionLocalReadPaths(
 	}
 }
 
+// Restoring a project's primary clip must retain the audio files that were
+// approved when the user opened that project. A fresh recording still resets
+// the session allowlist so approval cannot leak into unrelated projects.
+export async function refreshSessionLocalReadPaths(
+	filePaths: Array<string | null | undefined>,
+	preserveProject: boolean,
+) {
+	if (preserveProject && currentProjectPath) {
+		await Promise.all(filePaths.map(rememberApprovedLocalReadPath));
+	} else {
+		await replaceApprovedSessionLocalReadPaths(filePaths);
+	}
+}
+
 export async function resolveProjectMediaSources(
 	project: unknown,
 ): Promise<

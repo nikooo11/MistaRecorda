@@ -1,3 +1,6 @@
+import { ensureDrawingSurfaceReady, captureWindowId } from "./captureReady";
+import { requireScreenRecordingAccess } from "../screenCaptureAccess";
+import { EdgeBoardTrigger } from "./edgeTrigger";
 import { z } from "zod";
 import {
 	app,
@@ -30,9 +33,10 @@ let panel: BrowserWindow | undefined,
 	stream: BrowserWindow | undefined;
 let companion: CompanionServer, mcp: DrawingMcpServer;
 let displayId = 0;
+let panelTab: BoardInfo["panelTab"] = "draw";
 let edgeTimer: ReturnType<typeof setInterval> | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
-let armed = false;
+const edgeTrigger = new EdgeBoardTrigger();
 let closing = false;
 let status: BoardStatus = { recording: false, paused: false, elapsed: 0, webcam: false };
 const windows = () =>
@@ -49,6 +53,7 @@ function tabletInfo() {
 function info(): BoardInfo {
 	return {
 		state: store.state,
+		panelTab,
 		status,
 		displayId,
 		displays: screen
@@ -60,7 +65,10 @@ function info(): BoardInfo {
 	};
 }
 function send(event: string, data: unknown) {
-	for (const w of windows()) w.webContents.send(`board:${event}`, data);
+	if (closing) return;
+	for (const w of windows()) {
+		if (!w.webContents.isDestroyed()) w.webContents.send(`board:${event}`, data);
+	}
 }
 function publish(origin = "system") {
 	send("state", { state: store.state, origin });
@@ -105,7 +113,8 @@ function makeWindow(
 			backgroundThrottling: false,
 		},
 	});
-	win.webContents.on("page-title-updated", (e) => e.preventDefault());
+	win.on("page-title-updated", (e) => e.preventDefault());
+	win.webContents.on("did-finish-load", () => win.setTitle(title));
 	win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
 	win.webContents.on("will-navigate", (e) => e.preventDefault());
 	win.on("close", (e) => {
@@ -120,8 +129,13 @@ function makeWindow(
 	return win;
 }
 async function prepare() {
-	if (panel && !panel.isDestroyed()) return;
-	displayId = screen.getPrimaryDisplay().id;
+	if ([panel, surface, editor, hint, stream].every((w) => w && !w.isDestroyed())) return;
+	// Rebuild a partial window set without touching saved drawing state.
+	if (edgeTimer) clearInterval(edgeTimer);
+	for (const w of windows()) w.destroy();
+	displayId = screen.getAllDisplays().some((d) => d.id === displayId)
+		? displayId
+		: screen.getPrimaryDisplay().id;
 	const b = bounds();
 	store.state.width = b.width;
 	store.state.height = b.height;
@@ -132,50 +146,47 @@ async function prepare() {
 	surface.setIgnoreMouseEvents(true);
 	editor = makeWindow(BOARD_CONTROL_TITLES[0], "board-editor", { ...b });
 	panel = makeWindow(BOARD_CONTROL_TITLES[1], "board-panel", {
-		width: 400,
-		height: 700,
-		x: b.x + b.width - 420,
+		width: 440,
+		height: Math.min(660, b.height - 70),
+		x: b.x + b.width - 460,
 		y: b.y + 35,
 		resizable: true,
 	});
 	hint = makeWindow(BOARD_CONTROL_TITLES[2], "board-hint", {
-		width: 280,
-		height: 46,
+		width: 36,
+		height: 180,
 		x: b.x,
-		y: b.y + Math.round(b.height / 2),
+		y: b.y + Math.round(b.height / 2) - 90,
 		focusable: false,
 	});
-	hint.setIgnoreMouseEvents(true);
+	hint.setIgnoreMouseEvents(false);
 	stream = makeWindow(BOARD_CONTROL_TITLES[3], "board-stream", {
 		width: 10,
 		height: 10,
 		focusable: false,
 	});
 	edgeTimer = setInterval(() => {
-		if (!store.state.enabled || (status.recording && process.platform === "linux"))
-			return disarm();
+		if (closing || !hint || hint.isDestroyed()) return;
 		const p = screen.getCursorScreenPoint(),
 			b = bounds();
-		const atEdge = p.x >= b.x && p.x <= b.x + 12 && p.y >= b.y && p.y < b.y + b.height;
-		if (atEdge && !armed && !editor?.isFocused()) {
-			armed = globalShortcut.register("Space", () => {
-				disarm();
-				void action(
-					"mode",
-					{ mode: store.state.mode === "board" ? "screen" : "board" },
-					"edge",
-				);
-				editor?.show();
-			});
-			if (armed) hint?.showInactive();
-		} else if (!atEdge && armed) disarm();
+		const atEdge = p.x >= b.x && p.x <= b.x + 8 && p.y >= b.y + 24 && p.y < b.y + b.height - 24;
+		const allowed =
+			store.state.enabled &&
+			store.state.mode === "screen" &&
+			!(status.recording && process.platform === "linux");
+		const visible = edgeTrigger.update(
+			atEdge || (p.x >= b.x && p.x <= b.x + 36 && Math.abs(p.y - (b.y + b.height / 2)) < 90),
+			allowed,
+			Date.now(),
+		);
+		if (visible) hint?.showInactive();
+		else hint?.hide();
 	}, 80);
 }
 function disarm() {
-	if (armed) globalShortcut.unregister("Space");
-	armed = false;
 	hint?.hide();
 }
+
 function applyVisibility() {
 	if (!store.state.enabled) {
 		surface?.hide();
@@ -214,6 +225,7 @@ const modeOf = (input: unknown): BoardMode => {
 	return mode;
 };
 const commandSchema = z.object({
+	tab: z.enum(["draw", "ipad", "scenes", "settings"]).optional(),
 	mode: z.enum(["screen", "board"]).optional(),
 	scene: z.unknown().optional(),
 	revision: z.number().int().optional(),
@@ -245,8 +257,11 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		case "tabletInfo":
 			return tabletInfo();
 		case "open":
+			if (data.tab) panelTab = data.tab;
 			await prepare();
+			if (data.tab) send("navigate", data.tab);
 			panel?.show();
+			panel?.focus();
 			return info();
 		case "enable":
 			if (status.recording) throw Error("Enable drawing before starting a recording");
@@ -266,7 +281,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			publish(actor);
 			return true;
 		case "compact":
-			panel?.setSize(400, input ? 245 : 700);
+			panel?.setSize(440, input ? 190 : Math.min(660, bounds().height - 70));
 			return true;
 		case "hideEditor":
 			editor?.hide();
@@ -281,18 +296,34 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				const b = bounds();
 				surface?.setBounds(b);
 				editor?.setBounds(b);
-				hint?.setPosition(b.x, b.y + Math.round(b.height / 2));
+				hint?.setPosition(b.x, b.y + Math.round(b.height / 2) - 90);
 				store.state.width = b.width;
 				store.state.height = b.height;
 				store.state.revision++;
 				publish(actor);
 			}
 			return info();
-		case "mode":
+		case "toggleBoard":
+			await prepare();
+			await action(
+				"mode",
+				{ mode: store.state.mode === "board" ? "screen" : "board" },
+				actor,
+			);
+			return info();
+		case "mode": {
 			if (status.recording && !store.state.enabled)
 				throw Error("Enable drawing before starting a recording");
 			await prepare();
+			const previousMode = store.state.mode;
 			store.state.mode = modeOf(input);
+			if (store.state.mode === "board") {
+				panel?.hide();
+				editor?.show();
+			} else if (previousMode === "board")
+				setTimeout(() => {
+					if (store.state.mode === "screen") editor?.hide();
+				}, 460);
 			if (store.state.mode === "screen" && store.state.output === "board")
 				store.state.output = "screen-board";
 			store.state.enabled = true;
@@ -300,6 +331,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			applyVisibility();
 			publish(actor);
 			return store.state;
+		}
 		case "output":
 			if (input !== "screen" && input !== "screen-board" && input !== "board")
 				throw Error("Invalid capture output");
@@ -475,7 +507,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			applyVisibility();
 			return true;
 		case "control":
-			if (!["record", "pause", "webcam"].includes(String(input)))
+			if (!["record", "pause", "webcam", "webcam-on", "webcam-off"].includes(String(input)))
 				throw Error("Unknown recording control");
 			for (const w of BrowserWindow.getAllWindows())
 				if (w.webContents.getURL().includes("windowType=hud-overlay"))
@@ -494,6 +526,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		case "captureConfig":
 			return { enabled: store.state.enabled };
 		case "captureSource": {
+			requireScreenRecordingAccess();
 			const b =
 				screen.getAllDisplays().find((d) => d.id === displayId) ??
 				screen.getPrimaryDisplay();
@@ -519,6 +552,10 @@ export function boardCaptureExclusions() {
 	return {
 		ownerPID: process.pid,
 		cleanSurfaceTitle: store?.state.enabled ? "MistaRecorda Drawing Surface" : undefined,
+		cleanSurfaceWindowId:
+			store?.state.enabled && surface && !surface.isDestroyed()
+				? captureWindowId(surface.getMediaSourceId())
+				: undefined,
 		titles: BrowserWindow.getAllWindows()
 			.filter((w) => w !== surface)
 			.map((w) => w.getTitle()),
@@ -554,9 +591,19 @@ export async function registerBoard() {
 	for (const [key, control] of [
 		["CommandOrControl+Shift+R", "record"],
 		["CommandOrControl+Shift+P", "pause"],
-		["CommandOrControl+Shift+W", "webcam"],
 	])
 		globalShortcut.register(key, () => void action("control", control));
+	globalShortcut.register(
+		"CommandOrControl+Shift+B",
+		() => void action("toggleBoard", undefined).catch((e) => send("error", String(e))),
+	);
+	globalShortcut.register("CommandOrControl+Shift+H", () => {
+		const hud = BrowserWindow.getAllWindows().find((w) =>
+			w.webContents.getURL().includes("windowType=hud-overlay"),
+		);
+		if (hud?.isVisible()) hud.hide();
+		else hud?.showInactive();
+	});
 	app.on("before-quit", (event) => {
 		if (closing) return;
 		event.preventDefault();
@@ -573,6 +620,15 @@ export async function registerBoard() {
 	});
 }
 
+// Native menus and global shortcuts use the same recording command path.
+export function sendRecordingControl(control: "record" | "pause" | "webcam" | "webcam-on" | "webcam-off") {
+	return action("control", control);
+}
+
+export function toggleDrawingBoard() {
+	return action("toggleBoard", undefined).catch((e) => send("error", String(e)));
+}
+
 export function isBoardCaptureWebContents(contents: Electron.WebContents | null): boolean {
 	return (
 		!!contents &&
@@ -580,4 +636,52 @@ export function isBoardCaptureWebContents(contents: Electron.WebContents | null)
 			(stream?.webContents === contents &&
 				companion?.list().some((d) => d.approved && d.connected)))
 	);
+}
+
+export async function openDrawingStudio(tab: BoardInfo["panelTab"] = "draw") {
+	return action("open", { tab });
+}
+
+export function isDrawingSurfaceWindow(win: BrowserWindow) {
+	return win === surface && !win.isDestroyed();
+}
+export async function prepareBoardCapture() {
+	await ensureDrawingSurfaceReady({
+		enabled: () => Boolean(store?.state.enabled),
+		prepare,
+		show: () => {
+			surface?.showInactive();
+		},
+		waitForCanvas: async () => {
+			if (!surface || surface.isDestroyed())
+				throw Error("Drawing window was closed during setup.");
+			if (surface.webContents.isLoadingMainFrame())
+				await new Promise<void>((resolve, reject) => {
+					const web = surface!.webContents;
+					const done = () => {
+						clearTimeout(timeout);
+						web.removeListener("did-finish-load", done);
+						resolve();
+					};
+					const timeout = setTimeout(() => {
+						web.removeListener("did-finish-load", done);
+						reject(Error("Drawing window did not load."));
+					}, 6000);
+					web.once("did-finish-load", done);
+				});
+			await surface.webContents.executeJavaScript(`new Promise((resolve, reject) => {
+    const start = Date.now();
+    function ready() {
+     if (document.querySelector('[data-board-ready="true"]')) requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)));
+     else if (Date.now() - start > 6000) reject(new Error('Drawing canvas did not initialize.'));
+     else setTimeout(ready,50);
+    }
+    ready();
+   })`);
+		},
+		recover: async () => {
+			if (!surface || surface.isDestroyed()) await prepare();
+			else await loadWindow(surface, "board-surface");
+		},
+	});
 }

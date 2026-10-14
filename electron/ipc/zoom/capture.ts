@@ -225,7 +225,7 @@ export function zoomKeyEvent(
 		return;
 	// End a latched zoom even if the cursor has left the recorded display/window.
 	// Its key-up must not start another zoom, nor may OS key-repeat restart it.
-	if (capture.active?.mode === "auto") {
+	if (capture.active?.mode === "manual") {
 		closeHeldZoom(timeMs);
 		return;
 	}

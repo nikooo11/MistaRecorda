@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
+import { HoverHelp } from "./components/ui/HoverHelp";
 import { I18nProvider } from "./contexts/I18nContext.tsx";
 import { ThemeProvider } from "./contexts/ThemeContext.tsx";
 import "./index.css";
@@ -12,6 +13,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 		<ThemeProvider>
 			<I18nProvider>
 				<App />
+				<HoverHelp />
 			</I18nProvider>
 		</ThemeProvider>
 	</React.StrictMode>,

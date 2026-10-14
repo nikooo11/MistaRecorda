@@ -15,6 +15,7 @@ import {
 	stopWindowBoundsCapture,
 } from "../cursor/bounds";
 import { reassertHudOverlayMousePassthrough } from "../../windows";
+import { requireScreenRecordingAccess } from "../../screenCaptureAccess";
 
 const execFileAsync = promisify(execFile);
 const SOURCE_LIST_CACHE_TTL_MS = 1200;
@@ -48,6 +49,7 @@ export function registerSourceHandlers({
 	getSourceSelectorWindow: () => BrowserWindow | null;
 }) {
 	ipcMain.handle("get-sources", async (_, opts) => {
+		requireScreenRecordingAccess();
 		const cacheKey = JSON.stringify({
 			types: opts?.types,
 			thumbnailSize: opts?.thumbnailSize,

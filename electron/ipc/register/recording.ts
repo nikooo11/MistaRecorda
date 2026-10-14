@@ -1,4 +1,10 @@
-import { boardCaptureExclusions, assertBoardCaptureSource } from "../../board/register";
+import { prepareStudioCapture, startStudioTake, stopStudioTake } from "../../studio/register";
+import { requireScreenRecordingAccess } from "../../screenCaptureAccess";
+import {
+	boardCaptureExclusions,
+	assertBoardCaptureSource,
+	prepareBoardCapture,
+} from "../../board/register";
 import { prepareRecordingAudio, readAudioMetadata } from "../recording/library";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { execFile, spawn } from "node:child_process";
@@ -415,6 +421,8 @@ export function registerRecordingHandlers(
 		async (_, source: SelectedSource, options?: NativeMacRecordingOptions) => {
 			assertBoardCaptureSource(source);
 			await prepareZoomOutline();
+			await prepareStudioCapture();
+			await prepareBoardCapture();
 			// Windows native capture path
 			if (process.platform === "win32") {
 				const windowsCaptureAvailable = await isNativeWindowsCaptureAvailable();
@@ -687,6 +695,7 @@ export function registerRecordingHandlers(
 
 			let captProc: ChildProcessWithoutNullStreams | null = null;
 			try {
+				requireScreenRecordingAccess();
 				const recordingsDir = await getRecordingsDir();
 
 				// Warm up TCC: trigger an Electron-level screen capture API call so macOS
@@ -742,6 +751,7 @@ export function registerRecordingHandlers(
 					zoomOverlayTitle: ZOOM_OVERLAY_TITLE,
 					presenterWindowTitles: boardCaptureExclusions().titles,
 					cleanSurfaceTitle: boardCaptureExclusions().cleanSurfaceTitle,
+					cleanSurfaceWindowId: boardCaptureExclusions().cleanSurfaceWindowId,
 					outputPath,
 					capturesSystemAudio,
 					capturesMicrophone,
@@ -1868,15 +1878,17 @@ export function registerRecordingHandlers(
 		if (recording) {
 			await loadZoomSettings();
 			if (!nativeScreenRecordingActive) await prepareZoomOutline();
+			await prepareStudioCapture();
 			stopCursorCapture();
 			stopInteractionCapture();
-			startWindowBoundsCapture();
+			await startWindowBoundsCapture();
 			void startNativeCursorMonitor();
 			setIsCursorCaptureActive(true);
 			setActiveCursorSamples([]);
 			setPendingCursorSamples([]);
 			setCursorCaptureStartTimeMs(Date.now());
 			resetCursorCaptureClock();
+			startStudioTake();
 			startZoomCapture(getRecordingBoundsInDips, getRecordingCursorInDips);
 			setLinuxCursorScreenPoint(null);
 			setLastLeftClick(null);
@@ -1886,6 +1898,7 @@ export function registerRecordingHandlers(
 		} else {
 			stopZoomCapture(getCursorCaptureElapsedMs());
 			setIsCursorCaptureActive(false);
+			stopStudioTake();
 			stopCursorCapture();
 			stopInteractionCapture();
 			stopWindowBoundsCapture();

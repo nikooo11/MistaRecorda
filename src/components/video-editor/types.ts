@@ -100,6 +100,7 @@ export function normalizeCursorClickEffectColor(
 }
 
 export type EditorEffectSection =
+	| "voice"
 	| "scene"
 	| "cursor"
 	| "captions"
@@ -127,6 +128,7 @@ export type WebcamPositionPreset =
 	| "custom";
 
 export interface WebcamOverlaySettings {
+	visibility?: import("../../lib/webcamVisibility").WebcamVisibilityEvent[];
 	enabled: boolean;
 	sourcePath: string | null;
 	timeOffsetMs: number;

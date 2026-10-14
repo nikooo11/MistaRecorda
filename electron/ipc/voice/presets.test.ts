@@ -160,6 +160,13 @@ test("malformed preview and unbounded effects are rejected", () => {
 		}),
 	).toThrow();
 });
+test("a voice preset can be shared without disclosing an author name or email", async () => {
+	const store = await makeStore();
+	const p = { ...preset(), createdBy: "", preview: { format: "wav" as const, base64: "", text: "" } };
+	await store.save(p);
+	expect(migratePreset(JSON.parse(encodePreset(p)))).toEqual(p);
+	expect(await store.get(p.id)).toEqual(p);
+});
 test("concurrent writes keep newest update and favorites are not lost", async () => {
 	const store = await makeStore();
 	const p = preset();

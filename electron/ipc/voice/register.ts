@@ -13,7 +13,7 @@ import path from "node:path";
 import { app, BrowserWindow, ipcMain, safeStorage, type IpcMainInvokeEvent } from "electron";
 import type { VoiceRequests, VoiceResult } from "../../../src/types/voice";
 import { ElevenLabs } from "./elevenlabs";
-import { VoiceSettingsStore } from "./settings";
+import { VoiceSettingsStore, validateSettings } from "./settings";
 let voiceWindow: BrowserWindow | null = null;
 let startupSelection: Promise<void> = Promise.resolve();
 export function openVoiceWindow(importRequested = false) {
@@ -207,10 +207,21 @@ export function registerVoiceHandlers() {
 		return true;
 	});
 	voiceHandle("start", async (input) => {
-		if (typeof input !== "string") throw new Error("invalidAudio");
-		const video = await resolveApprovedLocalMediaPath(input);
+		const source = typeof input === "string" ? input : input?.videoPath;
+		if (typeof source !== "string") throw new Error("invalidAudio");
+		const video = await resolveApprovedLocalMediaPath(source);
 		if (!video) throw new Error("noAccess");
-		return startVoiceJob(video, await voiceStore().read(), await voiceClient());
+		const settings =
+			typeof input === "string"
+				? await voiceStore().read()
+				: validateSettings(input.settings);
+		const client = await voiceClient();
+		if (!["eleven_multilingual_sts_v2", "eleven_english_sts_v2"].includes(settings.modelId)) {
+			const models = await client.models();
+			if (!models.some((m) => m.modelId === settings.modelId && m.canConvert))
+				throw new Error("modelAccessDenied");
+		}
+		return startVoiceJob(video, settings, client);
 	});
 	voiceHandle("cancel", (input) => cancelJob(input));
 	voiceHandle("progress", () => jobProgress());
@@ -226,6 +237,32 @@ export function registerVoiceHandlers() {
 		return result;
 	});
 	voiceHandle("testKey", async () => (await voiceClient()).testKey());
+	voiceHandle("models", async () => (await voiceClient()).models());
+	voiceHandle("chooseVoice", async (input) => {
+		if (
+			!input ||
+			[input.voiceId, input.name].some(
+				(v) => typeof v !== "string" || !v || v.length > 256,
+			) ||
+			(input.publicOwnerId != null &&
+				(typeof input.publicOwnerId !== "string" || input.publicOwnerId.length > 256))
+		)
+			throw new Error("invalidSettings");
+		const api = await voiceClient();
+		let id = input.voiceId;
+		if (input.publicOwnerId && !(await api.voices()).some((v) => v.voiceId === id)) {
+			const added = await api.addLibraryVoice(input.publicOwnerId, id, input.name);
+			if (typeof added?.voice_id === "string") id = added.voice_id;
+		}
+		const voice = await api.getVoice(id);
+		const result = await voiceStore().save({
+			...(await voiceStore().read()),
+			voiceId: id,
+			voiceName: voice.name,
+		});
+		notifyVoiceSettings();
+		return result;
+	});
 	voiceHandle("listVoices", async () => (await voiceClient()).voices());
 	voiceHandle("open", () => openVoiceWindow());
 }

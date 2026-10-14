@@ -12,10 +12,16 @@ afterEach(async () => {
 	server?.stop();
 	if (root) await fs.rm(root, { recursive: true, force: true });
 });
-function message() {
-	return new Promise<{ type: string; message: string; deviceId: string }>((r) =>
-		socket.once("message", (b) => r(JSON.parse(b.toString()))),
-	);
+function message(expectedType?: string) {
+	return new Promise<{ type: string; message: string; deviceId: string }>((resolve) => {
+		const receive = (bytes: Buffer) => {
+			const result = JSON.parse(bytes.toString());
+			if (expectedType && result.type !== expectedType) return;
+			socket.off("message", receive);
+			resolve(result);
+		};
+		socket.on("message", receive);
+	});
 }
 async function connect() {
 	root = await fs.mkdtemp(path.join(os.tmpdir(), "board-http-"));
@@ -42,7 +48,8 @@ test("pairing requires explicit approval and cannot invoke presenter/MCP operati
 	next = message();
 	await server.approve(paired.deviceId);
 	expect((await next).type).toBe("approved");
-	next = message();
+	// Approval also emits an initial scene; wait for the requested rejection, not that broadcast.
+	next = message("error");
 	socket.send(JSON.stringify({ id: 2, method: "mcp", input: true }));
 	expect((await next).message).toContain("Unsupported");
 	expect(action).toHaveBeenCalledTimes(1);

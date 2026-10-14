@@ -1,3 +1,4 @@
+import { isWebcamVisible } from "../webcamVisibility";
 import { Application, Container, Graphics, Rectangle, Sprite, Texture } from "pixi.js";
 import { MotionBlurFilter } from "pixi-filters/motion-blur";
 import { ZoomBlurFilter } from "pixi-filters/zoom-blur";
@@ -2338,7 +2339,7 @@ export class FrameRenderer {
 		const webcam = this.config.webcam;
 		const webcamDecodedFrame = this.webcamDecodedFrame;
 		const webcamVideo = this.webcamVideoElement;
-		if (!webcam?.enabled || (!webcamDecodedFrame && !webcamVideo)) {
+		if (!webcam?.enabled || !isWebcamVisible(webcam.visibility, this.currentVideoTime * 1000) || (!webcamDecodedFrame && !webcamVideo)) {
 			return;
 		}
 

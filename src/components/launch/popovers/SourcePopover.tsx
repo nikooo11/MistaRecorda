@@ -24,11 +24,13 @@ export function SourcePopover({
 	const { isOpen, requestOpen, requestClose } = useLaunchPopoverCoordinator();
 	const [sources, setSources] = useState<DesktopSource[]>([]);
 	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState("");
 	const open = isOpen(POPOVER_ID);
 
 	const fetchSources = useCallback(async () => {
 		if (!window.electronAPI) return;
 		setLoading(true);
+		setError("");
 		try {
 			const rawSources = await window.electronAPI.getSources({
 				types: ["screen", "window"],
@@ -38,6 +40,8 @@ export function SourcePopover({
 			setSources(rawSources.map((s) => mapRawSource(s as DesktopSource)));
 		} catch (error) {
 			console.error("Failed to fetch sources:", error);
+			setSources([]);
+			setError(error instanceof Error ? error.message : "Could not load capture sources.");
 		} finally {
 			setLoading(false);
 		}
@@ -52,6 +56,7 @@ export function SourcePopover({
 			windowSources={windowSources}
 			selectedSource={selectedSource}
 			loading={loading}
+			error={error}
 			onSourceSelect={async (source) => {
 				try {
 					await onSourceSelect(source);

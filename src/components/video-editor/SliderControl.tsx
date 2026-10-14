@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 interface SliderControlProps {
 	label: string;
+	help?: string;
 	value: number;
 	defaultValue: number;
 	min: number;
@@ -29,6 +30,7 @@ function quantizeToStep(value: number, min: number, step: number) {
 
 export const SliderControl = memo(function SliderControl({
 	label,
+	help,
 	value,
 	defaultValue: _defaultValue,
 	min,
@@ -147,6 +149,7 @@ export const SliderControl = memo(function SliderControl({
 			role="slider"
 			tabIndex={0}
 			aria-label={label}
+			data-help={help}
 			aria-valuemin={min}
 			aria-valuemax={max}
 			aria-valuenow={value}

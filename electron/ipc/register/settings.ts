@@ -148,7 +148,7 @@ export function registerSettingsHandlers() {
 			const parsed = parseJsonWithByteOrderMark<Record<string, unknown>>(content);
 			return {
 				success: true,
-				microphoneEnabled: parsed.microphoneEnabled === true,
+				microphoneEnabled: parsed.microphoneEnabled !== false,
 				microphoneDeviceId:
 					typeof parsed.microphoneDeviceId === "string"
 						? parsed.microphoneDeviceId
@@ -158,7 +158,7 @@ export function registerSettingsHandlers() {
 		} catch {
 			return {
 				success: true,
-				microphoneEnabled: false,
+				microphoneEnabled: true,
 				microphoneDeviceId: undefined,
 				systemAudioEnabled: false,
 			};

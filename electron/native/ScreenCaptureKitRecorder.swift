@@ -18,6 +18,7 @@ struct CaptureConfig: Codable {
 	let zoomOverlayTitle: String?
 	let presenterWindowTitles: [String]?
 	let cleanSurfaceTitle: String?
+ let cleanSurfaceWindowId: UInt32?
 }
 
 let targetCaptureFPS = 60
@@ -71,7 +72,21 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
 		let config = try JSONDecoder().decode(CaptureConfig.self, from: data)
 		// Include the pre-created, hidden target outline so it can be excluded before any frame is captured.
-		let availableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+		var availableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+        // WindowServer may publish a newly shown transparent window a little later
+        // than its first renderer frame. Refresh before constructing the filter.
+        func isCleanSurface(_ window: SCWindow) -> Bool {
+            guard window.owningApplication?.processID == config.zoomOverlayOwnerPID else { return false }
+            if let id = config.cleanSurfaceWindowId { return window.windowID == id }
+            return config.cleanSurfaceTitle != nil && window.title == config.cleanSurfaceTitle
+        }
+        if config.windowId == nil && (config.cleanSurfaceWindowId != nil || config.cleanSurfaceTitle != nil) {
+            for _ in 0..<20 {
+                if availableContent.windows.contains(where: isCleanSurface) { break }
+                try await Task.sleep(nanoseconds: 100_000_000)
+                availableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+            }
+        }
 		let zoomOverlays = availableContent.windows.filter {
 			config.zoomOverlayOwnerPID != nil && $0.owningApplication?.processID == config.zoomOverlayOwnerPID &&
 			((config.zoomOverlayTitle != nil && $0.title == config.zoomOverlayTitle) || (config.presenterWindowTitles ?? []).contains($0.title ?? ""))
@@ -85,12 +100,16 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 			capturesMicrophone = false
 		}
 		writesSystemAudioToSeparateTrack = capturesSystemAudio
-		writesMicrophoneToSeparateTrack = capturesSystemAudio && capturesMicrophone
+		// Keep an isolated mic track even for mic-only takes, so voice conversion
+		// never has to infer whether embedded video audio contains system sound.
+		writesMicrophoneToSeparateTrack = capturesMicrophone
 		let requestedFPS = max(targetCaptureFPS, config.fps ?? targetCaptureFPS)
 		streamConfig.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(requestedFPS))
 		streamConfig.queueDepth = 6
 		streamConfig.pixelFormat = kCVPixelFormatType_32BGRA
 		streamConfig.showsCursor = false
+		streamConfig.scalesToFit = true
+		if #available(macOS 14.0, *) { streamConfig.preservesAspectRatio = true }
 		streamConfig.capturesAudio = capturesSystemAudio || capturesMicrophone
 		streamConfig.sampleRate = 48000
 		streamConfig.channelCount = 2
@@ -133,15 +152,19 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 				throw NSError(domain: "RecordlyCapture", code: 4, userInfo: [NSLocalizedDescriptionKey: "Display not found"])
 			}
 
-			if let cleanTitle = config.cleanSurfaceTitle, let ownerPID = config.zoomOverlayOwnerPID {
-                guard let owner = availableContent.applications.first(where: { $0.processID == ownerPID }),
-                      let cleanSurface = availableContent.windows.first(where: { $0.owningApplication?.processID == ownerPID && $0.title == cleanTitle }) else {
-                    throw NSError(domain: "RecordlyCapture", code: 7, userInfo: [NSLocalizedDescriptionKey: "The clean drawing surface is not ready. Reopen the Drawing board before recording."])
+			if let ownerPID = config.zoomOverlayOwnerPID,
+               let owner = availableContent.applications.first(where: { $0.processID == ownerPID }) {
+                var included: [SCWindow] = []
+                if config.cleanSurfaceWindowId != nil || config.cleanSurfaceTitle != nil {
+                    guard let cleanSurface = availableContent.windows.first(where: isCleanSurface) else {
+                        throw NSError(domain: "RecordlyCapture", code: 7, userInfo: [NSLocalizedDescriptionKey: "macOS could not register the drawing window after recovery. Your drawing is saved; recording has not started."])
+                    }
+                    included = [cleanSurface]
                 }
-                // Exclude all presenter windows, including any opened after capture starts.
-                filter = SCContentFilter(display: display, excludingApplications: [owner], exceptingWindows: [cleanSurface])
+                // Exclude the entire control application, including menus opened after capture starts.
+                filter = SCContentFilter(display: display, excludingApplications: [owner], exceptingWindows: included)
             } else {
-                filter = SCContentFilter(display: display, excludingWindows: zoomOverlays)
+                throw NSError(domain: "RecordlyCapture", code: 10, userInfo: [NSLocalizedDescriptionKey: "Could not exclude recorder controls. Reopen MistaRecorda and try again."])
             }
 			let displayBounds = CGDisplayBounds(display.displayID)
 			let scaleFactor = ScreenCaptureRecorder.scaleFactor(for: display.displayID)
@@ -152,7 +175,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 
 		// Older helpers or a missing exclusion never authorize the app to show an outline.
-		if config.windowId != nil || config.cleanSurfaceTitle != nil || zoomOverlays.contains(where: { config.zoomOverlayTitle != nil && $0.title == config.zoomOverlayTitle }) {
+		if config.windowId != nil || availableContent.applications.contains(where: { $0.processID == config.zoomOverlayOwnerPID }) || zoomOverlays.contains(where: { config.zoomOverlayTitle != nil && $0.title == config.zoomOverlayTitle }) {
 			print("ZOOM_OVERLAY_EXCLUDED")
 			fflush(stdout)
 		}
@@ -304,6 +327,22 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 
 		return try await finishCapture()
+	}
+
+	func switchWindow(_ windowID: UInt32) async throws {
+		guard isRecording, let stream, trackedWindowId != nil else {
+			throw NSError(domain: "RecordlyCapture", code: 8, userInfo: [NSLocalizedDescriptionKey: "Window capture is not active"])
+		}
+		let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+		guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
+			throw NSError(domain: "RecordlyCapture", code: 9, userInfo: [NSLocalizedDescriptionKey: "Window unavailable"])
+		}
+		// Keep the writer, frame size, audio and media clock alive across source changes.
+		try await stream.updateContentFilter(SCContentFilter(desktopIndependentWindow: window))
+		trackedWindowId = windowID
+		startWindowValidationIfNeeded()
+		print("SOURCE_SWITCHED \(windowID)")
+		fflush(stdout)
 	}
 
 	func pauseCapture() {
@@ -590,6 +629,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
 				do {
 					let availableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+					if Task.isCancelled || self.trackedWindowId != trackedWindowId { return }
 					let windowStillAvailable = availableContent.windows.contains(where: { $0.windowID == trackedWindowId })
 					if !windowStillAvailable {
 						print("WINDOW_UNAVAILABLE")
@@ -663,6 +703,15 @@ final class RecorderService {
 		}
 	}
 
+	func switchWindow(_ id: UInt32) {
+		queue.async {
+			Task {
+				do { try await self.recorder.switchWindow(id) }
+				catch { print("SOURCE_SWITCH_FAILED \(id)"); fflush(stdout) }
+			}
+		}
+	}
+
 	func waitUntilFinished() {
 		completionGroup.wait()
 	}
@@ -679,17 +728,12 @@ guard CommandLine.arguments.count >= 2 else {
 // CGS_REQUIRE_INIT because CGS is never initialised in a CLI tool.
 let _ = CGMainDisplayID()
 
-// Pre-flight check: ensure screen recording permission is granted before
-// attempting capture. On macOS 15+, a one-session grant may expire after the
-// parent app restarts.  CGRequestScreenCaptureAccess() will trigger the
-// system-level permission dialog (or open System Settings) when not yet granted.
+// Permission requests belong to the app's explicit setup flow. Never request
+// again from a child process: a stale signing identity cannot be fixed here.
 if !CGPreflightScreenCaptureAccess() {
-	let granted = CGRequestScreenCaptureAccess()
-	if !granted {
-		fputs("SCREEN_RECORDING_PERMISSION_DENIED\n", stderr)
-		fflush(stderr)
-		exit(1)
-	}
+	fputs("SCREEN_RECORDING_PERMISSION_DENIED\n", stderr)
+	fflush(stderr)
+	exit(1)
 }
 
 // Pre-flight check for microphone access when mic capture is requested.
@@ -720,6 +764,10 @@ service.start(configJSON: CommandLine.arguments[1])
 
 DispatchQueue.global(qos: .utility).async {
 	while let input = readLine(strippingNewline: true)?.lowercased() {
+		if input.hasPrefix("switch-window "), let id = UInt32(input.dropFirst(14)) {
+			service.switchWindow(id)
+			continue
+		}
 		if input == "pause" {
 			service.pause()
 			continue

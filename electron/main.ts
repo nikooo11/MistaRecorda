@@ -1,5 +1,12 @@
-import { registerBoard, isBoardCaptureWebContents } from "./board/register";
+import {
+	registerBoard,
+	isBoardCaptureWebContents,
+	sendRecordingControl,
+	toggleDrawingBoard,
+	openDrawingStudio,
+} from "./board/register";
 import { openVoiceWindow } from "./ipc/voice/register";
+import { requireScreenRecordingAccess } from "./screenCaptureAccess";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -467,6 +474,25 @@ function setupApplicationMenu() {
 			],
 		},
 		{
+			label: "Recording",
+			submenu: [
+				{
+					label: "Show Recorder Controls",
+					click: () => {
+						if (!showHudOverlayFromTray()) focusOrCreateMainWindow();
+					},
+				},
+				{
+					label: "Start / Stop Recording",
+					click: () => void sendRecordingControl("record"),
+				},
+				{ label: "Pause / Resume", click: () => void sendRecordingControl("pause") },
+				{ type: "separator" },
+				{ label: "Open / Close Drawing Board", click: () => void toggleDrawingBoard() },
+				{ label: "Connect iPad…", click: () => void openDrawingStudio("ipad") },
+			],
+		},
+		{
 			label: "Edit",
 			submenu: [
 				{ role: "undo" },
@@ -781,9 +807,7 @@ function updateTrayMenu(recording: boolean = false) {
 				{
 					label: "Stop Recording",
 					click: () => {
-						if (mainWindow && !mainWindow.isDestroyed()) {
-							mainWindow.webContents.send("stop-recording-from-tray");
-						}
+						getHudOverlayWindow()?.webContents.send("stop-recording-from-tray");
 					},
 				},
 			]
@@ -979,17 +1003,9 @@ app.whenReady().then(async () => {
 	// Recordly does not use WebHID, Web Serial, or WebUSB. Do not grant devices by default.
 	session.defaultSession.setDevicePermissionHandler(() => false);
 
-	if (process.platform === "darwin") {
-		const cameraStatus = systemPreferences.getMediaAccessStatus("camera");
-		if (cameraStatus !== "granted") {
-			await systemPreferences.askForMediaAccess("camera");
-		}
-
-		const micStatus = systemPreferences.getMediaAccessStatus("microphone");
-		if (micStatus !== "granted") {
-			await systemPreferences.askForMediaAccess("microphone");
-		}
-	} else if (process.platform === "win32") {
+	// Camera/microphone access is requested only when that input is enabled.
+	// Asking here can block the entire app before its first window appears.
+	if (process.platform === "win32") {
 		const cameraStatus = systemPreferences.getMediaAccessStatus("camera");
 		const micStatus = systemPreferences.getMediaAccessStatus("microphone");
 		if (cameraStatus !== "granted") {
@@ -1140,6 +1156,7 @@ app.whenReady().then(async () => {
 				callback({ video: { id: "screen:0:0", name: "Entire screen" } });
 				return;
 			}
+			requireScreenRecordingAccess();
 			const sources = await desktopCapturer.getSources({ types: ["screen", "window"] });
 			const source = sourceId
 				? (sources.find((s) => s.id === sourceId) ?? sources[0])

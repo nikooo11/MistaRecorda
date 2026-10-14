@@ -15,6 +15,9 @@ export interface RecordingAudioMetadata {
 	changedMicPath?: string;
 	voiceVideoPath?: string;
 	micSelection?: "original" | "changed";
+	changedVoiceName?: string;
+	changedVoiceId?: string;
+	changedModelId?: string;
 }
 export function recordingBase(videoPath: string) {
 	return videoPath.slice(0, videoPath.length - path.extname(videoPath).length);

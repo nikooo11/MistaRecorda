@@ -1,3 +1,5 @@
+import { captureCanvasBounds, getCaptureCanvasAspect } from "../../studio/geometry";
+import { persistStudioTake } from "../../studio/register";
 import fs from "node:fs/promises";
 import { closeHeldZoom, persistRecordedZooms } from "../zoom/capture";
 import {
@@ -92,11 +94,7 @@ export async function writeCursorTelemetry(videoPath: string, samples: unknown) 
 
 	await fs.writeFile(
 		telemetryPath,
-		JSON.stringify(
-			{ version: CURSOR_TELEMETRY_VERSION, samples: normalizedSamples },
-			null,
-			2,
-		),
+		JSON.stringify({ version: CURSOR_TELEMETRY_VERSION, samples: normalizedSamples }, null, 2),
 		"utf-8",
 	);
 
@@ -145,9 +143,7 @@ export function resumeCursorCapture(resumedAtMs: number) {
 	}
 
 	const pauseDurationMs = Math.max(0, resumedAtMs - cursorCapturePauseStartedAtMs);
-	setCursorCaptureAccumulatedPausedMs(
-		cursorCaptureAccumulatedPausedMs + pauseDurationMs,
-	);
+	setCursorCaptureAccumulatedPausedMs(cursorCaptureAccumulatedPausedMs + pauseDurationMs);
 	setCursorCapturePauseStartedAtMs(null);
 }
 
@@ -192,12 +188,18 @@ export function getNormalizedCursorPoint() {
 						y: windowBounds.y / primarySf,
 					}).scaleFactor || 1
 				: 1;
-		const width = Math.max(1, windowBounds.width / sf);
-		const height = Math.max(1, windowBounds.height / sf);
-
+		const frame = captureCanvasBounds(
+			{
+				x: windowBounds.x / sf,
+				y: windowBounds.y / sf,
+				width: windowBounds.width / sf,
+				height: windowBounds.height / sf,
+			},
+			getCaptureCanvasAspect(),
+		);
 		return {
-			cx: clamp((cursor.x - windowBounds.x / sf) / width, 0, 1),
-			cy: clamp((cursor.y - windowBounds.y / sf) / height, 0, 1),
+			cx: clamp((cursor.x - frame.x) / Math.max(1, frame.width), 0, 1),
+			cy: clamp((cursor.y - frame.y) / Math.max(1, frame.height), 0, 1),
 		};
 	}
 
@@ -232,16 +234,42 @@ export function getRecordingBoundsInDips(): Electron.Rectangle | null {
 	const screen = getScreen();
 	if (selectedSource?.id?.startsWith("window:")) {
 		if (!selectedWindowBounds) return null;
-		const primaryScale = process.platform === "darwin" ? 1 : screen.getPrimaryDisplay().scaleFactor || 1;
-		const scale = process.platform === "darwin" ? 1 : screen.getDisplayNearestPoint({ x: selectedWindowBounds.x / primaryScale, y: selectedWindowBounds.y / primaryScale }).scaleFactor || 1;
-		return { x: selectedWindowBounds.x / scale, y: selectedWindowBounds.y / scale, width: selectedWindowBounds.width / scale, height: selectedWindowBounds.height / scale };
+		const primaryScale =
+			process.platform === "darwin" ? 1 : screen.getPrimaryDisplay().scaleFactor || 1;
+		const scale =
+			process.platform === "darwin"
+				? 1
+				: screen.getDisplayNearestPoint({
+						x: selectedWindowBounds.x / primaryScale,
+						y: selectedWindowBounds.y / primaryScale,
+					}).scaleFactor || 1;
+		return captureCanvasBounds(
+			{
+				x: selectedWindowBounds.x / scale,
+				y: selectedWindowBounds.y / scale,
+				width: selectedWindowBounds.width / scale,
+				height: selectedWindowBounds.height / scale,
+			},
+			getCaptureCanvasAspect(),
+		);
 	}
-	const display = screen.getAllDisplays().find((d) => d.id === Number(selectedSource?.display_id));
+	const display = screen
+		.getAllDisplays()
+		.find((d) => d.id === Number(selectedSource?.display_id));
 	return (display ?? screen.getDisplayNearestPoint(screen.getCursorScreenPoint())).bounds;
 }
 
 export function getHookCursorScreenPoint(
-	event: { x?: number; y?: number; data?: { x?: number; y?: number; screenX?: number; screenY?: number }; screenX?: number; screenY?: number } | null | undefined,
+	event:
+		| {
+				x?: number;
+				y?: number;
+				data?: { x?: number; y?: number; screenX?: number; screenY?: number };
+				screenX?: number;
+				screenY?: number;
+		  }
+		| null
+		| undefined,
 ): { x: number; y: number } | null {
 	const rawX = event?.x ?? event?.data?.x ?? event?.screenX ?? event?.data?.screenX;
 	const rawY = event?.y ?? event?.data?.y ?? event?.screenY ?? event?.data?.screenY;
@@ -286,6 +314,7 @@ export function sampleCursorPoint() {
 export async function persistPendingCursorTelemetry(videoPath: string) {
 	closeHeldZoom(getCursorCaptureElapsedMs());
 	await persistRecordedZooms(videoPath);
+	await persistStudioTake(videoPath);
 	const telemetryPath = getTelemetryPathForVideo(videoPath);
 	if (pendingCursorSamples.length > 0) {
 		await fs.writeFile(

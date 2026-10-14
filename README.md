@@ -431,3 +431,7 @@ Created by
 [@webadderall](https://x.com/webadderall)
 
 ---
+
+## Capture studio update
+
+See the [Capture studio guide](docs/capture-studio.md) for the revised hold/tap zoom behavior, whiteboard, iPad pairing, window shortcuts, sound pad and shareable voice presets. The [validation report](docs/capture-studio-validation.md) distinguishes automated checks from the remaining Mac/iPad playtest.

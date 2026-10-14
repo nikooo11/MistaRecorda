@@ -1,15 +1,20 @@
 import { useState } from "react";
 import { useScopedT } from "@/contexts/I18nContext";
-import { unwrapVoice } from "@/types/voice";
+import { unwrapVoice, type VoiceModel } from "@/types/voice";
+import { fallbackVoiceModels } from "./voiceModels";
 import type { VoicePreset } from "@/types/voicePreset";
 export function PresetEditor({
 	initial,
 	onSaved,
 	onClose,
+	onUse,
+	models = fallbackVoiceModels,
 }: {
 	initial: VoicePreset;
 	onSaved: () => void;
 	onClose: () => void;
+	onUse?: (preset: VoicePreset) => Promise<void>;
+	models?: VoiceModel[];
 }) {
 	const t = useScopedT("settings");
 	const [preset, setPreset] = useState(initial);
@@ -73,6 +78,8 @@ export function PresetEditor({
 				{t("voice.createdBy")}
 				<input
 					className="voice-input"
+					placeholder="Optional"
+					maxLength={320}
 					value={preset.createdBy}
 					onChange={(e) => setPreset({ ...preset, createdBy: e.target.value })}
 				/>
@@ -119,8 +126,14 @@ export function PresetEditor({
 						})
 					}
 				>
-					<option value="eleven_multilingual_sts_v2">eleven_multilingual_sts_v2</option>
-					<option value="eleven_english_sts_v2">eleven_english_sts_v2</option>
+					{!models.some((m) => m.modelId === settings.modelId) && (
+						<option value={settings.modelId}>{settings.modelId}</option>
+					)}
+					{models.map((m) => (
+						<option key={m.modelId} value={m.modelId}>
+							{m.name}
+						</option>
+					))}
 				</select>
 			</label>
 			{(["stability", "similarityBoost", "style"] as const).map((k) => (
@@ -259,10 +272,15 @@ export function PresetEditor({
 					disabled={busy}
 					onClick={() =>
 						void run(async () => {
-							unwrapVoice(
-								await window.electronAPI.voice.request("usePreset", preset),
-							);
-							setMessage("presetApplied");
+							if (onUse) {
+								await onUse(preset);
+								onClose();
+							} else {
+								unwrapVoice(
+									await window.electronAPI.voice.request("usePreset", preset),
+								);
+								setMessage("presetApplied");
+							}
 						})
 					}
 				>

@@ -674,7 +674,7 @@ function CursorClickEffectCards({
 							key={effect.id}
 							value={effect.id}
 							aria-label={label}
-							title={`${label} - ${description}`}
+							data-help={`${label}: ${description}`}
 							className={cn(
 								"group aspect-square h-auto min-w-0 rounded-[10px] border border-foreground/10 bg-foreground/[0.03] p-3 text-left text-foreground shadow-none transition-all hover:border-foreground/20 hover:bg-foreground/[0.06]",
 								"data-[state=on]:border-[#2563EB]/70 data-[state=on]:bg-[#2563EB]/12 data-[state=on]:text-foreground",
@@ -2364,7 +2364,7 @@ export function SettingsPanel({
 
 	if (isBackgroundPanel) {
 		return (
-			<div className="flex-[2] w-[332px] min-w-[280px] max-w-[332px] bg-editor-panel rounded-2xl flex flex-col shadow-xl h-full overflow-hidden">
+			<div className="flex-[2] w-[332px] min-w-[280px] max-w-[332px] bg-editor-panel border border-foreground/10 rounded-[4px] flex flex-col h-full overflow-hidden">
 				<div
 					className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 pb-0"
 					style={{ scrollbarGutter: "stable" }}
@@ -3665,6 +3665,7 @@ export function SettingsPanel({
 								<button
 									type="button"
 									onClick={resetCursorSection}
+									data-help="Restore the default cursor style, size, motion, and click effects."
 									className="text-[10px] text-[#2563EB] transition-opacity hover:opacity-80"
 								>
 									{t("common.actions.reset", "Reset")}
@@ -3674,6 +3675,8 @@ export function SettingsPanel({
 								<label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
 									<span>{tSettings("effects.showCursor")}</span>
 									<Switch
+										aria-label="Show cursor"
+										data-help="Show the recorded cursor in the edited video and export."
 										checked={showCursor}
 										onCheckedChange={onShowCursorChange}
 										className="data-[state=checked]:bg-[#2563EB] scale-75"
@@ -3682,6 +3685,8 @@ export function SettingsPanel({
 								<label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
 									<span>{tSettings("effects.loopCursor")}</span>
 									<Switch
+										aria-label="Loop cursor"
+										data-help="Blend the cursor’s end position back to its start for a smooth looping video."
 										checked={loopCursor}
 										onCheckedChange={onLoopCursorChange}
 										className="data-[state=checked]:bg-[#2563EB] scale-75"
@@ -3706,7 +3711,19 @@ export function SettingsPanel({
 										<ToggleGroupItem
 											key={option.value}
 											value={option.value}
-											title={option.label}
+											data-help={
+												(
+													{
+														macos: "Classic macOS arrow with a crisp white outline.",
+														tahoe: "Rounded Tahoe arrow with a soft shadow.",
+														"tahoe-inverted":
+															"White Tahoe arrow with a dark outline for contrast on dark backgrounds.",
+														dot: "Replace the arrow with a small circular pointer.",
+														figma: "Simple triangular pointer with minimal detail.",
+													} as Record<string, string>
+												)[option.value] ||
+												`Use the ${option.label} cursor style in the edited video.`
+											}
 											aria-label={option.label}
 											className={cn(
 												"group aspect-square h-auto min-w-0 rounded-[10px] border border-foreground/10 bg-foreground/[0.03] p-3 text-left text-foreground shadow-none transition-all hover:border-foreground/20 hover:bg-foreground/[0.06]",
@@ -3727,6 +3744,7 @@ export function SettingsPanel({
 							</div>
 							<SliderControl
 								label={tSettings("effects.cursorSize")}
+								help="Change the cursor’s size in the edited video."
 								value={cursorSize}
 								defaultValue={DEFAULT_CURSOR_SIZE}
 								min={0.5}
@@ -3738,6 +3756,7 @@ export function SettingsPanel({
 							/>
 							<SliderControl
 								label={tSettings("effects.cursorMotionBlur")}
+								help="Add blur to fast cursor movements for smoother motion."
 								value={cursorMotionBlur}
 								defaultValue={DEFAULT_CURSOR_MOTION_BLUR}
 								min={0}
@@ -4213,7 +4232,7 @@ export function SettingsPanel({
 	})();
 
 	return (
-		<div className="flex-[2] w-[332px] min-w-[280px] max-w-[332px] bg-editor-panel rounded-2xl flex flex-col shadow-xl h-full overflow-hidden">
+		<div className="flex-[2] w-[332px] min-w-[280px] max-w-[332px] bg-editor-panel border border-foreground/10 rounded-[4px] flex flex-col h-full overflow-hidden">
 			<div
 				className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 pb-0"
 				style={{ scrollbarGutter: "stable" }}

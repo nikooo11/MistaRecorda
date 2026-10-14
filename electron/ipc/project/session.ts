@@ -1,3 +1,4 @@
+import { normalizeWebcamVisibility } from "../../../src/lib/webcamVisibility";
 import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -34,6 +35,7 @@ export async function persistRecordingSessionManifest(session: RecordingSessionD
 		videoFileName: path.basename(normalizedVideoPath),
 		webcamFileName: path.basename(normalizedWebcamPath),
 		timeOffsetMs: normalizeRecordingTimeOffsetMs(session.timeOffsetMs),
+		webcamVisibility: normalizeWebcamVisibility(session.webcamVisibility),
 	};
 
 	await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
@@ -67,6 +69,7 @@ export async function resolveRecordingSessionManifest(
 				videoPath: normalizedVideoPath,
 				webcamPath: null,
 				timeOffsetMs: normalizeRecordingTimeOffsetMs(parsed.timeOffsetMs),
+		webcamVisibility: normalizeWebcamVisibility(parsed.webcamVisibility),
 			};
 		}
 
@@ -80,6 +83,7 @@ export async function resolveRecordingSessionManifest(
 			videoPath: normalizedVideoPath,
 			webcamPath: webcamExists ? webcamPath : null,
 			timeOffsetMs: normalizeRecordingTimeOffsetMs(parsed.timeOffsetMs),
+		webcamVisibility: normalizeWebcamVisibility(parsed.webcamVisibility),
 		};
 	} catch {
 		return null;

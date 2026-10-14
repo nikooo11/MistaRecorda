@@ -1,3 +1,4 @@
+import { isWebcamVisible } from "@/lib/webcamVisibility";
 import { Application, Container, Graphics, Rectangle, Sprite, Texture, VideoSource } from "pixi.js";
 import { MotionBlurFilter } from "pixi-filters/motion-blur";
 import { ZoomBlurFilter } from "pixi-filters/zoom-blur";
@@ -963,7 +964,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 				const bubble = webcamBubbleRef.current;
 				const bubbleInner = webcamBubbleInnerRef.current;
 				const overlay = overlayRef.current;
-				if (!bubble || !bubbleInner || !overlay || !webcamEnabled || !webcamVideoPath) {
+				if (!bubble || !bubbleInner || !overlay || !webcamEnabled || !webcamVideoPath || !isWebcamVisible(webcam?.visibility, currentTimeRef.current)) {
 					if (bubble) {
 						bubble.style.display = "none";
 					}
@@ -1021,6 +1022,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 				webcamCorner,
 				webcamCornerRadius,
 				webcamEnabled,
+				webcam?.visibility,
 				webcamMargin,
 				webcamPositionPreset,
 				webcamPositionX,
@@ -1986,7 +1988,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 
 		const syncWebcamMedia = useCallback(() => {
 			const webcamVideo = webcamVideoRef.current;
-			if (!webcamVideo || !webcamEnabled || !webcamVideoPath) {
+			if (!webcamVideo || !webcamEnabled || !webcamVideoPath || !isWebcamVisible(webcam?.visibility, currentTimeRef.current)) {
 				return;
 			}
 
@@ -3054,7 +3056,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 								ref={webcamBubbleRef}
 								className="absolute"
 								style={{
-									display: webcam.enabled ? "block" : "none",
+									display: webcam.enabled && isWebcamVisible(webcam.visibility, currentTime * 1000) ? "block" : "none",
 									pointerEvents: "none",
 								}}
 							>

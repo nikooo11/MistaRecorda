@@ -1,3 +1,4 @@
+import { StudioPanel } from "./components/studio/StudioPanel";
 import { lazy, Suspense } from "react";
 const BoardWindow = lazy(() =>
 	import("./components/board/BoardWindows").then((m) => ({ default: m.BoardWindow })),
@@ -55,7 +56,7 @@ export default function App() {
 		loadAllCustomFonts().catch((error) => {
 			console.error("Failed to load custom fonts:", error);
 		});
-	}, []);
+	}, [isMacOS]);
 
 	useEffect(() => {
 		document.title =
@@ -75,6 +76,8 @@ export default function App() {
 					<BoardWindow kind={windowType} />
 				</Suspense>
 			);
+		case "studio":
+			return <StudioPanel />;
 		case "zoom-settings":
 			return <RecordingZoomSettingsPanel />;
 		case "voice":

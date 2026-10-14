@@ -1,8 +1,11 @@
+import type { WebcamVisibilityEvent } from "@/lib/webcamVisibility";
 import { useScopedT } from "@/contexts/I18nContext";
 import { IsolatedAudioCapture } from "./isolatedAudioCapture";
 import { fixWebmDuration } from "@fix-webm-duration/fix";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { getMissingRecordingPermission } from "./recordingPermissions";
+import { getRecordingAudioDevices } from "./recordingAudioDevices";
 import { getEffectiveRecordingDurationMs } from "@/lib/mediaTiming";
 import {
 	getVideoExtensionForMimeType,
@@ -299,25 +302,6 @@ function createMicrophoneTrackSettingsSnapshot(
 	return Object.keys(snapshot).length > 0 ? snapshot : null;
 }
 
-async function createAudioInputDeviceSnapshot(): Promise<
-	MicrophoneAudioInputDeviceSnapshot[] | null
-> {
-	if (typeof navigator.mediaDevices?.enumerateDevices !== "function") {
-		return null;
-	}
-
-	const devices = await navigator.mediaDevices.enumerateDevices();
-	const audioInputs = devices
-		.filter((device) => device.kind === "audioinput")
-		.map((device) => ({
-			deviceId: device.deviceId,
-			...(device.groupId ? { groupId: device.groupId } : {}),
-			label: device.label,
-		}));
-
-	return audioInputs.length > 0 ? audioInputs : null;
-}
-
 export function useScreenRecorder(): UseScreenRecorderReturn {
 	const t = useScopedT("launch");
 	const [recording, setRecording] = useState(false);
@@ -326,10 +310,13 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	const [finalizing, setFinalizing] = useState(false);
 	const [countdownActive, setCountdownActive] = useState(false);
 	const [isMacOS, setIsMacOS] = useState(false);
-	const [microphoneEnabled, setMicrophoneEnabled] = useState(false);
+	const [microphoneEnabled, setMicrophoneEnabled] = useState(true);
 	const [microphoneDeviceId, setMicrophoneDeviceId] = useState<string | undefined>(undefined);
 	const [systemAudioEnabled, setSystemAudioEnabled] = useState(false);
-	const [webcamEnabled, setWebcamEnabled] = useState(false);
+	const [webcamEnabled, setWebcamEnabledState] = useState(false);
+	const webcamVisibility = useRef<WebcamVisibilityEvent[]>([]);
+	const liveRecording = useRef(false);
+	const webcamToggleInFlight = useRef(false);
 	const [webcamDeviceId, setWebcamDeviceId] = useState<string | undefined>(undefined);
 	const [countdownDelay, setCountdownDelayState] = useState(3);
 	const mediaRecorder = useRef<MediaRecorder | null>(null);
@@ -349,6 +336,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	const nativeScreenRecording = useRef(false);
 	const nativeWindowsRecording = useRef(false);
 	const startInFlight = useRef(false);
+	const toggleInFlight = useRef(false);
 	const hasPromptedForReselect = useRef(false);
 	const hasShownNativeWindowsFallbackToast = useRef(false);
 	const countdownDelayLoaded = useRef(false);
@@ -490,43 +478,31 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	}, []);
 
 	const preparePermissions = useCallback(async (options: { startup?: boolean } = {}) => {
-		const platform = await window.electronAPI.getPlatform();
-		if (platform !== "darwin") {
+		const missing = await getMissingRecordingPermission(window.electronAPI);
+		if (!missing) {
+			toast.dismiss("recording-permission");
 			return true;
 		}
-
-		const screenPermission = await window.electronAPI.getScreenRecordingPermissionStatus();
-		if (!screenPermission.success || screenPermission.status !== "granted") {
-			await window.electronAPI.openScreenRecordingPreferences();
-			alert(
-				options.startup
-					? "Recordly needs Screen Recording permission before you start. System Settings has been opened. After enabling it, quit and reopen Recordly."
-					: "Screen Recording permission is still missing. System Settings has been opened again. Enable it, then quit and reopen Recordly before recording.",
+		if (!options.startup) {
+			const isScreen = missing === "screen";
+			toast.error(
+				isScreen ? "Screen Recording access is needed" : "Cursor tracking access is needed",
+				{
+					id: "recording-permission",
+					duration: 15000,
+					description: isScreen
+						? "Enable MistaRecorda in Screen & System Audio Recording, then reopen it. If already enabled after an update, remove the old entry and add the app from Applications again."
+						: "Enable MistaRecorda in Accessibility for cursor tracking and Z zoom. This is separate from Screen Recording. Re-add the Applications copy if an older entry is already enabled.",
+					action: {
+						label: "Open Settings",
+						onClick: () =>
+							void (isScreen
+								? window.electronAPI.openScreenRecordingPreferences()
+								: window.electronAPI.openAccessibilityPreferences()),
+					},
+				},
 			);
-			return false;
 		}
-
-		const accessibilityPermission = await window.electronAPI.getAccessibilityPermissionStatus();
-		if (!accessibilityPermission.success) {
-			return false;
-		}
-
-		if (accessibilityPermission.trusted) {
-			return true;
-		}
-
-		const requestedAccessibility = await window.electronAPI.requestAccessibilityPermission();
-		if (requestedAccessibility.success && requestedAccessibility.trusted) {
-			return true;
-		}
-
-		await window.electronAPI.openAccessibilityPreferences();
-		alert(
-			options.startup
-				? "Recordly also needs Accessibility permission for cursor tracking. System Settings has been opened. After enabling it, quit and reopen Recordly."
-				: "Accessibility permission is still missing. System Settings has been opened again. Enable it, then quit and reopen Recordly before recording.",
-		);
-
 		return false;
 	}, []);
 
@@ -696,6 +672,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 						videoPath,
 						webcamPath,
 						timeOffsetMs: webcamTimeOffsetMs.current,
+						webcamVisibility: webcamVisibility.current,
 						hideOverlayCursorByDefault: shouldHideOverlayCursor,
 					});
 				} else {
@@ -958,11 +935,12 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	 * recording yet. Call {@link beginWebcamCapture} after the main recording
 	 * has started so both begin at approximately the same time.
 	 */
-	const prepareWebcamRecorder = useCallback(async () => {
+	const prepareWebcamRecorder = useCallback(async (force = false) => {
+		if (!force) webcamVisibility.current = [];
 		const boardCapture = await window.electronAPI.board.request<{ enabled: boolean }>(
 			"captureConfig",
 		);
-		if (!webcamEnabled || boardCapture.enabled) {
+		if ((!webcamEnabled && !force) || boardCapture.enabled) {
 			resolvedWebcamPath.current = null;
 			pendingWebcamPathPromise.current = Promise.resolve(null);
 			webcamStartTime.current = null;
@@ -1072,14 +1050,49 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 
 	/** Start the prepared webcam MediaRecorder. Call after main recording begins. */
 	const beginWebcamCapture = useCallback(() => {
+		liveRecording.current = true;
 		const recorder = webcamRecorder.current;
 		if (recorder && recorder.state === "inactive") {
 			webcamStartTime.current = Date.now();
 			recorder.start(RECORDER_TIMESLICE_MS);
+			webcamVisibility.current = [{ timeMs: 0, visible: true }];
 		}
 	}, []);
 
+	const setWebcamEnabled = useCallback((enabled: boolean) => {
+		if (starting || finalizing || countdownActive || webcamToggleInFlight.current) return;
+		if (!liveRecording.current) { setWebcamEnabledState(enabled); return; }
+		webcamToggleInFlight.current = true;
+		void (async () => {
+			try {
+				const board = await window.electronAPI.board.request<{ enabled: boolean }>("captureConfig");
+				if (!liveRecording.current) return;
+				if (!board.enabled) {
+					if (enabled && !webcamRecorder.current) {
+						await prepareWebcamRecorder(true);
+						if (!liveRecording.current) {
+							webcamStream.current?.getTracks().forEach((track) => track.stop());
+							webcamRecorder.current = null;
+							return;
+						}
+						if (!webcamRecorder.current) throw Error("Camera unavailable. Check camera access and choose a connected camera.");
+						beginWebcamCapture();
+						webcamTimeOffsetMs.current = getRecordingDurationMs(Date.now());
+						webcamVisibility.current = [];
+						if (paused) (webcamRecorder.current as MediaRecorder | null)?.pause();
+					}
+					for (const track of webcamStream.current?.getVideoTracks() ?? []) track.enabled = enabled;
+					webcamVisibility.current.push({ timeMs: getRecordingDurationMs(Date.now()), visible: enabled });
+				}
+				setWebcamEnabledState(enabled);
+			} catch (e) {
+				toast.error((e as Error).message);
+			} finally { webcamToggleInFlight.current = false; }
+		})();
+	}, [starting, finalizing, countdownActive, paused, prepareWebcamRecorder, beginWebcamCapture, getRecordingDurationMs]);
+
 	const stopRecording = useRef(() => {
+		liveRecording.current = false;
 		setPaused(false);
 		if (nativeScreenRecording.current) {
 			nativeScreenRecording.current = false;
@@ -1184,6 +1197,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 							videoPath: finalPath,
 							webcamPath,
 							timeOffsetMs: webcamTimeOffsetMs.current,
+						webcamVisibility: webcamVisibility.current,
 							hideOverlayCursorByDefault: hideEditorOverlayCursorByDefault.current,
 						});
 
@@ -1420,6 +1434,15 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			recordingSessionTimestamp.current = Date.now();
 			resetRecordingClock(recordingSessionTimestamp.current);
 			await prepareWebcamRecorder();
+			// Resolve browser device labels before hiding the HUD. Hidden documents
+			// cannot reliably enumerate devices, including diagnostic-only queries.
+			const recordingAudioDevices = microphoneEnabled
+				? await getRecordingAudioDevices(
+						navigator.mediaDevices,
+						document.visibilityState !== "hidden",
+					)
+				: [];
+			await window.electronAPI.studio.request("prepareCapture");
 			const useNativeMacScreenCapture =
 				platform === "darwin" &&
 				(selectedSource.id?.startsWith("screen:") ||
@@ -1457,18 +1480,10 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 
 			if (useNativeMacScreenCapture || useNativeWindowsCapture) {
 				// Resolve the selected mic label for native capture backends.
-				let micLabel: string | undefined;
-				if (microphoneEnabled) {
-					try {
-						const devices = await navigator.mediaDevices.enumerateDevices();
-						const mic = devices.find(
-							(d) => d.deviceId === microphoneDeviceId && d.kind === "audioinput",
-						);
-						micLabel = mic?.label || undefined;
-					} catch {
-						// Fall through — native process will use the default mic
-					}
-				}
+				const micLabel =
+					recordingAudioDevices.find(
+						(device) => device.deviceId === (microphoneDeviceId ?? "default"),
+					)?.label || undefined;
 
 				const nativeResult = await window.electronAPI.startNativeScreenRecording(
 					selectedSource,
@@ -1534,8 +1549,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 								await navigator.mediaDevices.getUserMedia(microphoneConstraints);
 							micFallbackTrackSettings.current =
 								createMicrophoneTrackSettingsSnapshot(micStream);
-							micFallbackAudioInputDevices.current =
-								await createAudioInputDeviceSnapshot().catch(() => null);
+							micFallbackAudioInputDevices.current = recordingAudioDevices;
 							console.info(
 								"Browser microphone track settings:",
 								micFallbackTrackSettings.current,
@@ -1918,6 +1932,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 										videoPath: finalVideoPath,
 										webcamPath,
 										timeOffsetMs: webcamTimeOffsetMs.current,
+						webcamVisibility: webcamVisibility.current,
 										hideOverlayCursorByDefault:
 											hideEditorOverlayCursorByDefault.current,
 									});
@@ -2088,6 +2103,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		setPaused(false);
 		markRecordingResumed(Date.now());
 
+		liveRecording.current = false;
 		// Discard webcam recording regardless of recording mode
 		webcamChunks.current = [];
 		if (webcamRecorder.current && webcamRecorder.current.state !== "inactive") {
@@ -2131,7 +2147,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	}, [cleanupCapturedMedia, markRecordingResumed, recording]);
 
 	const toggleRecording = async () => {
-		if (starting || countdownActive || finalizing) {
+		if (toggleInFlight.current || starting || countdownActive || finalizing) {
 			return;
 		}
 
@@ -2140,20 +2156,24 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			return;
 		}
 
-		// Start recording with optional countdown
-		if (countdownDelay > 0) {
-			setCountdownActive(true);
-			try {
-				const result = await window.electronAPI.startCountdown(countdownDelay);
-				if (!result.success || result.cancelled) {
-					return;
-				}
-			} finally {
-				setCountdownActive(false);
-			}
-		}
+		toggleInFlight.current = true;
+		try {
+			// Check before counting down; a denied grant must not look like capture started.
+			if (!(await preparePermissions())) return;
 
-		startRecording();
+			if (countdownDelay > 0) {
+				setCountdownActive(true);
+				try {
+					const result = await window.electronAPI.startCountdown(countdownDelay);
+					if (!result.success || result.cancelled) return;
+				} finally {
+					setCountdownActive(false);
+				}
+			}
+			await startRecording();
+		} finally {
+			toggleInFlight.current = false;
+		}
 	};
 
 	return {

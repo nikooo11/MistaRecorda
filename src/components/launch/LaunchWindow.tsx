@@ -1,7 +1,9 @@
-import { QuickVoicePreset } from "../voice/QuickVoicePreset";
 import { RecordingZoomControl } from "../recording-zoom/RecordingZoomSettings";
 import {
 	ArrowClockwiseIcon,
+	GearSixIcon,
+	PencilSimpleIcon,
+	DeviceTabletIcon,
 	CaretUpIcon,
 	DotsThreeVerticalIcon,
 	MicrophoneIcon,
@@ -212,6 +214,8 @@ function LaunchWindowContent() {
 					else pauseRecording();
 				}
 				if (action === "webcam") setWebcamEnabled(!webcamEnabled);
+				if (action === "webcam-on") setWebcamEnabled(true);
+				if (action === "webcam-off") setWebcamEnabled(false);
 			}),
 		[
 			recording,
@@ -243,10 +247,18 @@ function LaunchWindowContent() {
 		<>
 			<Button
 				variant="ghost"
-				title="Drawing board and iPad"
+				title="Drawing studio: annotate your screen, open a whiteboard, or connect your iPad. Command/Control + Shift + B toggles the board."
 				onClick={() => void window.electronAPI.board.request("open")}
 			>
-				Board
+				<PencilSimpleIcon size={17} /> Board
+			</Button>
+			<Button
+				variant="ghost"
+				aria-label="Capture settings"
+				title="Open assigned windows and trigger sounds during this take. Stop recording to edit their settings."
+				onClick={() => void window.electronAPI.studio.request("open")}
+			>
+				<GearSixIcon size={18} />
 			</Button>
 			<RecordingZoomControl />
 			<RecordingControls
@@ -266,20 +278,28 @@ function LaunchWindowContent() {
 	const idleControls = (
 		<>
 			<RecordingZoomControl />
-			<QuickVoicePreset />
 			<Button
 				variant="ghost"
-				title="Drawing board and iPad"
+				title="Drawing studio: annotate your screen, open a whiteboard, or connect your iPad. Command/Control + Shift + B toggles the board."
 				onClick={() => void window.electronAPI.board.request("open")}
 			>
-				Board
+				<PencilSimpleIcon size={17} /> Board
 			</Button>
-			<button
-				type="button"
-				onClick={() => void window.electronAPI.voice.request("open", undefined)}
+			<Button
+				variant="ghost"
+				title="Show the QR code pairing panel to connect an iPad for drawing."
+				onClick={() => void window.electronAPI.board.request("open", { tab: "ipad" })}
 			>
-				{t("voiceChange")}
-			</button>
+				<DeviceTabletIcon size={17} /> iPad
+			</Button>
+			<Button
+				variant="ghost"
+				title="Assign window-switching hotkeys, import sound effects, and set up capture controls."
+				aria-label="Capture settings"
+				onClick={() => void window.electronAPI.studio.request("open")}
+			>
+				<GearSixIcon size={18} />
+			</Button>
 			{platform !== "linux" && (
 				<>
 					<SourcePopover

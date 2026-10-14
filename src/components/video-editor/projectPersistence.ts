@@ -1,3 +1,4 @@
+import { normalizeWebcamVisibility } from "../../lib/webcamVisibility";
 import type { SourceAudioTrackSettings } from "@/components/video-editor/audio/audioTypes";
 import type {
 	ExportBackendPreference,
@@ -1058,6 +1059,7 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 			shadow: isFiniteNumber(webcam.shadow)
 				? clamp(webcam.shadow, 0, 1)
 				: DEFAULT_WEBCAM_SHADOW,
+			visibility: normalizeWebcamVisibility(webcam.visibility),
 			timeOffsetMs: isFiniteNumber(webcam.timeOffsetMs)
 				? Math.round(webcam.timeOffsetMs)
 				: DEFAULT_WEBCAM_TIME_OFFSET_MS,

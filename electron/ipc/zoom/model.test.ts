@@ -8,11 +8,11 @@ import {
 	zoomTarget,
 } from "./model";
 
-test("holds become editable manual intervals; repeat keydown cannot move the locked target", () => {
+test("holds follow the cursor and become editable auto intervals; repeat keydown does not restart them", () => {
 	const capture = new HeldZoomCapture();
 	capture.press(150, { cx: 0.4, cy: 0.6 }, 3);
 	capture.press(800, { cx: 0.8, cy: 0.2 }, 6);
-	expect(capture.target({ cx: 0.7, cy: 0.3 })).toMatchObject({ cx: 0.4, cy: 0.6 });
+	expect(capture.target({ cx: 0.7, cy: 0.3 })).toMatchObject({ cx: 0.7, cy: 0.3 });
 	capture.releaseKey(1400);
 	expect(capture.regions).toEqual([
 		{
@@ -21,7 +21,7 @@ test("holds become editable manual intervals; repeat keydown cannot move the loc
 			endMs: 1400,
 			depth: 3,
 			focus: { cx: 0.4, cy: 0.6 },
-			mode: "manual",
+			mode: "auto",
 		},
 	]);
 	expect(normalizeRecordedZooms(JSON.parse(JSON.stringify(capture.regions)))).toEqual(
@@ -43,16 +43,16 @@ test("pause/stop close an interval without latching; resumed holds use media tim
 		[700, 1100],
 	]);
 });
-test("a tap latches cursor-follow, moves its target and preserves auto mode through sidecar loading", () => {
+test("a tap locks the initial target and preserves manual mode through sidecar loading", () => {
 	const capture = new HeldZoomCapture();
 	capture.press(100, { cx: 0.4, cy: 0.6 }, 3);
 	capture.releaseKey(180);
-	expect(capture.active?.mode).toBe("auto");
+	expect(capture.active?.mode).toBe("manual");
 	expect(capture.regions).toEqual([]);
-	expect(capture.target({ cx: 0.6, cy: 0.4 })).toMatchObject({ cx: 0.6, cy: 0.4 });
+	expect(capture.target({ cx: 0.6, cy: 0.4 })).toMatchObject({ cx: 0.4, cy: 0.6 });
 	capture.release(2000);
 	expect(capture.active).toBeNull();
-	expect(capture.regions[0]).toMatchObject({ startMs: 100, endMs: 2000, mode: "auto" });
+	expect(capture.regions[0]).toMatchObject({ startMs: 100, endMs: 2000, mode: "manual" });
 	expect(normalizeRecordedZooms(JSON.parse(JSON.stringify(capture.regions)))).toEqual(
 		capture.regions,
 	);
@@ -62,10 +62,10 @@ test("the tap/hold boundary is deterministic", () => {
 	capture.press(100, { cx: 0.5, cy: 0.5 }, 3);
 	capture.releaseKey(350);
 	expect(capture.active).toBeNull();
-	expect(capture.regions[0]?.mode).toBe("manual");
+	expect(capture.regions[0]?.mode).toBe("auto");
 	capture.press(400, { cx: 0.5, cy: 0.5 }, 3);
 	capture.releaseKey(649);
-	expect(capture.active?.mode).toBe("auto");
+	expect(capture.active?.mode).toBe("manual");
 });
 test("outline bounds and normalized focus remain inside capture even at screen edges", () => {
 	const target = zoomTarget({ cx: 0, cy: 1 }, 6);

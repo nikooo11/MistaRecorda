@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { rememberRecordingAudioDevices } from "./recordingAudioDevices";
 
 export interface MicrophoneDevice {
 	deviceId: string;
@@ -37,8 +38,9 @@ export function useMicrophoneDevices(enabled: boolean = true, preferredDeviceId?
 						groupId: device.groupId,
 					}));
 
-				const needsLabelPermission =
-					audioInputs.length > 0 && audioInputs.every((device) => !device.label.trim());
+				const needsLabelPermission = allDevices
+					.filter((device) => device.kind === "audioinput")
+					.every((device) => !device.label.trim());
 
 				if (needsLabelPermission && !hasRequestedMicrophoneLabels) {
 					hasRequestedMicrophoneLabels = true;
@@ -53,6 +55,7 @@ export function useMicrophoneDevices(enabled: boolean = true, preferredDeviceId?
 						}));
 				}
 
+				rememberRecordingAudioDevices(allDevices);
 				if (mounted) {
 					setDevices(audioInputs);
 					setSelectedDeviceId((currentDeviceId) => {

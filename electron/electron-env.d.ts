@@ -204,6 +204,7 @@ interface RendererNativeExportCapabilities {
 interface Window {
 	electronAPI: {
 		voice: import("../src/types/voice").VoiceAPI;
+		studio: import("../src/types/studio").StudioAPI;
 		board: import("../src/types/board").BoardAPI;
 		recordingZoom: import("../src/types/recordingZoom").RecordingZoomAPI;
 		hudOverlaySetIgnoreMouse: (ignore: boolean) => void;
@@ -720,6 +721,7 @@ interface Window {
 				videoPath: string;
 				webcamPath?: string | null;
 				timeOffsetMs?: number;
+			webcamVisibility?: import("../src/lib/webcamVisibility").WebcamVisibilityEvent[];
 				hideOverlayCursorByDefault?: boolean;
 			},
 			options?: { preserveProjectPath?: boolean },
@@ -730,6 +732,7 @@ interface Window {
 				videoPath: string;
 				webcamPath?: string | null;
 				timeOffsetMs?: number;
+			webcamVisibility?: import("../src/lib/webcamVisibility").WebcamVisibilityEvent[];
 				hideOverlayCursorByDefault?: boolean;
 			};
 		}>;

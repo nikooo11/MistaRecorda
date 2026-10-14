@@ -19,7 +19,7 @@ export function validateSettings(value: unknown): VoiceSettings {
 		if (typeof x[key] !== "string" || x[key].length > 4096) throw new Error("invalidSettings");
 		result[key] = x[key];
 	}
-	if (!["eleven_multilingual_sts_v2", "eleven_english_sts_v2"].includes(String(x.modelId)))
+	if (typeof x.modelId !== "string" || !/^eleven_[a-z0-9_]{1,80}$/.test(x.modelId))
 		throw new Error("invalidSettings");
 	result.modelId = x.modelId as VoiceSettings["modelId"];
 	if (!["pcm_44100", "mp3_44100_192"].includes(String(x.outputFormat)))
@@ -83,18 +83,24 @@ export class VoiceSettingsStore {
 	async key() {
 		const injected = this.environmentKey();
 		if (injected) return injected;
-		if (
-			!this.storage.isEncryptionAvailable() ||
-			this.storage.getSelectedStorageBackend?.() === "basic_text"
-		)
-			return undefined;
 		try {
-			return this.storage.decryptString(
-				await fs.readFile(path.join(this.dir, "voice-key.enc")),
-			);
+			// Read first: querying secure storage itself can open a Keychain prompt.
+			const encrypted = await fs.readFile(path.join(this.dir, "voice-key.enc"));
+			if (
+				!this.storage.isEncryptionAvailable() ||
+				this.storage.getSelectedStorageBackend?.() === "basic_text"
+			)
+				return undefined;
+			return this.storage.decryptString(encrypted);
 		} catch {
 			return undefined;
 		}
+	}
+	async hasKey() {
+		if (this.environmentKey()) return true;
+		// Presence is enough for "key saved". Validate/decrypt only for a voice action.
+		const file = await fs.stat(path.join(this.dir, "voice-key.enc")).catch(() => null);
+		return Boolean(file?.isFile() && file.size > 0);
 	}
 	async setKey(key: unknown) {
 		if (typeof key !== "string" || key.length > 4096) throw new Error("invalidKey");
@@ -111,6 +117,6 @@ export class VoiceSettingsStore {
 		return { hasKey: true };
 	}
 	async publicSettings() {
-		return { ...(await this.read()), hasKey: Boolean(await this.key()) };
+		return { ...(await this.read()), hasKey: await this.hasKey() };
 	}
 }

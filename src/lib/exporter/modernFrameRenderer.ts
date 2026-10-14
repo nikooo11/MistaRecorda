@@ -1,3 +1,4 @@
+import { isWebcamVisible } from "../webcamVisibility";
 import { Application, BlurFilter, Container, Graphics, Rectangle, Sprite, Texture } from "pixi.js";
 import { MotionBlurFilter } from "pixi-filters/motion-blur";
 import { ZoomBlurFilter } from "pixi-filters/zoom-blur";
@@ -2840,7 +2841,7 @@ export class FrameRenderer {
 
 	private updateWebcamOverlay(referenceTimeSeconds = this.currentVideoTime): void {
 		const webcam = this.config.webcam;
-		if (!webcam?.enabled || !this.webcamRootContainer || !this.webcamMaskGraphics) {
+		if (!webcam?.enabled || !isWebcamVisible(webcam.visibility, referenceTimeSeconds * 1000) || !this.webcamRootContainer || !this.webcamMaskGraphics) {
 			if (this.webcamRootContainer) {
 				this.webcamRootContainer.visible = false;
 			}

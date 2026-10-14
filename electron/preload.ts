@@ -170,15 +170,34 @@ function settleNativeVideoExportPendingRequests(
 contextBridge.exposeInMainWorld("electronAPI", {
 	board: {
 		request: (method, input) => ipcRenderer.invoke("board:request", method, input),
-		on: <T>(event: string, callback: (data:T)=>void) => { const channel = `board:${event}`; const handler = (_event: unknown, data: unknown) => callback(data as T); ipcRenderer.on(channel, handler); return () => ipcRenderer.removeListener(channel, handler); },
+		on: <T>(event: string, callback: (data: T) => void) => {
+			const channel = `board:${event}`;
+			const handler = (_event: unknown, data: unknown) => callback(data as T);
+			ipcRenderer.on(channel, handler);
+			return () => ipcRenderer.removeListener(channel, handler);
+		},
 	} satisfies BoardAPI,
+	studio: {
+		request: (method: string, input?: unknown) =>
+			ipcRenderer.invoke("studio:request", method, input),
+		getSounds: (path: string) => ipcRenderer.invoke("studio:request", "soundsForVideo", path),
+		onChanged: (callback: (info: import("../src/types/studio").StudioInfo) => void) => {
+			const listener = (_event: unknown, info: import("../src/types/studio").StudioInfo) =>
+				callback(info);
+			ipcRenderer.on("studio:changed", listener);
+			return () => ipcRenderer.removeListener("studio:changed", listener);
+		},
+	},
 	recordingZoom: {
 		getStatus: () => ipcRenderer.invoke("recording-zoom:status"),
 		saveSettings: (settings) => ipcRenderer.invoke("recording-zoom:save", settings),
 		openSettings: () => ipcRenderer.invoke("recording-zoom:open"),
 		getRegions: (videoPath) => ipcRenderer.invoke("recording-zoom:regions", videoPath),
 		onStatus: (callback) => {
-			const listener = (_event: Electron.IpcRendererEvent, status: Parameters<typeof callback>[0]) => callback(status);
+			const listener = (
+				_event: Electron.IpcRendererEvent,
+				status: Parameters<typeof callback>[0],
+			) => callback(status);
 			ipcRenderer.on("recording-zoom:status", listener);
 			return () => ipcRenderer.removeListener("recording-zoom:status", listener);
 		},
@@ -785,6 +804,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 			videoPath: string;
 			webcamPath?: string | null;
 			timeOffsetMs?: number;
+			webcamVisibility?: import("../src/lib/webcamVisibility").WebcamVisibilityEvent[];
 			hideOverlayCursorByDefault?: boolean;
 		},
 		options?: { preserveProjectPath?: boolean },

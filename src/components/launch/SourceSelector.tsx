@@ -24,6 +24,7 @@ interface SourceSelectorProps {
 	selectedSource?: string;
 	/** Loading state */
 	loading?: boolean;
+	error?: string;
 	/** Callback when a source is selected */
 	onSourceSelect?: (source: DesktopSource) => void;
 	/** Callback to fetch sources */
@@ -81,7 +82,10 @@ export const SourceSelectorContent = ({
 	selectedSource = "Screen",
 	loading = false,
 	onSourceSelect = () => undefined,
-}: Pick<SourceSelectorProps, "screenSources" | "windowSources" | "selectedSource" | "loading" | "onSourceSelect">) => {
+}: Pick<
+	SourceSelectorProps,
+	"screenSources" | "windowSources" | "selectedSource" | "loading" | "onSourceSelect"
+>) => {
 	const t = useScopedT("launch");
 	const renderSourceItem = (source: DesktopSource, index: number) => {
 		const isSelected = selectedSource === source.name;
@@ -116,12 +120,14 @@ export const SourceSelectorContent = ({
 					)}
 				</div>
 
-					<div className="flex-1 min-w-0 flex flex-col items-start text-left">
+				<div className="flex-1 min-w-0 flex flex-col items-start text-left">
 					<div className="text-sm font-medium source-selector-text w-full">
 						<MarqueeText text={source.windowTitle || source.name} />
 					</div>
 					<div className="text-xs source-selector-subtle truncate w-full text-left">
-						{source.sourceType === "screen" ? t("recording.screen") : t("recording.window")}
+						{source.sourceType === "screen"
+							? t("recording.screen")
+							: t("recording.window")}
 					</div>
 				</div>
 			</button>
@@ -156,7 +162,9 @@ export const SourceSelectorContent = ({
 								</span>
 							</div>
 							<div className="space-y-0.5">
-								{screenSources.map((source, index) => renderSourceItem(source, index))}
+								{screenSources.map((source, index) =>
+									renderSourceItem(source, index),
+								)}
 							</div>
 						</div>
 					) : null}
@@ -166,7 +174,9 @@ export const SourceSelectorContent = ({
 								{t("recording.windows")}
 							</div>
 							<div className="space-y-0.5">
-								{windowSources.map((source, index) => renderSourceItem(source, index))}
+								{windowSources.map((source, index) =>
+									renderSourceItem(source, index),
+								)}
 							</div>
 						</div>
 					) : null}
@@ -189,6 +199,7 @@ export const SourceSelector = React.memo(function SourceSelector({
 	windowSources: propsWindowSources,
 	selectedSource: propsSelectedSource,
 	loading: propsLoading,
+	error: propsError,
 	onSourceSelect: propsOnSourceSelect,
 	onFetchSources: propsOnFetchSources,
 	open: propsOpen,
@@ -199,6 +210,7 @@ export const SourceSelector = React.memo(function SourceSelector({
 	const [internalOpen, setInternalOpen] = useState(false);
 	const [internalSources, setInternalSources] = useState<DesktopSource[]>([]);
 	const [internalLoading, setInternalLoading] = useState(false);
+	const [sourceError, setSourceError] = useState("");
 	const [internalSelectedSource, setInternalSelectedSource] = useState("Screen");
 
 	// Determine if we should use internal or external state/logic
@@ -207,11 +219,13 @@ export const SourceSelector = React.memo(function SourceSelector({
 	const onOpenChange = propsOnOpenChange ?? setInternalOpen;
 	const loading = propsLoading ?? internalLoading;
 	const selectedSource = propsSelectedSource ?? internalSelectedSource;
+	const visibleError = propsError ?? sourceError;
 
 	// Default fetching logic
 	const defaultFetchSources = useCallback(async () => {
 		if (!window.electronAPI) return;
 		setInternalLoading(true);
+		setSourceError("");
 		try {
 			const rawSources = await window.electronAPI.getSources({
 				types: ["screen", "window"],
@@ -221,6 +235,10 @@ export const SourceSelector = React.memo(function SourceSelector({
 			setInternalSources(rawSources.map((s) => mapRawSource(s as DesktopSource)));
 		} catch (error) {
 			console.error("Failed to fetch sources:", error);
+			setInternalSources([]);
+			setSourceError(
+				error instanceof Error ? error.message : "Could not load capture sources.",
+			);
 		} finally {
 			setInternalLoading(false);
 		}
@@ -359,6 +377,24 @@ export const SourceSelector = React.memo(function SourceSelector({
 				usePortal={false}
 				onMouseEnter={onMouseEnter}
 			>
+				{visibleError && (
+					<div role="alert" className="p-3 text-xs leading-relaxed">
+						<p>
+							{visibleError.replace(
+								/^Error invoking remote method '[^']+': Error: /,
+								"",
+							)}
+						</p>
+						<Button
+							size="sm"
+							variant="outline"
+							className="mt-2"
+							onClick={() => void window.electronAPI.openScreenRecordingPreferences()}
+						>
+							Open Screen Recording settings
+						</Button>
+					</div>
+				)}
 				<SourceSelectorContent
 					screenSources={screenSources}
 					windowSources={windowSources}

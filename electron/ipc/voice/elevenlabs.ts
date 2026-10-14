@@ -1,5 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
-import type { VoiceInfo, VoiceSettings } from "../../../src/types/voice";
+import type { VoiceInfo, VoiceSettings, VoiceModel } from "../../../src/types/voice";
 export class VoiceApiError extends Error {
 	constructor(
 		public status: number,
@@ -64,12 +64,36 @@ export class ElevenLabs {
 				await this.sleep(1000 * 2 ** attempt, init.signal ?? undefined);
 				continue;
 			}
-			// Inspect only the structured error type; never surface response bodies or headers.
+			// Inspect provider errors locally; never surface response bodies or headers.
 			let code = errorCode(status);
-			if (status === 400 || status === 422) {
-				const body = await response.json().catch(() => null);
-				if (String(body?.detail?.status ?? "").includes("output_format"))
-					code = "unsupportedOutputFormat";
+			const body = await response.json().catch(() => null);
+			const providerCode = String(body?.detail?.code ?? body?.detail?.status ?? "");
+			const requestedFormat = new URL(endpoint, "https://api.elevenlabs.io").searchParams.get(
+				"output_format",
+			);
+			const providerMessage =
+				typeof body?.detail?.message === "string" ? body.detail.message.slice(0, 4096) : "";
+			// Some API versions label a format-tier restriction subscription_required
+			// without a param. Require the exact requested format in the explanation
+			// before retrying; unrelated plan/voice denials must remain terminal.
+			const formatTierDenied =
+				providerCode === "subscription_required" &&
+				requestedFormat !== null &&
+				/output[ _]format/i.test(providerMessage) &&
+				providerMessage.includes(requestedFormat);
+			if (
+				[400, 403, 422].includes(status) &&
+				(providerCode.includes("output_format") ||
+					body?.detail?.param === "output_format" ||
+					formatTierDenied)
+			) {
+				code = "unsupportedOutputFormat";
+			} else if (["missing_permissions", "insufficient_permissions"].includes(providerCode)) {
+				code = "missingApiPermission";
+			} else if (["subscription_required", "feature_not_available"].includes(providerCode)) {
+				code = "planRequired";
+			} else if (providerCode === "model_access_denied") {
+				code = "modelAccessDenied";
 			}
 			throw new VoiceApiError(status, code);
 		}
@@ -77,6 +101,21 @@ export class ElevenLabs {
 	async testKey() {
 		await this.request("/user");
 		return true;
+	}
+	async models(): Promise<VoiceModel[]> {
+		const data = await (await this.request("/models")).json();
+		if (!Array.isArray(data)) throw new Error("serviceUnavailable");
+		return data
+			.filter(
+				(m) =>
+					typeof m.model_id === "string" && /^eleven_[a-z0-9_]{1,80}$/.test(m.model_id),
+			)
+			.map((m) => ({
+				modelId: m.model_id,
+				name: typeof m.name === "string" ? m.name : m.model_id,
+				canConvert: m.can_do_voice_conversion === true,
+				canSpeak: m.can_do_text_to_speech === true,
+			}));
 	}
 	async voices(): Promise<VoiceInfo[]> {
 		const data = await (await this.request("/voices")).json();
@@ -171,8 +210,8 @@ export class ElevenLabs {
 		audio: Uint8Array,
 		settings: VoiceSettings,
 		signal: AbortSignal,
-	): Promise<{ bytes: Uint8Array; format: VoiceSettings["outputFormat"] }> {
-		const send = async (format: VoiceSettings["outputFormat"]) =>
+	): Promise<{ bytes: Uint8Array; format: VoiceSettings["outputFormat"] | "mp3_44100_128" }> {
+		const send = async (format: VoiceSettings["outputFormat"] | "mp3_44100_128") =>
 			new Uint8Array(
 				await (
 					await this.request(
@@ -181,17 +220,25 @@ export class ElevenLabs {
 					)
 				).arrayBuffer(),
 			);
-		try {
-			return { bytes: await send(settings.outputFormat), format: settings.outputFormat };
-		} catch (e) {
-			if (
-				settings.outputFormat === "pcm_44100" &&
-				e instanceof VoiceApiError &&
-				e.code === "unsupportedOutputFormat"
-			)
-				return { bytes: await send("mp3_44100_192"), format: "mp3_44100_192" };
-			throw e;
+		// PCM 44.1 kHz and MP3 192 kbps require higher subscription tiers.
+		// Retry only an explicit format denial, never an unrelated authorization failure.
+		const formats =
+			settings.outputFormat === "pcm_44100"
+				? (["pcm_44100", "mp3_44100_192", "mp3_44100_128"] as const)
+				: (["mp3_44100_192", "mp3_44100_128"] as const);
+		for (const [index, format] of formats.entries()) {
+			try {
+				return { bytes: await send(format), format };
+			} catch (e) {
+				if (
+					!(e instanceof VoiceApiError) ||
+					e.code !== "unsupportedOutputFormat" ||
+					index === formats.length - 1
+				)
+					throw e;
+			}
 		}
+		throw new Error("unsupportedOutputFormat");
 	}
 }
 export function mapVoice(v: Record<string, unknown>): VoiceInfo {
@@ -201,6 +248,12 @@ export function mapVoice(v: Record<string, unknown>): VoiceInfo {
 	const defaults = v.settings as Record<string, unknown> | undefined;
 	return {
 		voiceId: String(v.voice_id),
+		highQualityModelIds: Array.isArray(v.high_quality_base_model_ids)
+			? v.high_quality_base_model_ids.filter(
+					(id): id is string =>
+						typeof id === "string" && /^eleven_[a-z0-9_]{1,80}$/.test(id),
+				)
+			: [],
 		name: String(v.name),
 		category: String(v.category),
 		previewUrl:

@@ -886,6 +886,15 @@ export function createEditorWindow(): BrowserWindow {
 		},
 	});
 
+	if (process.env.RECORDLY_SMOKE_EXPORT === "1") {
+		win.webContents.on("console-message", (details) =>
+			console.log(`[smoke-renderer] ${details.message}`),
+		);
+		win.webContents.on("preload-error", (_event, _file, error) =>
+			console.error("[smoke-preload]", error),
+		);
+	}
+
 	win.once("ready-to-show", () => {
 		console.log(`[PERF:MAIN] Editor Window: ready-to-show in ${Date.now() - perfStart}ms`);
 		win.show();
