@@ -197,6 +197,7 @@ export class CompanionServer {
 						if (
 							![
 								"tabletInfo",
+								"annotate",
 								"scene",
 								"mode",
 								"viewport",

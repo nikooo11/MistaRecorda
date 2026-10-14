@@ -1,5 +1,14 @@
 # Drawing board validation
 
+## macOS / iPad interaction update — 2026-10-14
+
+- TypeScript, scoped lint, production bundle smoke, and all **1,155 tests across 133 files** passed. New coverage checks hidden-board mode, tablet viewport alignment, and private text filtering.
+- Browser playtests used the real BoardCanvas with a mock Mac transport: typing a draft produced no scene writes; Done published one text element; Cancel preserved the existing scene; Clear removed it. Pan/zoom moved the preview and ink together while the shared viewport stayed unchanged. Fit restored the full view. Hiding the Mac overlay removed the tablet whiteboard.
+- The local macOS app was packaged with the persistent signing identity, passed strict/deep signature verification, and was installed in `/Applications/MistaRecorda.app`. Its iPad pairing panel was opened successfully.
+- This browser harness does not establish physical Apple Pencil/pinch behavior, real Wi-Fi latency, or the fresh-display fallback on iPad Safari. Those remain device acceptance checks. Earlier recording results are documented separately in the capture validation notes.
+
+The sections below preserve the earlier Linux validation results; shared tablet navigation described there predates the local-only iPad navigation update.
+
 Validation performed in a Linux cloud desktop with Electron and a separate Chromium browser connected over loopback. The cloud network policy blocked access to the LAN address, so that address was not playtested. Native installer builds additionally compile the macOS Swift and Windows helpers; that does not replace a recording test on those operating systems.
 
 ## Passed
@@ -33,7 +42,7 @@ A production-only WebSocket optional-dependency failure and an initial tablet zo
 On a Mac or Windows PC and an iPad on the same private Wi-Fi:
 
 1. Select the same full display in the recorder and board panel. Enable drawing, pair and approve the iPad, then tap Start screen. Confirm the live preview. Draw with finger and Pencil, add arrows/text and import a transparent PNG.
-2. Deploy the board from the left edge with Space. Pinch and pan from the tablet and trackpad; confirm the computer follows. Hide and reopen the board; confirm both scenes persist.
+2. Deploy the board using its left-edge handle or configured shortcut. Turn Draw off on the iPad and pinch/pan; confirm only its preview moves. Tap Fit screen. Hide the board on the Mac and confirm the iPad returns to the live screen. Reopen it and confirm both scenes persist. Add a text draft and verify it remains absent on the Mac until Done; Cancel should publish nothing.
 3. Record a short take. Use compact controls, pause/resume, webcam show/hide, transparent annotations and the opaque board. Open/close the editor while recording. Inspect the exported video: drawings and chosen webcam state should appear; toolbars, hint, presenter panel and zoom target outline should not.
 4. Disconnect the iPad and confirm its live preview stops. Revoke pairing and verify reconnect requires approval again. Restart the app and load the saved scene.
 5. Enable MCP, configure a local Codex client with the displayed session token, ask it to read the drawing guide and prepare a scene, inspect its screenshot, and save it. Disable MCP afterward and verify the old connection stops working.

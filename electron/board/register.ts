@@ -286,6 +286,17 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			applyVisibility();
 			publish(actor);
 			return info();
+		case "annotate":
+			if (status.recording && !store.state.enabled)
+				throw Error("Enable drawing on the Mac before starting this recording.");
+			await prepare();
+			if (!store.state.enabled) store.state.mode = "screen";
+			store.state.enabled = true;
+			if (store.state.output === "screen") store.state.output = "screen-board";
+			store.state.revision++;
+			applyVisibility();
+			publish(actor);
+			return store.state;
 		case "edit":
 			if (status.recording && !store.state.enabled)
 				throw Error("Enable drawing before starting a recording");
@@ -334,7 +345,8 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			store.state.mode = modeOf(input);
 			if (store.state.mode === "board") {
 				panel?.hide();
-				editor?.show();
+				if (actor.startsWith("desktop") || actor === "codex") editor?.show();
+				else editor?.hide();
 			} else if (previousMode === "board")
 				setTimeout(() => {
 					if (store.state.mode === "screen") editor?.hide();
@@ -552,6 +564,19 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			const source = sources.find((s) => s.display_id === String(b.id));
 			if (!source) throw Error("Display unavailable. Check screen recording permission.");
 			return source.id;
+		}
+		case "capturePreview": {
+			if (!companion.list().some((device) => device.approved && device.connected))
+				throw Error("No connected drawing companion");
+			requireScreenRecordingAccess();
+			const b = bounds();
+			const sources = await desktopCapturer.getSources({
+				types: ["screen"],
+				thumbnailSize: { width: 1280, height: Math.round((1280 * b.height) / b.width) },
+			});
+			const source = sources.find((source) => source.display_id === String(displayId));
+			if (!source || source.thumbnail.isEmpty()) throw Error("Screen preview unavailable");
+			return `data:image/jpeg;base64,${source.thumbnail.toJPEG(75).toString("base64")}`;
 		}
 		case "signal":
 			stream?.webContents.send("board:signal", { ...data, deviceId: actor });

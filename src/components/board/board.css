@@ -136,6 +136,72 @@ html[data-window-type^="board-"] #root {
 .companion-header button {
 	padding: 5px 9px;
 }
+.companion-header .companion-draw-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 40px;
+	border: 1px solid #a7b2be;
+	border-radius: 6px;
+	background: #f6f7f9;
+	color: #263342;
+}
+.companion-header .companion-draw-toggle[aria-pressed="true"] {
+	background: #dcd9ff;
+	border-color: #756bcc;
+	color: #29216b;
+}
+.companion-mode {
+	color: #52616e;
+	font-size: 12px;
+}
+.board-tablet .ToolIcon__penMode {
+	display: none !important;
+}
+.tablet-text-draft {
+	position: absolute;
+	z-index: 40;
+	width: min(320px, calc(100% - 24px));
+	padding: 12px;
+	border: 1px solid #9eaabb;
+	border-radius: 10px;
+	background: #fafbfe;
+	box-shadow: 0 6px 24px #0003;
+}
+.tablet-text-draft label {
+	display: block;
+	color: #435063;
+	font-size: 12px;
+	margin-bottom: 8px;
+}
+.tablet-text-draft textarea {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 92px;
+	resize: vertical;
+	font: 18px system-ui;
+	padding: 8px;
+	border: 1px solid #b6c1ce;
+	border-radius: 5px;
+	background: white;
+	color: #18212e;
+}
+.tablet-text-draft > div {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 8px;
+}
+.tablet-text-draft button {
+	min-height: 40px;
+}
+.tablet-text-draft button:last-child {
+	background: #315f9d;
+	color: white;
+}
+.tablet-text-draft button:disabled {
+	opacity: 0.5;
+}
 .board-stage .excalidraw .App-menu_top {
 	top: 10px;
 }

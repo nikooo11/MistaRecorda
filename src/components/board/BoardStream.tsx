@@ -12,8 +12,6 @@ export function BoardStream({ transport }: { transport: BoardAPI }) {
 		const video = document.createElement("video");
 		video.muted = true;
 		video.playsInline = true;
-		const canvas = document.createElement("canvas");
-		const context = canvas.getContext("2d");
 		const send = (deviceId: string, signal: unknown) =>
 			transport.request("signalToDevice", { deviceId, signal });
 		async function capture() {
@@ -59,13 +57,12 @@ export function BoardStream({ transport }: { transport: BoardAPI }) {
 		}
 		let sending = false;
 		const frames = setInterval(async () => {
-			if (sending || !fallback.size || !video.videoWidth || !context) return;
+			if (sending || !fallback.size) return;
 			sending = true;
 			try {
-				canvas.width = Math.min(1280, video.videoWidth);
-				canvas.height = Math.round((canvas.width * video.videoHeight) / video.videoWidth);
-				context.drawImage(video, 0, 0, canvas.width, canvas.height);
-				const dataURL = canvas.toDataURL("image/jpeg", 0.7);
+				// Acquire a fresh display image independently of WebRTC. Re-encoding
+				// its last video frame would leave an already-stalled preview frozen.
+				const dataURL = await transport.request<string>("capturePreview");
 				await Promise.all([...fallback].map((id) => send(id, { type: "frame", dataURL })));
 			} catch (e) {
 				console.warn("Companion frame could not be delivered", e);
@@ -81,10 +78,14 @@ export function BoardStream({ transport }: { transport: BoardAPI }) {
 		}>("signal", async ({ deviceId, type, sdp, candidate }) => {
 			try {
 				if (type === "fallback") {
-					await capture();
 					peers.get(deviceId)?.close();
 					peers.delete(deviceId);
 					fallback.add(deviceId);
+					if (!peers.size) {
+						stream?.getTracks().forEach((track) => track.stop());
+						stream = undefined;
+						video.srcObject = null;
+					}
 				} else if (type === "request") {
 					fallback.delete(deviceId);
 					peers.get(deviceId)?.close();

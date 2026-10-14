@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import {
 	Excalidraw,
 	restoreElements,
 	convertToExcalidrawElements,
 	CaptureUpdateAction,
+	FONT_FAMILY,
 } from "@excalidraw/excalidraw";
 import type {
 	ExcalidrawImperativeAPI,
@@ -15,6 +17,13 @@ import type {
 import type { BoardAPI, BoardState, BoardElement, BoardScene } from "../../types/board";
 import "@excalidraw/excalidraw/index.css";
 import "./board.css";
+import {
+	fittedTabletView,
+	readTabletView,
+	tabletSceneMode,
+	tabletViewport,
+	withoutTextDraft,
+} from "./tabletInteraction";
 (window as Window & { EXCALIDRAW_ASSET_PATH?: string }).EXCALIDRAW_ASSET_PATH = "/excalidraw/";
 export function BoardCanvas({
 	transport,
@@ -23,6 +32,7 @@ export function BoardCanvas({
 	tablet = false,
 	background,
 	streamed = false,
+	drawing = true,
 }: {
 	transport: BoardAPI;
 	initial: BoardState;
@@ -30,6 +40,7 @@ export function BoardCanvas({
 	tablet?: boolean;
 	background?: React.ReactNode;
 	streamed?: boolean;
+	drawing?: boolean;
 }) {
 	const stage = useRef<HTMLDivElement>(null);
 	const [fit, setFit] = useState({ scale: 1, left: 0, top: 0 });
@@ -38,6 +49,23 @@ export function BoardCanvas({
 	const [error, setError] = useState("");
 	const [assets, setAssets] = useState(false);
 	const [boardClosing, setBoardClosing] = useState(false);
+	const [tabletView, setTabletView] = useState(fittedTabletView);
+	const localView = useRef(fittedTabletView());
+	const textInput = useRef<HTMLTextAreaElement>(null);
+	const [draft, setDraft] = useState<{
+		mode: "screen" | "board";
+		x: number;
+		y: number;
+		text: string;
+		fontSize: number;
+		fontFamily: number;
+		strokeColor: string;
+		id?: string;
+	} | null>(null);
+	const draftRef = useRef(draft);
+	const committing = useRef(false);
+	const [publishingText, setPublishingText] = useState(false);
+	draftRef.current = draft;
 	const closing = useRef(false);
 	const closeTimer = useRef<ReturnType<typeof setTimeout>>();
 	const current = useRef(initial);
@@ -48,7 +76,7 @@ export function BoardCanvas({
 	const inFlight = useRef<Promise<void>>();
 	const timer = useRef<ReturnType<typeof setTimeout>>();
 	const last = useRef("");
-	const modeRef = useRef(initial.mode);
+	const modeRef = useRef(tablet ? tabletSceneMode(initial) : initial.mode);
 	useEffect(() => {
 		if (!tablet || !stage.current) return;
 		const observer = new ResizeObserver(() => {
@@ -63,7 +91,12 @@ export function BoardCanvas({
 		observer.observe(stage.current);
 		return () => observer.disconnect();
 	}, [tablet, state.width, state.height]);
-	const cleanMode = clean && state.output === "board" ? "board" : state.mode;
+	const cleanMode = tablet
+		? tabletSceneMode(state)
+		: clean && state.output === "board"
+			? "board"
+			: state.mode;
+	const showMaterial = (cleanMode === "board" || boardClosing) && !(tablet && streamed);
 
 	useEffect(() => () => clearTimeout(closeTimer.current), []);
 	async function flush(): Promise<void> {
@@ -102,8 +135,7 @@ export function BoardCanvas({
 
 	const apply = useCallback(
 		(next: BoardState, origin?: string, finishClose = false): void => {
-			if (!clean && (saving.current || pending.current) && next.mode === modeRef.current)
-				return;
+			if (next.revision < current.current.revision) return;
 			current.current = next;
 			setState(next);
 			if (!api) return;
@@ -111,12 +143,22 @@ export function BoardCanvas({
 				requestAnimationFrame(() => {
 					document.documentElement.dataset.boardRevision = String(next.revision);
 				});
-			const mode = clean && next.output === "board" ? "board" : next.mode;
+			const mode = tablet
+				? tabletSceneMode(next)
+				: clean && next.output === "board"
+					? "board"
+					: next.mode;
+			if (tablet && mode !== modeRef.current) {
+				pending.current = null;
+				localView.current = fittedTabletView();
+				setTabletView(localView.current);
+				setDraft(null);
+			}
 			if (mode === "board") {
 				clearTimeout(closeTimer.current);
 				closing.current = false;
 				setBoardClosing(false);
-			} else if (modeRef.current === "board" && !finishClose) {
+			} else if (!tablet && modeRef.current === "board" && !finishClose) {
 				if (!closing.current) {
 					closing.current = true;
 					applying.current = true;
@@ -130,11 +172,16 @@ export function BoardCanvas({
 				return;
 			}
 			const scene = next.scenes[mode];
+			const viewport = tabletViewport(
+				scene,
+				fit.scale,
+				tablet ? localView.current : fittedTabletView(),
+			);
 			const signature = JSON.stringify(scene);
 			if (
 				signature === last.current &&
 				mode === modeRef.current &&
-				Math.abs(api.getAppState().zoom.value - scene.zoom * fit.scale) < 0.0001
+				Math.abs(api.getAppState().zoom.value - viewport.zoom) < 0.0001
 			)
 				return;
 			if (!clean && (saving.current || pending.current) && mode === modeRef.current) return;
@@ -153,9 +200,9 @@ export function BoardCanvas({
 					null,
 				),
 				appState: {
-					scrollX: scene.scrollX,
-					scrollY: scene.scrollY,
-					zoom: { value: (scene.zoom * fit.scale) as AppState["zoom"]["value"] },
+					scrollX: viewport.scrollX,
+					scrollY: viewport.scrollY,
+					zoom: { value: viewport.zoom as AppState["zoom"]["value"] },
 					viewBackgroundColor: "transparent",
 				},
 			});
@@ -164,8 +211,11 @@ export function BoardCanvas({
 				applying.current = false;
 			});
 		},
-		[api, clean, fit.scale],
+		[api, clean, fit.scale, tablet],
 	);
+	useEffect(() => {
+		if (tablet) apply(initial);
+	}, [initial, tablet, apply]);
 	useEffect(() => {
 		if (api) apply(current.current);
 		return transport.on<{ state: BoardState; origin: string }>(
@@ -186,7 +236,7 @@ export function BoardCanvas({
 	async function chooseMode() {
 		await flush();
 		const next = await transport.request<BoardState>("mode", {
-			mode: current.current.mode === "board" ? "screen" : "board",
+			mode: modeRef.current === "board" ? "screen" : "board",
 		});
 		apply(next);
 	}
@@ -232,12 +282,109 @@ export function BoardCanvas({
 			captureUpdate: CaptureUpdateAction.IMMEDIATELY,
 		});
 	}
+	function openTextDraft(x: number, y: number) {
+		if (!api) return;
+		const view = api.getAppState();
+		flushSync(() =>
+			setDraft({
+				mode: modeRef.current,
+				x,
+				y,
+				text: "",
+				fontSize: view.currentItemFontSize,
+				fontFamily: view.currentItemFontFamily,
+				strokeColor: view.currentItemStrokeColor,
+			}),
+		);
+		textInput.current?.focus();
+	}
+	async function commitText() {
+		if (!api || !draft || !draft.text.trim() || committing.current) return;
+		committing.current = true;
+		setPublishingText(true);
+		try {
+			await flush();
+			const family =
+				Object.entries(FONT_FAMILY).find(([, value]) => value === draft.fontFamily)?.[0] ??
+				"Helvetica";
+			await document.fonts.load(`${draft.fontSize}px "${family}"`);
+			if (draft.mode !== modeRef.current) {
+				setDraft(null);
+				return;
+			}
+			const elements = convertToExcalidrawElements([
+				{
+					type: "text",
+					x: draft.x,
+					y: draft.y,
+					text: draft.text,
+					fontSize: draft.fontSize,
+					fontFamily: draft.fontFamily,
+					strokeColor: draft.strokeColor,
+				},
+			]);
+			const scene = {
+				...current.current.scenes[draft.mode],
+				elements: [
+					...current.current.scenes[draft.mode].elements.filter(
+						(element) => element.id !== draft.id,
+					),
+					...elements,
+				] as BoardElement[],
+			};
+			applying.current = true;
+			api.updateScene({
+				elements: restoreElements(
+					scene.elements as unknown as Parameters<typeof restoreElements>[0],
+					null,
+				),
+				captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+			});
+			const next = await transport.request<BoardState>("scene", {
+				mode: draft.mode,
+				scene,
+				revision: current.current.revision,
+			});
+			setDraft(null);
+			last.current = "";
+			apply(next);
+		} catch (error) {
+			last.current = "";
+			apply(current.current);
+			throw error;
+		} finally {
+			committing.current = false;
+			setPublishingText(false);
+		}
+	}
+	function fitScreen() {
+		localView.current = fittedTabletView();
+		setTabletView(localView.current);
+		last.current = "";
+		apply(current.current);
+	}
 	return (
 		<div
 			ref={stage}
 			data-board-ready={clean && api ? "true" : undefined}
-			onPointerDownCapture={() => {
+			onPointerDownCapture={(event) => {
 				interacted.current = true;
+				if (
+					tablet &&
+					drawing &&
+					api &&
+					!draft &&
+					event.target instanceof HTMLCanvasElement &&
+					api.getAppState().activeTool.type === "text"
+				) {
+					event.preventDefault();
+					event.stopPropagation();
+					const view = api.getAppState();
+					openTextDraft(
+						(event.clientX - view.offsetLeft) / view.zoom.value - view.scrollX,
+						(event.clientY - view.offsetTop) / view.zoom.value - view.scrollY,
+					);
+				}
 			}}
 			onWheelCapture={() => {
 				interacted.current = true;
@@ -245,10 +392,28 @@ export function BoardCanvas({
 			onKeyDownCapture={() => {
 				interacted.current = true;
 			}}
-			className={`board-stage ${cleanMode === "board" || boardClosing ? "has-whiteboard" : ""} ${clean ? "board-clean" : ""} ${tablet ? "board-tablet" : ""}`}
+			className={`board-stage ${showMaterial ? "has-whiteboard" : ""} ${clean ? "board-clean" : ""} ${tablet ? "board-tablet" : ""}`}
 		>
-			{background && <div className="board-video">{background}</div>}
-			{!(clean && state.output === "screen") && (cleanMode === "board" || boardClosing) && (
+			{background && (
+				<div
+					className="board-video"
+					style={
+						tablet
+							? {
+									width: state.width * fit.scale,
+									height: state.height * fit.scale,
+									left: fit.left,
+									top: fit.top,
+									transformOrigin: "top left",
+									transform: `translate(${tabletView.x * fit.scale * tabletView.zoom}px, ${tabletView.y * fit.scale * tabletView.zoom}px) scale(${tabletView.zoom})`,
+								}
+							: undefined
+					}
+				>
+					{background}
+				</div>
+			)}
+			{!(clean && state.output === "screen") && showMaterial && (
 				<div
 					className={`physical-board ${boardClosing ? "is-closing" : ""}`}
 					aria-hidden="true"
@@ -266,7 +431,7 @@ export function BoardCanvas({
 				</div>
 			)}
 			<div
-				className={`board-paper ${boardClosing ? "board-putting-away" : cleanMode === "board" ? "board-deployed" : ""} ${tablet && streamed && cleanMode === "screen" ? "board-streamed-ink" : ""}`}
+				className={`board-paper ${boardClosing ? "board-putting-away" : !tablet && cleanMode === "board" ? "board-deployed" : ""} ${tablet && (streamed || !state.enabled || state.output === "screen") ? "board-streamed-ink" : ""}`}
 				style={{
 					width: state.width * fit.scale,
 					height: state.height * fit.scale,
@@ -277,7 +442,7 @@ export function BoardCanvas({
 			>
 				<Excalidraw
 					excalidrawAPI={setApi}
-					viewModeEnabled={clean}
+					viewModeEnabled={clean || (tablet && (!drawing || !!draft))}
 					zenModeEnabled={clean}
 					initialData={{
 						elements: restoreElements(
@@ -289,6 +454,18 @@ export function BoardCanvas({
 						files: initial.scenes[cleanMode].files as BinaryFiles,
 						libraryItems: initial.library as LibraryItems,
 						appState: {
+							...(tablet
+								? {
+										penMode: false,
+										penDetected: true,
+										activeTool: {
+											type: "freedraw" as const,
+											locked: true,
+											lastActiveTool: null,
+											customType: null,
+										},
+									}
+								: {}),
 							viewBackgroundColor: "transparent",
 							scrollX: initial.scenes[cleanMode].scrollX,
 							scrollY: initial.scenes[cleanMode].scrollY,
@@ -298,13 +475,68 @@ export function BoardCanvas({
 						},
 					}}
 					onChange={(elements, view, files) => {
+						if (tablet && view.penMode)
+							api?.updateScene({ appState: { penMode: false, penDetected: true } });
+						if (
+							tablet &&
+							view.editingTextElement?.type === "text" &&
+							!draftRef.current
+						) {
+							const text = view.editingTextElement;
+							const original = current.current.scenes[modeRef.current].elements.find(
+								(element) => element.id === text.id,
+							);
+							draftRef.current = {
+								mode: modeRef.current,
+								id: text.id,
+								x: text.x,
+								y: text.y,
+								text: String(original?.text ?? ""),
+								fontSize: text.fontSize,
+								fontFamily: text.fontFamily,
+								strokeColor: text.strokeColor,
+							};
+							setDraft(draftRef.current);
+							api?.updateScene({
+								elements: restoreElements(
+									withoutTextDraft(
+										elements as unknown as BoardElement[],
+										current.current.scenes[modeRef.current].elements,
+										text.id,
+									) as unknown as Parameters<typeof restoreElements>[0],
+									null,
+								),
+								appState: { editingTextElement: null },
+							});
+						}
 						if (clean || applying.current || !interacted.current || !api) return;
+						const shared = current.current.scenes[modeRef.current];
+						if (tablet) {
+							const next = readTabletView(shared, fit.scale, {
+								scrollX: view.scrollX,
+								scrollY: view.scrollY,
+								zoom: view.zoom.value,
+							});
+							if (JSON.stringify(next) !== JSON.stringify(localView.current)) {
+								localView.current = next;
+								setTabletView(next);
+							}
+							if (!drawing || draftRef.current) return;
+						}
 						const scene: BoardScene = {
-							elements: elements as unknown as BoardElement[],
+							elements: tablet
+								? withoutTextDraft(
+										elements as unknown as BoardElement[],
+										shared.elements,
+										view.editingTextElement?.id ?? draftRef.current?.id,
+									)
+								: (elements as unknown as BoardElement[]),
 							files: files as BoardScene["files"],
-							scrollX: view.scrollX,
-							scrollY: view.scrollY,
-							zoom: Math.max(0.1, Math.min(10, view.zoom.value / fit.scale)),
+							scrollX: tablet ? shared.scrollX : view.scrollX,
+							scrollY: tablet ? shared.scrollY : view.scrollY,
+							zoom: tablet
+								? shared.zoom
+								: Math.max(0.1, Math.min(10, view.zoom.value / fit.scale)),
 						};
 						const signature = JSON.stringify(scene);
 						if (signature === last.current) return;
@@ -338,8 +570,9 @@ export function BoardCanvas({
 			</div>
 			{!clean && (
 				<div className="board-actions">
+					{tablet && <button onClick={fitScreen}>Fit screen</button>}
 					<button onClick={() => void chooseMode().catch((e) => setError(String(e)))}>
-						{state.mode === "board" ? "Put board away" : "Open whiteboard"}
+						{cleanMode === "board" ? "Put board away" : "Open whiteboard"}
 					</button>
 					<button onClick={() => setAssets(!assets)}>Standby images</button>
 					<label className="board-import">
@@ -355,12 +588,15 @@ export function BoardCanvas({
 						/>
 					</label>
 					<button
-						onClick={() => {
-							if (confirm("Clear this drawing scene? Saved scenes are kept."))
+						onClick={async () => {
+							if (confirm("Clear this drawing scene? Saved scenes are kept.")) {
+								await flush();
+								setDraft(null);
 								void transport
 									.request<BoardState>("clear", { confirmed: true })
 									.then((next) => apply(next))
 									.catch((e) => setError(String(e)));
+							}
 						}}
 					>
 						Clear scene
@@ -372,6 +608,61 @@ export function BoardCanvas({
 							Done drawing
 						</button>
 					)}
+				</div>
+			)}
+			{tablet && draft && (
+				<div
+					className="tablet-text-draft"
+					role="dialog"
+					aria-label="Text draft"
+					style={{
+						left: Math.max(
+							12,
+							Math.min(
+								(draft.x + (api?.getAppState().scrollX ?? 0)) *
+									(api?.getAppState().zoom.value ?? 1) +
+									fit.left,
+								(stage.current?.clientWidth ?? 600) - 340,
+							),
+						),
+						top: Math.max(
+							12,
+							Math.min(
+								(draft.y + (api?.getAppState().scrollY ?? 0)) *
+									(api?.getAppState().zoom.value ?? 1) +
+									fit.top,
+								(stage.current?.clientHeight ?? 500) - 220,
+							),
+						),
+					}}
+				>
+					<label htmlFor="tablet-text">Text · visible after Done</label>
+					<textarea
+						id="tablet-text"
+						ref={textInput}
+						value={draft.text}
+						placeholder="Type your annotation…"
+						onChange={(event) => setDraft({ ...draft, text: event.target.value })}
+					/>
+					<div>
+						<button
+							onClick={() => {
+								setDraft(null);
+								last.current = "";
+								apply(current.current);
+							}}
+						>
+							Cancel
+						</button>
+						<button
+							disabled={!draft.text.trim() || publishingText}
+							onClick={() =>
+								void commitText().catch((error) => setError(String(error)))
+							}
+						>
+							Done
+						</button>
+					</div>
 				</div>
 			)}
 			{!clean && assets && (
