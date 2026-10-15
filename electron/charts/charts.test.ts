@@ -115,7 +115,8 @@ test("analysis creates a private draft with the source image; cancellation disca
 	expect(s.job.phase).toBe("idle");
 	const second = fakeClient(ok(extraction()));
 	const s2 = await store(second.client, events);
-	await s2.analyze({ jobId: "job-three", dataURL: PNG, source: { url: "https://www.bls.gov/cps" } }).done;
+	await s2.analyze({ jobId: "job-three", dataURL: PNG, source: { url: "https://www.bls.gov/cps", publisher: "  " } }).done;
+	expect(s2.charts[0].source.publisher).toBe("BLS");
 	expect(s2.job).toMatchObject({ phase: "ready", chartId: s2.charts[0].id });
 	expect(s2.charts[0]).toMatchObject({ status: "draft", source: { method: "ai", model: CHART_MODEL, hasImage: true, url: "https://www.bls.gov/cps" } });
 	expect(s2.charts[0].original).toEqual(s2.charts[0].data);

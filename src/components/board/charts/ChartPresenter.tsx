@@ -25,7 +25,10 @@ export function ChartPresenter({
 	onChoose,
 	onReveal,
 	onClose,
+	anchor,
 }: {
+	/** Stage position right below the placed chart; absent = floating panel. */
+	anchor?: { left: number; top: number; width: number };
 	transport: BoardAPI;
 	charts: ChartsState;
 	chartId?: string;
@@ -73,13 +76,22 @@ export function ChartPresenter({
 		if (wait <= 0) go();
 		else pendingSeek.current = setTimeout(go, wait);
 	};
+	const scrubFrom = (input: HTMLInputElement, clientX: number) => {
+		const r = input.getBoundingClientRect();
+		// Native range thumbs inset by about half their width at each end.
+		const inset = Math.min(10, r.width / 4);
+		const t = Math.max(0, Math.min(1, (clientX - r.left - inset) / Math.max(1, r.width - inset * 2)));
+		seek(Math.round(t * steps * 100) / 100);
+	};
 	const unit = chart.data.kind === "pie" ? "slice" : chart.reveal.order === "series" && chart.data.series.length > 1 ? "series" : chart.data.kind === "card" ? "statistic" : "point";
 	const speed = chart.reveal.msPerStep;
 	return (
 		<aside
-			className="board-tray chart-presenter"
+			className={`board-tray chart-presenter ${anchor ? "is-anchored" : ""}`}
 			role="dialog"
 			aria-label="Present chart"
+			style={anchor ? { left: anchor.left, top: anchor.top, width: anchor.width } : undefined}
+			onPointerDown={(e) => e.stopPropagation()}
 			onKeyDown={(e) => {
 				e.stopPropagation();
 				if (e.target instanceof HTMLInputElement && e.target.type !== "range") return;
@@ -91,12 +103,18 @@ export function ChartPresenter({
 			}}
 		>
 			<header>
-				<strong>Present chart</strong>
+				{anchor ? (
+					<p className="chart-present-status" aria-live="polite">
+						{Math.floor(reveal + 1e-6)}/{steps} · {playing ? "Playing" : reveal >= steps ? "All shown" : reveal <= 0 ? "Title & axes" : "Paused"}
+					</p>
+				) : (
+					<strong>Present chart</strong>
+				)}
 				<button aria-label="Close Present chart" onClick={onClose}>
 					<XIcon size={16} />
 				</button>
 			</header>
-			{charts.charts.length > 1 && (
+			{!anchor && charts.charts.length > 1 && (
 				<select aria-label="Chart to present" value={chart.id} onChange={(e) => onChoose(e.target.value)}>
 					{charts.charts.map((c) => (
 						<option key={c.id} value={c.id}>
@@ -105,10 +123,10 @@ export function ChartPresenter({
 					))}
 				</select>
 			)}
-			<p className="chart-present-status" aria-live="polite">
+			{!anchor && <p className="chart-present-status" aria-live="polite">
 				{chart.name} · {Math.floor(reveal + 1e-6)} of {steps} {unit}
 				{steps === 1 ? "" : "s"} · {playing ? "Playing" : reveal >= steps ? "All shown" : reveal <= 0 ? "Title & axes only" : "Paused"}
-			</p>
+			</p>}
 			{placement !== "visible" && (
 				<p className="chart-present-hint">
 					{placement === "none"
@@ -134,6 +152,22 @@ export function ChartPresenter({
 				value={reveal}
 				aria-label="Reveal position. Drag back to hide data again."
 				onChange={(e) => seek(Number(e.target.value))}
+				// A pen or finger that lands on the slider always scrubs, even in Draw mode;
+				// capture keeps the whole stroke here so it never draws on the canvas.
+				onPointerDown={(e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					e.currentTarget.setPointerCapture(e.pointerId);
+					scrubFrom(e.currentTarget, e.clientX);
+				}}
+				onPointerMove={(e) => {
+					if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+					e.preventDefault();
+					scrubFrom(e.currentTarget, e.clientX);
+				}}
+				onPointerUp={(e) => {
+					if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+				}}
 			/>
 			<div className="chart-transport">
 				<button aria-label="Rewind to title and axes" title="Rewind" onClick={() => void send({ action: "reset" })}>
@@ -152,7 +186,7 @@ export function ChartPresenter({
 					<FastForwardIcon size={18} />
 				</button>
 			</div>
-			<label className="chart-speed">
+			{!anchor && <label className="chart-speed">
 				Play speed
 				<select
 					value={speed}
@@ -168,8 +202,8 @@ export function ChartPresenter({
 						</option>
 					))}
 				</select>
-			</label>
-			<small>Next reveals one {unit}. Drag the slider back to hide data again. You can draw over the chart at any time. These controls never appear in the recording.</small>
+			</label>}
+			{!anchor && <small>Next reveals one {unit}. Drag the slider back to hide data again. You can draw over the chart at any time. These controls never appear in the recording.</small>}
 			{error && <output role="alert">{error}</output>}
 		</aside>
 	);

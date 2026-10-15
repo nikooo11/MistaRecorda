@@ -9,6 +9,7 @@ import {
 	emptyBoardState,
 } from "../../src/types/board";
 import { validateMemes } from "./memes";
+import { normalizeChartCarrier } from "../../src/components/board/charts/chartModel";
 import { isShadow, presentationMeta, setShadow } from "../../src/components/board/shadowObjects";
 
 const kinds = new Set([
@@ -101,7 +102,9 @@ export function validateScene(input: unknown): BoardScene {
 	)
 		throw Error("Invalid viewport");
 	const result = structuredClone(s);
-	result.elements = result.elements.map((e) => (isShadow(e) ? { ...e, opacity: 50 } : e));
+	result.elements = result.elements.map((e) =>
+		normalizeChartCarrier(isShadow(e) ? { ...e, opacity: 50 } : e),
+	);
 	return result;
 }
 export class BoardStore {

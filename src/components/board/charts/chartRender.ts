@@ -179,7 +179,7 @@ export function chartLayout(chart: RenderableChart, width: number, height: numbe
 	const horizontal = data.kind === "bar" && data.orientation === "horizontal";
 	const dom = valueDomain(data);
 	const log = data.yAxis.scale === "log";
-	const tickLabels = dom.ticks.map((t) => `${data.unit.prefix}${formatNumber(t, data, true)}${data.unit.suffix}`);
+	const tickLabels = dom.ticks.map((t) => tickLabel(t, dom.step, data));
 	const tickW = Math.max(...tickLabels.map((t) => textWidth(t, font * 0.85)), font);
 	const axisLabel = data.yAxis.label ? font * 1.3 : 0;
 	let plot: Rect;
@@ -223,6 +223,13 @@ export function chartLayout(chart: RenderableChart, width: number, height: numbe
 	return { width, height, font, plot, horizontal, ticks: dom.ticks, tickStep: dom.step, domain: [dom.lo, dom.hi], baseline, valueToPx, pxToValue, categoryPx, band, handles, theme, title, footer };
 }
 
+/** Tick labels use the decimals their spacing needs (0%, 2%, … not 0.0%). */
+function tickLabel(t: number, step: number, data: ChartData) {
+	const decimals = step >= 1 || !(step > 0) ? 0 : Math.min(6, Math.ceil(-Math.log10(step) - 1e-9));
+	const v = Math.abs(t) < step * 1e-9 ? 0 : t;
+	const text = formatNumber(Math.abs(v), { ...data, decimals }, true);
+	return `${v < 0 ? "−" : ""}${data.unit.prefix}${text}${data.unit.suffix}`;
+}
 const markerPath = (k: number, x: number, y: number, r: number) => {
 	switch (k % 5) {
 		case 0:
@@ -296,7 +303,7 @@ export function renderChartSvg(chart: RenderableChart, opts: RenderOptions): str
 		// Axes, ticks and labels are visible before data and stay fixed while revealing.
 		for (const tick of L.ticks) {
 			const at = L.valueToPx(tick);
-			const label = `${data.unit.prefix}${formatNumber(tick, data, true)}${data.unit.suffix}`;
+			const label = tickLabel(tick, L.tickStep, data);
 			if (L.horizontal) {
 				out.push(`<line x1="${n(at)}" y1="${n(P.y)}" x2="${n(at)}" y2="${n(P.y + P.h)}" stroke="${t.grid}"/>`);
 				out.push(text(at, P.y + P.h + font * 1.15, label, font * 0.8, `fill="${t.muted}" text-anchor="middle"`));
@@ -340,8 +347,7 @@ export function renderChartSvg(chart: RenderableChart, opts: RenderOptions): str
 			const spacing = data.categories.length > 1 ? Math.abs(L.categoryPx(1) - L.categoryPx(0)) : P.w;
 			const every = Math.max(1, Math.ceil(Math.min(widest + size, size * 9) / Math.max(1, spacing)));
 			data.categories.forEach((c, i) => {
-				if (i % every && i !== data.categories.length - 1) return;
-				if (i === data.categories.length - 1 && i % every && data.categories.length - 1 - Math.floor(i / every) * every < every / 2) return;
+				if (i % every) return;
 				out.push(text(L.categoryPx(i), P.y + P.h + font * 1.15, fitText(c, spacing * every - size * 0.4, size), size, `fill="${t.text}" text-anchor="middle"`, c));
 			});
 		}

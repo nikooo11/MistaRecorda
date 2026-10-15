@@ -180,6 +180,11 @@ describe("reveal", () => {
 		p = applyPlayback(p, { action: "next" }, steps, 1000, 9000);
 		expect(revealAt(p, 9250, steps)).toBe(0.75);
 		expect(revealAt(p, 20000, steps)).toBe(1);
+		// Quick repeated Next taps queue whole steps while the first is still animating.
+		let q = applyPlayback(p, { action: "next" }, steps, 1000, 20000);
+		q = applyPlayback(q, { action: "next" }, steps, 1000, 20100);
+		expect(q.target).toBe(3);
+		expect(revealAt(q, 20100, steps)).toBeCloseTo(1.1, 6);
 		p = applyPlayback(p, { action: "previous" }, steps, 1000, 20000);
 		expect(revealAt(p, 20000, steps)).toBe(0);
 		p = applyPlayback(p, { action: "showAll" }, steps, 1000, 21000);

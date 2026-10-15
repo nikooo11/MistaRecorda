@@ -369,8 +369,10 @@ function CropBox({ dataURL, crop, onCrop }: { dataURL: string; crop: Crop | null
 	};
 	return (
 		<div className="chart-cropbox">
+			<div className="chart-cropbox-stage">
+			{/* The wrapper is exactly the image's size, so pointer coordinates map 1:1 (no letterboxing). */}
 			<div
-				className="chart-cropbox-stage"
+				className="chart-cropbox-image"
 				onPointerDown={(e) => {
 					e.preventDefault();
 					e.currentTarget.setPointerCapture(e.pointerId);
@@ -391,6 +393,7 @@ function CropBox({ dataURL, crop, onCrop }: { dataURL: string; crop: Crop | null
 			>
 				<img ref={img} src={dataURL} alt="Screenshot to crop" draggable={false} />
 				{shown && <span className="chart-crop-rect" style={pct(shown)} />}
+			</div>
 			</div>
 			<small>
 				{crop ? `Cropped to ${crop.w} × ${crop.h} px.` : "Whole image selected."}{" "}

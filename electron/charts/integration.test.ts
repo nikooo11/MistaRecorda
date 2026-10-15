@@ -62,6 +62,13 @@ test("group reveal includes grouped chart members and checks every chart", async
 	expect(() => assertChartIdsShowable(charts, board.state.scenes.screen.elements, ids)).not.toThrow();
 });
 
+test("scene validation keeps chart carriers invisible whatever style is applied", async () => {
+	const { board, ctx, chart } = await setup();
+	await chartAction("chartPlace", { chartId: chart.id, mode: "board", x: 0, y: 0 }, "ipad", ctx);
+	const [carrier] = board.state.scenes.board.elements;
+	const styled = validateScene({ ...board.state.scenes.board, elements: [{ ...carrier, backgroundColor: "#ff0000", strokeColor: "#000000", fillStyle: "hachure" }] });
+	expect(styled.elements[0]).toMatchObject({ backgroundColor: "#ffffff01", strokeColor: "transparent", fillStyle: "solid" });
+});
 test("scene validation rejects malformed chart carriers", () => {
 	const bad = { ...makeElement({ type: "ellipse" }), customData: { chart: { chartId: "x" } } };
 	expect(() => validateScene({ elements: [bad], files: {}, scrollX: 0, scrollY: 0, zoom: 1 })).toThrow(/Invalid chart/);

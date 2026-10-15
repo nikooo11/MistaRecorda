@@ -41,7 +41,11 @@ export function applyPlayback(
 		case "pause":
 			return { ...base, target: current };
 		case "next": {
-			const target = Math.min(steps, Math.floor(current + eps) + 1);
+			// Rapid taps queue steps: count from where the current animation is heading.
+			// During Play (heading more than a step away), Next instead stops at the next step.
+			const heading = Math.max(0, Math.min(steps, p.target));
+			const from = heading > current && heading - current <= 1 + eps ? heading : current;
+			const target = Math.min(steps, Math.floor(from + eps) + 1);
 			return animate ? { ...base, target } : { ...base, position: target, target };
 		}
 		case "previous": {

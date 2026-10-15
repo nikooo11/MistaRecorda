@@ -35,7 +35,7 @@ import type { ChartDocument } from "../../types/charts";
 import { ChartLayer } from "./charts/ChartLayer";
 import { ChartPanel, type ChartImport } from "./charts/ChartPanel";
 import { ChartPresenter } from "./charts/ChartPresenter";
-import { chartMeta } from "./charts/chartModel";
+import { carrierNeedsReset, chartMeta, normalizeChartCarrier } from "./charts/chartModel";
 import { useChartClock, useCharts } from "./charts/useCharts";
 import "./charts/charts.css";
 import { BoardLaser } from "./BoardLaser";
@@ -849,6 +849,33 @@ export function BoardCanvas({
 	);
 	const hasShadow = selection.some(isShadow);
 	const selectedChartId = selection.map((e) => chartMeta(e)?.chartId).find(Boolean);
+	// Selecting a chart opens its reveal controls attached right below it.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Only a new chart selection opens the controls.
+	useEffect(() => {
+		if (!selectedChartId || clean) return;
+		setPresentChart(selectedChartId);
+		setPresenting(true);
+	}, [selectedChartId]);
+	const anchoredChart = (() => {
+		if (!presenting || clean) return undefined;
+		const id = presentChart ?? charts.charts[0]?.id;
+		const element =
+			chartElements.find((e) => selected[e.id] && chartMeta(e)?.chartId === id) ??
+			chartElements.find((e) => chartMeta(e)?.chartId === id);
+		const box = stage.current?.getBoundingClientRect();
+		if (!element || !box) return undefined;
+		const zoom = memeView.zoom;
+		const left = fit.left + (Number(element.x) + memeView.x) * zoom;
+		const top = fit.top + (Number(element.y) + Number(element.height) + memeView.y) * zoom;
+		const width = Math.max(300, Math.min(560, Number(element.width) * zoom));
+		const height = 132;
+		// Below the chart when it fits, otherwise just inside its bottom edge; always on screen.
+		return {
+			left: Math.max(8, Math.min(left, box.width - width - 8)),
+			top: Math.max(8, Math.min(top + 8, box.height - height - 64)),
+			width,
+		};
+	})();
 	const allShadow = selection.length > 0 && selection.every(isShadow);
 	return (
 		<div
@@ -1176,6 +1203,18 @@ export function BoardCanvas({
 							});
 						}
 						if (clean || applying.current || !interacted.current || !api) return;
+						if ((elements as unknown as BoardElement[]).some(carrierNeedsReset)) {
+							api.updateScene({
+								elements: restoreElements(
+									(elements as unknown as BoardElement[]).map(
+										normalizeChartCarrier,
+									) as unknown as Parameters<typeof restoreElements>[0],
+									null,
+								),
+								captureUpdate: CaptureUpdateAction.NEVER,
+							});
+							return;
+						}
 						const shared = current.current.scenes[modeRef.current];
 						if (
 							tablet &&
@@ -1675,6 +1714,7 @@ export function BoardCanvas({
 						);
 						return !placed.length ? "none" : placed.some((e) => !isShadow(e)) ? "visible" : "shadow";
 					})()}
+					anchor={anchoredChart}
 					onChoose={setPresentChart}
 					onReveal={() => revealChart(presentChart ?? charts.charts[0]?.id ?? "")}
 					onClose={() => setPresenting(false)}

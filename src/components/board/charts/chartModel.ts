@@ -462,6 +462,14 @@ export function chartElementProps(chartId: string) {
 		customData: { chart: { chartId } satisfies ChartElementMeta },
 	};
 }
+const CARRIER_STYLE = { strokeColor: "transparent", backgroundColor: "#ffffff01", fillStyle: "solid", strokeWidth: 1, roughness: 0 } as const;
+/** Style controls must never turn the invisible carrier into a box covering the chart. */
+export function carrierNeedsReset(e: BoardElement) {
+	return !!chartMeta(e) && Object.entries(CARRIER_STYLE).some(([k, v]) => e[k] !== v);
+}
+export function normalizeChartCarrier(e: BoardElement): BoardElement {
+	return carrierNeedsReset(e) ? { ...e, ...CARRIER_STYLE } : e;
+}
 export function defaultChartSize(data: ChartData, width: number) {
 	const w = Math.max(240, Math.min(width, 4000));
 	return { width: w, height: Math.round(w * (data.kind === "card" ? 0.5 : 0.62)) };

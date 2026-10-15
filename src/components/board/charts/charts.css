@@ -165,19 +165,24 @@
 	flex: 1;
 }
 .chart-cropbox-stage {
-	position: relative;
-	touch-action: none;
-	user-select: none;
-	cursor: crosshair;
+	display: flex;
+	justify-content: center;
 	background: #e9ecf0;
 	border-radius: 6px;
 	overflow: hidden;
 }
-.chart-cropbox-stage img {
+.chart-cropbox-image {
+	position: relative;
+	touch-action: none;
+	user-select: none;
+	cursor: crosshair;
+	overflow: hidden;
+	line-height: 0;
+}
+.chart-cropbox-image img {
 	display: block;
-	width: 100%;
+	max-width: 100%;
 	max-height: 46vh;
-	object-fit: contain;
 	pointer-events: none;
 }
 .chart-crop-rect {
@@ -510,4 +515,43 @@
 	margin-top: 6px;
 	color: #4b5767;
 	font-size: 11px;
+}
+/* Attached directly below the selected chart; compact so it never covers the data. */
+.chart-presenter.is-anchored {
+	right: auto;
+	bottom: auto;
+	max-height: none;
+	padding: 6px 8px 8px;
+	border-color: #6b7c90;
+	box-shadow: 0 6px 20px #0003;
+}
+.chart-presenter.is-anchored::before {
+	content: "";
+	position: absolute;
+	top: -7px;
+	left: 24px;
+	width: 12px;
+	height: 12px;
+	background: #fafbfc;
+	border-left: 1px solid #6b7c90;
+	border-top: 1px solid #6b7c90;
+	transform: rotate(45deg);
+}
+.chart-presenter.is-anchored header .chart-present-status {
+	margin: 0;
+	font-size: 12px;
+}
+.chart-presenter.is-anchored header button {
+	min-height: 30px;
+	padding: 2px 8px;
+}
+.chart-presenter.is-anchored .chart-slider {
+	height: 28px;
+}
+.chart-presenter.is-anchored .chart-transport button {
+	min-height: 38px !important;
+}
+.chart-presenter.is-anchored .chart-present-hint {
+	margin: 4px 0;
+	padding: 4px 6px;
 }

@@ -232,7 +232,9 @@ export class ChartStore {
 				if (token !== this.generation) return;
 				const doc = newChartDocument(randomUUID(), draft.data, "ai", this.now());
 				doc.name = (draft.data.title || "Chart from screenshot").slice(0, 80);
-				Object.assign(doc.source, draft.source, request.source, { model: CHART_MODEL, hasImage: true, warnings: draft.warnings });
+				// Presenter-entered source details win, but blank fields never erase what the AI read.
+				const typed = Object.fromEntries(Object.entries(request.source).filter(([, v]) => typeof v === "string" && v.trim()));
+				Object.assign(doc.source, draft.source, typed, { model: CHART_MODEL, hasImage: true, warnings: draft.warnings });
 				chartDocumentSchema.parse(doc);
 				await this.commit([...this.charts, doc], { [doc.id]: request.dataURL });
 				if (token !== this.generation) return;
