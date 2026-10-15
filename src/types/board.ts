@@ -19,7 +19,15 @@ export interface BoardScene {
 	scrollY: number;
 	zoom: number;
 }
+export interface WhiteboardPage {
+	id: string;
+	name: string;
+	scene: BoardScene;
+	memes: import("./memes").PlacedMeme[];
+}
 export interface BoardState {
+	whiteboards?: WhiteboardPage[];
+	activeWhiteboardId?: string;
 	memes?: import("./memes").MemeAsset[];
 	favoriteMemeIds?: string[];
 	installedDefaultMemeIds?: string[];

@@ -203,6 +203,10 @@ export class CompanionServer {
 						if (
 							![
 								"tabletInfo",
+								"createWhiteboard",
+								"renameWhiteboard",
+								"activateWhiteboard",
+								"clearWhiteboard",
 								"presenterInfo",
 								"saveTalkingNotes",
 								"savePresenterLink",

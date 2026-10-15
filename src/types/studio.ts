@@ -46,6 +46,7 @@ export interface RecordingScene {
 }
 export type StudioTab = "windows" | "sounds" | "controls" | "scenes" | "layers";
 export interface StudioInfo {
+	audio?: { microphone: boolean; system: boolean };
 	guideTour?: import("../components/settings-guide/settingHelpContent").SettingsTourRequest;
 	panelTab?: StudioTab;
 	settings: StudioSettings;

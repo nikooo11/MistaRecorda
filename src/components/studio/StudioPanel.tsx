@@ -6,18 +6,17 @@ import {
 	StackIcon,
 	TrashIcon,
 } from "@phosphor-icons/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { StudioInfo, StudioSource } from "../../types/studio";
-import { CaptureLayers } from "./CaptureLayers";
-import { LayerSources } from "./LayerSources";
+import { SceneWorkspace } from "./SceneWorkspace";
 import { SoundboardSettings, SoundRecordingOption } from "./SoundboardSettings";
 import { isSelectedSource, sourceSwitchUnavailable } from "./sourceSwitching";
 import "./studio.css";
-import { RecordingScenes } from "./RecordingScenes";
 import { ShortcutInput } from "./ShortcutInput";
 import { SettingsGuideLink } from "../settings-guide/SettingsGuideLink";
 import { WindowHeader } from "../ui/WindowHeader";
 
+import { loadEditorPreferences, saveEditorPreferences } from "../video-editor/editorPreferences";
 import { SettingsTourProvider } from "../settings-guide/SettingHelp";
 
 export { ShortcutInput } from "./ShortcutInput";
@@ -25,9 +24,16 @@ export function StudioPanel() {
 	const [info, setInfo] = useState<StudioInfo>();
 	const modifier = /Mac/.test(navigator.platform) ? "⌘" : "Ctrl";
 	const [tab, setTab] = useState<import("../../types/studio").StudioTab>("layers");
+	const content = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		if (content.current) content.current.scrollTop = 0;
+	}, [tab]);
 	const [sources, setSources] = useState<StudioSource[]>([]);
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState(false);
+	const [autoZoom, setAutoZoom] = useState(
+		() => loadEditorPreferences().autoApplyFreshRecordingAutoZooms,
+	);
 	const run = useCallback(async (method: string, input?: unknown) => {
 		setBusy(true);
 		setError("");
@@ -114,34 +120,17 @@ export function StudioPanel() {
 						</button>
 					))}
 				</nav>
-				<div className="capture-content">
-					{tab === "layers" && (
-						<>
-							<LayerSources
-								info={info}
-								sources={sources}
-								busy={busy}
-								run={run}
-								saveShortcut={saveShortcut}
-								refresh={refresh}
-							/>
-							<RecordingScenes
-								info={info}
-								sources={sources}
-								busy={busy}
-								run={run}
-								saveShortcut={saveShortcut}
-							/>
-							<CaptureLayers info={info} run={run} />
-						</>
-					)}
-					{tab === "scenes" && (
-						<RecordingScenes
+				<div className="capture-content" ref={content}>
+					{(tab === "layers" || tab === "scenes") && (
+						<SceneWorkspace
+							key={tab}
 							info={info}
 							sources={sources}
 							busy={busy}
 							run={run}
 							saveShortcut={saveShortcut}
+							refresh={refresh}
+							showSources={tab === "layers"}
 						/>
 					)}
 					{tab === "windows" && (
@@ -354,6 +343,26 @@ export function StudioPanel() {
 									/>
 								</div>
 							</div>
+							<label className="capture-toggle">
+								<div>
+									<strong>Automatic click-to-zoom</strong>
+									<p>
+										Off by default. Turn on to add zooms around clicks when a
+										new recording opens. Use your zoom shortcut (Z by default)
+										or add zooms in the editor for manual control.
+									</p>
+								</div>
+								<input
+									type="checkbox"
+									checked={autoZoom}
+									onChange={(e) => {
+										setAutoZoom(e.target.checked);
+										saveEditorPreferences({
+											autoApplyFreshRecordingAutoZooms: e.target.checked,
+										});
+									}}
+								/>
+							</label>
 							<label className="capture-toggle">
 								<div>
 									<strong>Subtle capture glow</strong>

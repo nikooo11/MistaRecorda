@@ -1,5 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mergeScenePatch, type ScenePatch } from "./sceneSync";
+import { WhiteboardTabs } from "./WhiteboardTabs";
+import { whiteboardView } from "./whiteboards";
+import { whiteboardTransport } from "./whiteboardTransport";
 import { BoardCanvas } from "./BoardCanvas";
 import { companionTransport } from "./transport";
 import type { BoardState } from "../../types/board";
@@ -7,8 +10,31 @@ import { PencilSimpleIcon, HandIcon } from "@phosphor-icons/react";
 import { tabletSceneMode } from "./tabletInteraction";
 export function TabletApp() {
 	const [connection, setConnection] = useState("Connecting…");
+	const [connectionEpoch, setConnectionEpoch] = useState(0);
 	const transport = useMemo(() => companionTransport(setConnection), []);
 	const [state, setState] = useState<BoardState>();
+	const [selectedBoard, setSelectedBoard] = useState<string | null>(null);
+	const selectedRef = useRef(selectedBoard);
+	selectedRef.current = selectedBoard;
+	const stateRef = useRef(state);
+	stateRef.current = state;
+	const canvasTransport = useMemo(
+		() =>
+			whiteboardTransport(
+				transport,
+				() => stateRef.current,
+				() => selectedRef.current,
+				() => {
+					selectedRef.current = null;
+					setSelectedBoard(null);
+				},
+			),
+		[transport],
+	);
+	const canvasState = useMemo(
+		() => (state ? whiteboardView(state, selectedBoard) : undefined),
+		[state, selectedBoard],
+	);
 	const [drawing, setDrawing] = useState(false);
 	const [streamError, setStreamError] = useState("");
 	const [cleanPreview, setCleanPreview] = useState(false);
@@ -21,7 +47,35 @@ export function TabletApp() {
 	const lastFrame = useRef(0);
 	const fallbackRequested = useRef(false);
 	const streamingRequested = useRef(false);
+	const startScreen = useCallback(() => {
+		streamingRequested.current = true;
+		fallbackRequested.current = false;
+		lastFrame.current = Date.now();
+		setStreamError("");
+		void video.current?.play().catch(() => {
+			/* ontrack retries after the stream arrives. */
+		});
+		void transport
+			.request("signal", { type: "request" })
+			.catch((e) => setStreamError(String(e)));
+	}, [transport]);
+	const hasState = !!state;
 	useEffect(() => {
+		if (connection !== "Connected") {
+			streamingRequested.current = false;
+			return;
+		}
+		if (!hasState || streamingRequested.current) return;
+		setDrawing(false);
+		startScreen();
+	}, [connection, connectionEpoch, hasState, startScreen]);
+
+	useEffect(() => {
+		const connected = transport.on("connected", () => {
+			streamingRequested.current = false;
+			setDrawing(false);
+			setConnectionEpoch((value) => value + 1);
+		});
 		const patch = transport.on<ScenePatch>("sceneUpdate", (update) =>
 			setState((old) => (old ? mergeScenePatch(old, update) : old)),
 		);
@@ -30,7 +84,8 @@ export function TabletApp() {
 		});
 		const stateChange = transport.on<{ state: BoardState }>("state", ({ state }) => {
 			setState(state);
-			if (!state.enabled || state.output === "screen") setDrawing(false);
+			if (!selectedRef.current && (!state.enabled || state.output === "screen"))
+				setDrawing(false);
 		});
 		const off = transport.on<{
 			type: string;
@@ -118,6 +173,7 @@ export function TabletApp() {
 				.catch((e) => setStreamError(String(e)));
 		});
 		return () => {
+			connected();
 			refreshPreview();
 			patch();
 			info();
@@ -128,7 +184,6 @@ export function TabletApp() {
 			peer.current?.close();
 		};
 	}, [transport]);
-	const hasState = !!state;
 	useEffect(() => {
 		if (!hasState) return;
 		const player = video.current;
@@ -172,6 +227,7 @@ export function TabletApp() {
 					title="Draw with your finger or Pencil. Turn off to pan and pinch the screen preview."
 					onClick={() => {
 						if (drawing) setDrawing(false);
+						else if (selectedBoard) setDrawing(true);
 						else
 							void transport
 								.request<BoardState>("annotate")
@@ -187,42 +243,44 @@ export function TabletApp() {
 				</button>
 				{state && (
 					<span className="companion-mode">
-						{tabletSceneMode(state) === "board" ? "Whiteboard" : "Mac screen"}
+						{tabletSceneMode(canvasState ?? state) === "board"
+							? "Whiteboard"
+							: "Mac screen"}
 					</span>
 				)}
 				<button onClick={() => void transport.request("reconnect")}>Reconnect</button>
-				<button
-					disabled={!state}
-					onClick={() => {
-						streamingRequested.current = true;
-						fallbackRequested.current = false;
-						lastFrame.current = Date.now();
-						setStreamError("");
-						void transport
-							.request("signal", { type: "request" })
-							.catch((e) => setStreamError(String(e)));
-						void video.current?.play().catch(() => {
-							/* ontrack retries once the stream arrives. */
-						});
-					}}
-				>
-					Start screen
+				<button disabled={!state} onClick={startScreen}>
+					{streamed ? "Refresh screen" : "Start screen"}
 				</button>
 			</header>
 			{streamError && <p role="alert">{streamError}</p>}
 			<div className="companion-main">
 				{state ? (
 					<BoardCanvas
-						transport={transport}
-						initial={state}
+						transport={canvasTransport}
+						viewedWhiteboardId={selectedBoard ?? undefined}
+						initial={canvasState!}
+						extraControls={(flush) => (
+							<WhiteboardTabs
+								state={state}
+								selected={selectedBoard}
+								onSelect={setSelectedBoard}
+								transport={transport}
+								flush={flush}
+							/>
+						)}
 						tablet
 						drawing={drawing}
 						onEnableDrawing={async () => {
+							if (selectedBoard) {
+								setDrawing(true);
+								return;
+							}
 							const next = await transport.request<BoardState>("annotate");
 							setState(next);
 							setDrawing(true);
 						}}
-						streamed={streamed && !cleanPreview}
+						streamed={!selectedBoard && streamed && !cleanPreview}
 						background={
 							<>
 								<video
@@ -230,13 +288,17 @@ export function TabletApp() {
 									autoPlay
 									muted
 									playsInline
-									onPlaying={() => setStreamed(true)}
+									onPlaying={() => {
+										setStreamed(true);
+										setStreamError("");
+									}}
 									style={{
 										display: fallbackFrame ? "none" : "block",
-										visibility: streamed ? "visible" : "hidden",
+										visibility:
+											streamed && !selectedBoard ? "visible" : "hidden",
 									}}
 								/>
-								{fallbackFrame && (
+								{fallbackFrame && !selectedBoard && (
 									<img src={fallbackFrame} alt="Live computer screen" />
 								)}
 							</>

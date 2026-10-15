@@ -131,3 +131,56 @@ test("uniform display fit preserves aspect, placements and private state", () =>
 	expect(board.scenes.screen.elements[0].opacity).toBe(50);
 	expect(board.placedMemes?.board[0].width).toBe(100);
 });
+
+test("presentation round trip retains inactive whiteboard assets, geometry and independent memes", async () => {
+	const { addWhiteboardPage, saveWhiteboardPage, activateWhiteboardPage } = await import(
+		"../../src/components/board/whiteboards"
+	);
+	const f = fixture();
+	addWhiteboardPage(f.board, "second");
+	saveWhiteboardPage(
+		f.board,
+		"second",
+		{
+			...f.board.scenes.board,
+			elements: [
+				{
+					...makeElement({ type: "rectangle", id: "picture" }),
+					type: "image",
+					fileId: "privateImage",
+				},
+			],
+			files: {
+				privateImage: {
+					id: "privateImage",
+					mimeType: "image/png",
+					dataURL: "data:image/png;base64,YQ==",
+					created: 1,
+				},
+			},
+		},
+		f.board.placedMemes!.board,
+	);
+	const bundle = validatePresentationBundle(JSON.parse(JSON.stringify(f)));
+	expect(bundle.board.assets.privateImage).toBeDefined();
+	const page = bundle.board.whiteboards![1];
+	expect(page.memes[0].assetId).toBe(id);
+	fitPresentation(bundle.board, 1920, 1200);
+	expect(page.scene.zoom).toBe(1.5);
+	const state = { ...emptyBoardState(), ...bundle.board };
+	activateWhiteboardPage(state, "second");
+	expect(state.scenes.board.zoom).toBe(1.5);
+	expect(state.scenes.board.elements[0].fileId).toBe("privateImage");
+});
+
+test("inactive whiteboards reject missing meme assets", async () => {
+	const { addWhiteboardPage, saveWhiteboardPage } = await import(
+		"../../src/components/board/whiteboards"
+	);
+	const f = fixture();
+	addWhiteboardPage(f.board, "second");
+	saveWhiteboardPage(f.board, "second", f.board.scenes.board, [
+		{ ...f.board.placedMemes!.board[0], assetId: "00000000-0000-4000-8000-000000000000" },
+	]);
+	expect(() => validatePresentationBundle(f)).toThrow("missing meme");
+});

@@ -29,7 +29,11 @@ export function TalkingPoints({
 	onPlace,
 	onPreview,
 	onMemeSettings,
+	dock = false,
+	openRequest = 0,
 }: {
+	dock?: boolean;
+	openRequest?: number;
 	transport: BoardAPI;
 	state: BoardState;
 	onPlace: (object: PresenterObject, point?: PlacementPoint) => Promise<void>;
@@ -37,6 +41,9 @@ export function TalkingPoints({
 	onMemeSettings: (id?: string) => void;
 }) {
 	const [open, setOpen] = useState(false);
+	useEffect(() => {
+		if (openRequest > 0) setOpen(true);
+	}, [openRequest]);
 	const [tab, setTab] = useState<"notes" | "objects" | "environments">("notes");
 	const [doc, setDoc] = useState(emptyPresenterDocument);
 	const [loaded, setLoaded] = useState(false);
@@ -46,6 +53,11 @@ export function TalkingPoints({
 	const [busy, setBusy] = useState(false);
 	const [dirty, setDirty] = useState(false);
 	const [notice, setNotice] = useState("");
+	const noticeTimer = useRef<ReturnType<typeof setTimeout>>();
+	useEffect(() => {
+		setNotice("");
+		return () => clearTimeout(noticeTimer.current);
+	}, [tab]);
 	const [sounds, setSounds] = useState<Omit<SoundEffect, "file">[]>([]);
 	const [caret, setCaret] = useState(0);
 	const [addingLink, setAddingLink] = useState(false);
@@ -151,6 +163,12 @@ export function TalkingPoints({
 			} else if (object.kind === "sound" && !object.shadow) {
 				await transport.request("playSound", object.id);
 				setNotice(`Playing ${object.name} on the computer.`);
+				clearTimeout(noticeTimer.current);
+				const playing = `Playing ${object.name} on the computer.`;
+				noticeTimer.current = setTimeout(
+					() => setNotice((current) => (current === playing ? "" : current)),
+					Math.max(1800, sounds.find((s) => s.id === object.id)?.durationMs ?? 3000),
+				);
 			} else {
 				await onPlace(object, point);
 				setOpen(false);
@@ -166,7 +184,7 @@ export function TalkingPoints({
 			.catch((e) => setNotice(String(e)));
 	return (
 		<div className="presenter-ui" onKeyDown={(e) => e.stopPropagation()}>
-			{!open && (
+			{!open && !dock && (
 				<button
 					className="talking-toggle"
 					aria-expanded={false}

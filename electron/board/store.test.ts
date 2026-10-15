@@ -161,3 +161,36 @@ test("stroke deltas retain existing image data and reject edits predating clear"
 	).toThrow("board changed");
 	expect(s.state.scenes.screen.elements).toHaveLength(0);
 });
+
+test("whiteboard tabs keep independent drawings and media across disk restart and activation", async () => {
+	const { addWhiteboardPage, saveWhiteboardPage, activateWhiteboardPage, whiteboardPages } =
+		await import("../../src/components/board/whiteboards");
+	const s = await store();
+	s.state.scenes.board.elements = [makeElement({ type: "ellipse", id: "first" })];
+	addWhiteboardPage(s.state, "second");
+	saveWhiteboardPage(s.state, "second", {
+		...emptyBoardScene(),
+		elements: [makeElement({ type: "rectangle", id: "second-ink" })],
+		files: {
+			privateImage: {
+				id: "privateImage",
+				dataURL: "data:image/png;base64,YQ==",
+				mimeType: "image/png",
+				created: 1,
+			},
+		},
+	});
+	await s.save();
+	const reopened = new BoardStore(s.root);
+	await reopened.load();
+	expect(reopened.state.scenes.board.elements[0].id).toBe("first");
+	expect(reopened.state.assets.privateImage).toBeDefined();
+	activateWhiteboardPage(reopened.state, "second");
+	expect(reopened.state.scenes.board.elements[0].id).toBe("second-ink");
+	expect(whiteboardPages(reopened.state)[0].scene.elements[0].id).toBe("first");
+	await reopened.save();
+	const again = new BoardStore(s.root);
+	await again.load();
+	expect(again.state.activeWhiteboardId).toBe("second");
+	expect(again.state.scenes.board.files.privateImage).toBeDefined();
+});
