@@ -868,11 +868,13 @@ export function BoardCanvas({
 		const left = fit.left + (Number(element.x) + memeView.x) * zoom;
 		const top = fit.top + (Number(element.y) + Number(element.height) + memeView.y) * zoom;
 		const width = Math.max(300, Math.min(560, Number(element.width) * zoom));
-		const height = 132;
-		// Below the chart when it fits, otherwise just inside its bottom edge; always on screen.
+		const placedShadow = chartElements.some((e) => chartMeta(e)?.chartId === id && isShadow(e));
+		const height = placedShadow ? 210 : 132;
+		// Below the chart when it fits, otherwise just inside its bottom edge; always on
+		// screen and clear of the bottom action bar.
 		return {
 			left: Math.max(8, Math.min(left, box.width - width - 8)),
-			top: Math.max(8, Math.min(top + 8, box.height - height - 64)),
+			top: Math.max(8, Math.min(top + 8, box.height - height - 92)),
 			width,
 		};
 	})();

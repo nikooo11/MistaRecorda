@@ -131,7 +131,7 @@ export function ChartPresenter({
 				<p className="chart-present-hint">
 					{placement === "none"
 						? "Not placed in this scene yet. Place it from AI Chart or your objects."
-						: "Shadow · only on this iPad. The audience sees it after Show on screen."}
+						: "Shadow · only on this iPad, showing the end frame. Show on screen starts the audience reveal from the title and axes."}
 					{placement === "shadow" && (
 						<button
 							disabled={chart.status !== "reviewed"}
@@ -151,7 +151,12 @@ export function ChartPresenter({
 				step={0.01}
 				value={reveal}
 				aria-label="Reveal position. Drag back to hide data again."
-				onChange={(e) => seek(Number(e.target.value))}
+				// Only deliberate input moves the reveal: keyboard with focus, or the captured drag below.
+				// Value clamping (e.g. switching to a chart with fewer steps) must never seek.
+				onChange={(e) => {
+					const value = Number(e.target.value);
+					if (document.activeElement === e.currentTarget && Math.abs(value - reveal) > 0.004) seek(value);
+				}}
 				// A pen or finger that lands on the slider always scrubs, even in Draw mode;
 				// capture keeps the whole stroke here so it never draws on the canvas.
 				onPointerDown={(e) => {

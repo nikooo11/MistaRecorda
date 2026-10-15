@@ -9,7 +9,7 @@ import { setShadow, shadowSelectionIds, visibleElements } from "../../src/compon
 import { presenterObjects } from "../../src/components/board/presenterModel";
 import { BoardStore, makeElement, validateScene } from "../board/store";
 import { validatePresentationBundle } from "../board/presentationBundle";
-import { assertChartIdsShowable, assertChartReveal, chartAction } from "./actions";
+import { assertChartIdsShowable, assertChartReveal, chartAction, restartRevealedCharts } from "./actions";
 import { ChartStore } from "./store";
 
 const dirs: string[] = [];
@@ -60,6 +60,10 @@ test("group reveal includes grouped chart members and checks every chart", async
 	expect(() => assertChartIdsShowable(charts, board.state.scenes.screen.elements, ids)).toThrow(/Review and confirm/);
 	await charts.update({ id: chart.id, baseRevision: 0, status: "reviewed" }, "ipad");
 	expect(() => assertChartIdsShowable(charts, board.state.scenes.screen.elements, ids)).not.toThrow();
+	// Scrubbing while private does not leak: revealing restarts from title and axes.
+	charts.command({ id: chart.id, command: { action: "showAll" } });
+	restartRevealedCharts(charts, board.state.scenes.screen.elements, ids);
+	expect(charts.playback[chart.id]).toMatchObject({ position: 0, target: 0 });
 });
 
 test("scene validation keeps chart carriers invisible whatever style is applied", async () => {

@@ -34,6 +34,13 @@ export function assertChartIdsShowable(charts: ChartStore, elements: readonly Bo
 	}
 }
 
+/** Revealing a chart starts the audience reveal from the title and axes. */
+export function restartRevealedCharts(charts: ChartStore, elements: readonly BoardElement[], ids: ReadonlySet<string>) {
+	const chartIds = new Set(
+		elements.filter((e) => ids.has(e.id) && !e.isDeleted && isShadow(e)).map((e) => chartMeta(e)?.chartId).filter((id): id is string => !!id),
+	);
+	for (const id of chartIds) charts.command({ id, command: { action: "reset" } });
+}
 /** Request handlers shared by the Mac app and tests. Platform capture lives in register.ts. */
 export async function chartAction(
 	method: string,

@@ -17,7 +17,12 @@ import OpenAI from "openai";
 import { z } from "zod";
 import type { BoardInfo, BoardMode, BoardStatus } from "../../src/types/board";
 import { ChartStore } from "../charts/store";
-import { assertChartIdsShowable, assertChartReveal, chartAction } from "../charts/actions";
+import {
+	assertChartIdsShowable,
+	assertChartReveal,
+	chartAction,
+	restartRevealedCharts,
+} from "../charts/actions";
 import { FigureService } from "../figures/service";
 import { FigureSettings } from "../figures/settings";
 import { publicURL } from "../figures/sources";
@@ -618,7 +623,10 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				throw Error("The scene changed. Select the object and try again.");
 			const scene = store.state.scenes[request.mode];
 			const ids = shadowSelectionIds(scene.elements, request.ids);
-			if (!request.shadow) assertChartIdsShowable(charts, scene.elements, ids);
+			if (!request.shadow) {
+				assertChartIdsShowable(charts, scene.elements, ids);
+				restartRevealedCharts(charts, scene.elements, ids);
+			}
 			const changedAt = Date.now();
 			const refs = [
 				...new Map(

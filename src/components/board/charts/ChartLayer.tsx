@@ -76,7 +76,12 @@ export function ChartLayer({
 						</div>
 					) : null;
 				const steps = revealSteps(chart.data, chart.reveal.order);
-				const reveal = renderedReveal(revealAt(charts.playback[chart.id], now, steps), chart.reveal.animate);
+				// A shadow chart is private: the iPad shows its end frame so the presenter knows
+				// the whole chart before presenting. The audience reveal starts when shown.
+				const reveal = shadow
+					? steps
+					: renderedReveal(revealAt(charts.playback[chart.id], now, steps), chart.reveal.animate);
+				const id = `c${e.id.replace(/[^A-Za-z0-9]/g, "").slice(0, 16)}`;
 				return (
 					<div
 						key={e.id}
@@ -85,7 +90,13 @@ export function ChartLayer({
 						data-chart-reveal={reveal.toFixed(3)}
 						style={style}
 					>
-						<ChartSvg chart={chart} width={w} height={h} reveal={reveal} id={`c${e.id.replace(/[^A-Za-z0-9]/g, "").slice(0, 16)}`} />
+						<ChartSvg chart={chart} width={w} height={h} reveal={reveal} id={id} />
+						{tablet && !shadow && reveal < steps && (
+							// Private look-ahead of the data still to come; only the iPad renders it.
+							<div className="chart-ghost">
+								<ChartSvg chart={chart} width={w} height={h} reveal={steps} id={`${id}g`} />
+							</div>
+						)}
 					</div>
 				);
 			})}

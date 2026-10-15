@@ -26,6 +26,12 @@
 	width: 100%;
 	height: 100%;
 }
+.chart-ghost {
+	position: absolute;
+	inset: 0;
+	opacity: 0.18;
+	filter: grayscale(1);
+}
 .chart-object.is-shadow {
 	outline: 2px dashed #6b7c90;
 	outline-offset: 2px;
@@ -40,7 +46,10 @@
 	text-align: center;
 }
 
+/* Left side: soundboard, memes and talking points open on the right, so all can stay open. */
 .chart-panel {
+	left: 76px;
+	right: auto;
 	z-index: 151;
 	width: min(390px, calc(100% - 24px));
 	max-height: min(86%, 900px);
@@ -518,6 +527,7 @@
 }
 /* Attached directly below the selected chart; compact so it never covers the data. */
 .chart-presenter.is-anchored {
+	box-sizing: border-box;
 	right: auto;
 	bottom: auto;
 	max-height: none;
