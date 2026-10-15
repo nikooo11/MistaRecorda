@@ -18,6 +18,7 @@ import type { SoundEffect } from "../../types/studio";
 import { mentionAt, noteParts, presenterObjects, referenceToken } from "./presenterModel";
 import { ObjectIcon, PresenterObjects, validNoteLink } from "./PresenterObjects";
 import "./presenter.css";
+import { EnvironmentFiles } from "./EnvironmentFiles";
 export interface PlacementPoint {
 	x: number;
 	y: number;
@@ -36,7 +37,7 @@ export function TalkingPoints({
 	onMemeSettings: (id?: string) => void;
 }) {
 	const [open, setOpen] = useState(false);
-	const [tab, setTab] = useState<"notes" | "objects">("notes");
+	const [tab, setTab] = useState<"notes" | "objects" | "environments">("notes");
 	const [doc, setDoc] = useState(emptyPresenterDocument);
 	const [loaded, setLoaded] = useState(false);
 	const [notes, setNotes] = useState<TalkingNotes>({ body: "", references: {} });
@@ -144,10 +145,10 @@ export function TalkingPoints({
 	async function activateObject(object: PresenterObject, point?: PlacementPoint) {
 		try {
 			setNotice("");
-			if (object.kind === "link") {
+			if (object.kind === "link" && !object.shadow) {
 				await transport.request("openPresenterLink", { id: object.id });
 				setNotice("Opened in Chrome on the computer.");
-			} else if (object.kind === "sound") {
+			} else if (object.kind === "sound" && !object.shadow) {
 				await transport.request("playSound", object.id);
 				setNotice(`Playing ${object.name} on the computer.`);
 			} else {
@@ -190,10 +191,18 @@ export function TalkingPoints({
 						<button aria-pressed={tab === "objects"} onClick={() => setTab("objects")}>
 							Objects
 						</button>
+						<button
+							aria-pressed={tab === "environments"}
+							onClick={() => setTab("environments")}
+						>
+							Environments
+						</button>
 					</nav>
 					<div className="talking-content">
 						{!loaded ? (
 							<p>Loading notes…</p>
+						) : tab === "environments" ? (
+							<EnvironmentFiles transport={transport} onError={setNotice} />
 						) : tab === "objects" ? (
 							<PresenterObjects
 								objects={objects}
@@ -217,9 +226,9 @@ export function TalkingPoints({
 						) : (
 							<>
 								<p className="presenter-help">
-									Use @object name to reference images, memes, sounds or links.
-									Tap a reference to use it. Hold and drag to place on the screen
-									or whiteboard. These notes stay off the recording.
+									Use @object name to reference images, memes, sounds, notes or
+									links. Tap a reference to use it. Hold and drag to place on the
+									screen or whiteboard. These notes stay off the recording.
 								</p>
 								<div className="talking-mode">
 									<button

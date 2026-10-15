@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import {
@@ -22,7 +23,25 @@ import { shouldHidePanel, showCapturePanel } from "../panelToggle";
 import { getPackagedRendererBaseUrl } from "../rendererServer";
 import { requireScreenRecordingAccess } from "../screenCaptureAccess";
 import { recorderCommand } from "../studio/nativeCommand";
-import { boardSoundList, boardSoundPreview, fireSound, updateBoardSound } from "../studio/register";
+import {
+	boardSoundList,
+	boardSoundPreview,
+	fireSound,
+	updateBoardSound,
+	exportPresentationSounds,
+	preparePresentationSounds,
+} from "../studio/register";
+import {
+	validatePresentationBundle,
+	presentationName,
+	fitPresentation,
+} from "./presentationBundle";
+import {
+	isShadow,
+	presentationMeta,
+	preserveShadows,
+	setShadow,
+} from "../../src/components/board/shadowObjects";
 import { stopStream, streamInfo } from "../studio/streamAudio";
 import { recordingVoiceList, selectRecordingVoice } from "../studio/voiceCues";
 import { captureWindowId, ensureDrawingSurfaceReady } from "./captureReady";
@@ -60,6 +79,7 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined;
 const edgeTrigger = new EdgeBoardTrigger();
 let closing = false;
 let status: BoardStatus = { recording: false, paused: false, elapsed: 0, webcam: false };
+let loadingPresentation = false;
 let drawingSync = Promise.resolve();
 function syncDrawingCapture() {
 	if (
@@ -313,6 +333,9 @@ const commandSchema = z.object({
 	y: z.number().finite().optional(),
 	width: z.number().finite().positive().optional(),
 	height: z.number().finite().positive().optional(),
+	shadow: z.boolean().optional(),
+	note: z.boolean().optional(),
+	enter: z.enum(["none", "fade", "spin", "fall"]).optional(),
 	deviceId: z.string().optional(),
 	signal: z.unknown().optional(),
 	type: z.string().optional(),
@@ -320,6 +343,19 @@ const commandSchema = z.object({
 	candidate: z.unknown().optional(),
 });
 async function action(method: string, input: unknown, actor = "desktop"): Promise<unknown> {
+	if (
+		loadingPresentation &&
+		![
+			"info",
+			"tabletInfo",
+			"presenterInfo",
+			"mcpGet",
+			"exportPresentation",
+			"savePresentation",
+			"listPresentations",
+		].includes(method)
+	)
+		throw Error("An environment is loading. Try again in a moment.");
 	const data = commandSchema.parse(
 		input && typeof input === "object" && !Array.isArray(input) ? input : {},
 	);
@@ -449,6 +485,11 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		case "scene": {
 			const mode = modeOf(input);
 			const incoming = validateScene(data.scene);
+			if (actor.startsWith("desktop"))
+				incoming.elements = preserveShadows(
+					incoming.elements,
+					store.state.scenes[mode].elements,
+				);
 			store.updateScene(mode, incoming, data.revision ?? -1, true);
 			const patch = { mode, scene: incoming, revision: store.state.revision, tag: data.tag };
 			send("sceneUpdate", patch);
@@ -548,6 +589,205 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			// Notes and object settings never enter the recorded scene or bump its revision.
 			companion.broadcast("presenterChanged", next);
 			return next;
+		}
+		case "saveCanvasNote": {
+			const next = await presenter.update(method, input);
+			companion.broadcast("presenterChanged", next);
+			return next;
+		}
+		case "setObjectShadow": {
+			const request = z
+				.object({
+					mode: z.enum(["screen", "board"]),
+					ids: z.array(z.string()).min(1).max(200),
+					shadow: z.boolean(),
+					enter: z.enum(["none", "fade", "spin", "fall"]).optional(),
+					revision: z.number().int(),
+				})
+				.parse(input);
+			if (request.revision !== store.state.revision)
+				throw Error("The scene changed. Select the object and try again.");
+			const scene = store.state.scenes[request.mode];
+			const ids = new Set(request.ids);
+			let added = true;
+			while (added) {
+				added = false;
+				for (const e of scene.elements)
+					if (
+						!ids.has(e.id) &&
+						(ids.has(String(e.containerId)) || ids.has(String(e.frameId)))
+					) {
+						ids.add(e.id);
+						added = true;
+					}
+			}
+			const refs = [
+				...new Map(
+					scene.elements
+						.filter((e) => ids.has(e.id) && isShadow(e))
+						.map((e) => presentationMeta(e)?.reference)
+						.filter(Boolean)
+						.map((ref) => [`${ref!.kind}:${ref!.id}`, ref] as const),
+				).values(),
+			];
+			store.updateScene(
+				request.mode,
+				{
+					...scene,
+					elements: scene.elements.map((e) =>
+						ids.has(e.id) ? setShadow(e, request.shadow, request.enter) : e,
+					),
+				},
+				request.revision,
+			);
+			// Link/sound cue cards stay private; revealing activates their action instead.
+			if (!request.shadow)
+				for (const ref of refs)
+					if (ref?.kind === "sound" || ref?.kind === "link") {
+						store.state.scenes[request.mode].elements = store.state.scenes[
+							request.mode
+						].elements.map((e) =>
+							ids.has(e.id) && presentationMeta(e)?.reference?.id === ref.id
+								? setShadow(e, true)
+								: e,
+						);
+					}
+			publish(actor);
+			if (!request.shadow)
+				for (const ref of refs) {
+					if (ref?.kind === "sound") await fireSound(ref.id);
+					if (ref?.kind === "link")
+						await action("openPresenterLink", { id: ref.id }, actor);
+				}
+			return store.state;
+		}
+		case "setMemeShadow": {
+			const request = z
+				.object({
+					id: z.string().uuid(),
+					mode: z.enum(["screen", "board"]),
+					shadow: z.boolean(),
+				})
+				.parse(input);
+			const item = store.state.placedMemes?.[request.mode].find((m) => m.id === request.id);
+			if (!item) throw Error("Meme no longer exists.");
+			const revealing = item.shadow && !request.shadow;
+			item.shadow = request.shadow;
+			item.removedAt = undefined;
+			if (revealing) item.placedAt = Date.now();
+			store.state.revision++;
+			publish(actor);
+			const sound = store.state.memes?.find((m) => m.id === item.assetId)?.soundId;
+			if (revealing && sound) await fireSound(sound);
+			return store.state;
+		}
+		case "exportPresentation":
+			return validatePresentationBundle({
+				format: "mistarecorda-presentation",
+				version: 1,
+				name: String(data.name || "Presentation"),
+				board: store.state,
+				presenter: presenter.state,
+				sounds: await exportPresentationSounds(),
+			});
+		case "savePresentation": {
+			const name = presentationName(data.name);
+			const bundle = await action("exportPresentation", { name }, actor);
+			await fs.mkdir(path.join(store.root, "presentations"), { recursive: true });
+			const temporary = path.join(store.root, "presentations", `${randomUUID()}.tmp`);
+			await fs.writeFile(temporary, JSON.stringify(bundle), { mode: 0o600 });
+			await fs.rename(temporary, path.join(store.root, "presentations", `${name}.json`));
+			return { name };
+		}
+		case "listPresentations":
+			return (await fs.readdir(path.join(store.root, "presentations")).catch(() => []))
+				.filter((f) => f.endsWith(".json"))
+				.map((f) => f.slice(0, -5));
+		case "loadPresentation": {
+			const name = presentationName(data.name);
+			return action(
+				"importPresentation",
+				{
+					bundle: JSON.parse(
+						await fs.readFile(
+							path.join(store.root, "presentations", `${name}.json`),
+							"utf8",
+						),
+					),
+					confirmed: data.confirmed,
+				},
+				actor,
+			);
+		}
+		case "importPresentation": {
+			if (status.recording) throw Error("Stop recording before loading an environment.");
+			const request = z
+				.object({ bundle: z.unknown(), confirmed: z.literal(true) })
+				.parse(input);
+			const bundle = validatePresentationBundle(request.bundle);
+			fitPresentation(bundle.board, store.state.width, store.state.height);
+			loadingPresentation = true;
+			try {
+				await action("savePresentation", { name: "Before last import" }, actor);
+				const previous = structuredClone(store.state),
+					oldPresenter = structuredClone(presenter.state);
+				const sounds = await preparePresentationSounds(bundle.sounds);
+				try {
+					for (const m of bundle.board.memes ?? [])
+						if (m.soundId) m.soundId = sounds.mapping[m.soundId] ?? "";
+					for (const ref of Object.values(bundle.presenter.notes.references))
+						if (ref.kind === "sound") ref.id = sounds.mapping[ref.id] ?? ref.id;
+					for (const mode of ["screen", "board"] as const)
+						for (const e of bundle.board.scenes[mode].elements) {
+							const ref = presentationMeta(e)?.reference;
+							if (ref?.kind === "sound") ref.id = sounds.mapping[ref.id] ?? ref.id;
+						}
+					const preferences = bundle.presenter.preferences;
+					for (const [oldId, id] of Object.entries(sounds.mapping))
+						if (id !== oldId && preferences[`sound:${oldId}`]) {
+							preferences[`sound:${id}`] = preferences[`sound:${oldId}`];
+							delete preferences[`sound:${oldId}`];
+						}
+					if (status.recording)
+						throw Error("Recording started. Stop it before loading an environment.");
+					store.state = {
+						...store.state,
+						...bundle.board,
+						width: store.state.width,
+						height: store.state.height,
+						revision: store.state.revision + 1,
+					};
+					await store.save();
+					await presenter.update("replacePresentation", bundle.presenter);
+					await sounds.commit();
+				} catch (error) {
+					store.state = previous;
+					const restored = await Promise.allSettled([
+						store.save(),
+						presenter.update("replacePresentation", oldPresenter),
+						sounds.rollback(),
+					]);
+					send("sceneReset", store.state);
+					companion.broadcast("sceneReset", store.state);
+					companion.broadcast("presenterChanged", presenter.state);
+					publish(actor);
+					if (restored.some((r) => r.status === "rejected"))
+						throw Object.assign(
+							new Error(
+								"Import could not be saved. Your backup is saved as Before last import; check available disk space before loading it.",
+							),
+							{ cause: error },
+						);
+					throw error;
+				}
+				send("sceneReset", store.state);
+				companion.broadcast("sceneReset", store.state);
+				companion.broadcast("presenterChanged", presenter.state);
+				publish(actor);
+				return { state: store.state, presenter: presenter.state, name: bundle.name };
+			} finally {
+				loadingPresentation = false;
+			}
 		}
 		case "openPresenterLink":
 			await openChrome(presenter.link(input));
@@ -791,11 +1031,16 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			send("info", info());
 			return info();
 		case "mcpGet":
-			return { state: store.state, savedScenes: await store.listScenes() };
+			return {
+				state: store.state,
+				savedScenes: await store.listScenes(),
+				presenter: presenter.state,
+			};
 		case "draw":
 		case "updateElements":
 		case "deleteElements": {
-			let elements = store.state.scenes[store.state.mode].elements;
+			const mode = data.mode ?? store.state.mode;
+			let elements = store.state.scenes[mode].elements;
 			const incoming = data.elements ?? [];
 			if (method === "draw") {
 				const added = incoming.map(makeElement);
@@ -826,8 +1071,8 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 						: e;
 				});
 			}
-			store.state.scenes[store.state.mode] = validateScene({
-				...store.state.scenes[store.state.mode],
+			store.state.scenes[mode] = validateScene({
+				...store.state.scenes[mode],
 				elements,
 			});
 			store.state.revision++;
@@ -835,8 +1080,9 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			return store.state;
 		}
 		case "image": {
+			const mode = data.mode ?? store.state.mode;
 			const id = randomUUID();
-			const s = store.state.scenes[store.state.mode];
+			const s = store.state.scenes[mode];
 			const mime = /^data:([^;]+);/.exec(data.dataURL ?? "")?.[1] ?? "";
 			const e = {
 				...makeElement({ type: "rectangle", ...data }),
@@ -848,7 +1094,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				crop: null,
 			};
 			store.updateScene(
-				store.state.mode,
+				mode,
 				{
 					...s,
 					elements: [...s.elements, e],

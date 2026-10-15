@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import type { BundledSound } from "../board/presentationBundle";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -215,6 +216,84 @@ export function boardSoundList() {
 			.sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite))
 			.map(({ file: _file, ...sound }) => sound),
 	};
+}
+export async function exportPresentationSounds(): Promise<BundledSound[]> {
+	return Promise.all(
+		settings.sounds.map(async ({ file, shortcut: _shortcut, ...sound }) => ({
+			...sound,
+			data: (await fs.readFile(path.join(root(), file))).toString("base64"),
+		})),
+	);
+}
+export async function preparePresentationSounds(sounds: BundledSound[]) {
+	const next = [...settings.sounds];
+	const mapping: Record<string, string> = {};
+	const created: string[] = [];
+	await fs.mkdir(root(), { recursive: true });
+	try {
+		for (const { data, ...sound } of sounds) {
+			const buffer = Buffer.from(data, "base64");
+			const old = next.find((s) => s.id === sound.id);
+			let matching: (typeof next)[number] | undefined;
+			for (const candidate of next) {
+				if (
+					candidate.name !== sound.name ||
+					candidate.volume !== sound.volume ||
+					candidate.durationMs !== sound.durationMs ||
+					!!candidate.favorite !== !!sound.favorite ||
+					candidate.color !== sound.color
+				)
+					continue;
+				const bytes = await fs
+					.readFile(path.join(root(), candidate.file))
+					.catch(() => null);
+				if (bytes && buffer.equals(bytes)) {
+					matching = candidate;
+					break;
+				}
+			}
+			if (matching) {
+				mapping[sound.id] = matching.id;
+				continue;
+			}
+			const id = old ? crypto.randomUUID() : sound.id;
+			const file = `presentation-${crypto.randomUUID()}.wav`;
+			await fs.writeFile(path.join(root(), file), buffer, { mode: 0o600 });
+			created.push(file);
+			mapping[sound.id] = id;
+			next.push({ ...sound, id, file, shortcut: "" });
+		}
+		studioSettingsSchema.parse({ ...settings, sounds: next });
+		const added = next.filter((s) => created.includes(s.file));
+		return {
+			mapping,
+			commit: async () => {
+				settings = studioSettingsSchema.parse({
+					...settings,
+					sounds: [...settings.sounds, ...added],
+				});
+				await save();
+			},
+			rollback: async () => {
+				settings = {
+					...settings,
+					sounds: settings.sounds.filter((s) => !created.includes(s.file)),
+				};
+				try {
+					await save();
+				} finally {
+					await Promise.all(
+						created.map((f) => fs.unlink(path.join(root(), f)).catch(() => undefined)),
+					);
+				}
+			},
+		};
+	} catch (error) {
+		await Promise.all(
+			created.map((f) => fs.unlink(path.join(root(), f)).catch(() => undefined)),
+		);
+		throw error;
+	}
 }
 /** The paired tablet can edit presentation metadata, never file paths or hotkeys. */
 export async function updateBoardSound(input: unknown) {

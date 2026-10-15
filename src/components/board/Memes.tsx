@@ -1,3 +1,4 @@
+import { SHADOW_HELP } from "./shadowObjects";
 import { presenterId } from "./presenterModel";
 import { useEffect, useState } from "react";
 import type { BoardAPI, BoardState } from "../../types/board";
@@ -189,6 +190,17 @@ export function MemeLibrary({
 						</select>
 					</label>
 					<small>Sound follows your soundboard recording setting.</small>
+					<label>
+						<input
+							type="checkbox"
+							checked={!!edit.shadow}
+							onChange={(e) => setEdit({ ...edit, shadow: e.target.checked })}
+						/>
+						Shadow object · iPad only
+					</label>
+					<small>
+						{SHADOW_HELP} Sound and the entrance transition start only when shown.
+					</small>
 					<footer>
 						<button type="submit" disabled={busy}>
 							Save
@@ -219,16 +231,22 @@ function MemeImage({
 	asset,
 	clean,
 	onRemove,
+	onShadow,
 }: {
 	item: PlacedMeme;
 	asset: MemeAsset;
 	clean: boolean;
 	onRemove: () => void;
+	onShadow?: (shadow: boolean) => Promise<void>;
 }) {
+	const [options, setOptions] = useState(false);
+	const [error, setError] = useState("");
 	const [now, setNow] = useState(Date.now());
 	const exitTime =
 		item.removedAt ??
-		(item.stayUntilClicked ? Infinity : item.placedAt + item.durationSeconds * 1000);
+		(item.shadow || item.stayUntilClicked
+			? Infinity
+			: item.placedAt + item.durationSeconds * 1000);
 	useEffect(() => {
 		if (!Number.isFinite(exitTime)) return;
 		const timer = setTimeout(() => setNow(Date.now()), Math.max(0, exitTime - Date.now()));
@@ -241,7 +259,7 @@ function MemeImage({
 	const current = Math.max(now, Date.now());
 	const leaving = current >= exitTime;
 	if (leaving && (item.exit === "none" || current >= exitTime + 450)) return null;
-	const transition = leaving ? item.exit : item.enter;
+	const transition = item.shadow ? "none" : leaving ? item.exit : item.enter;
 	const elapsed = Math.max(0, current - (leaving ? exitTime : item.placedAt));
 	return (
 		<div
@@ -257,12 +275,14 @@ function MemeImage({
 			<button
 				tabIndex={clean ? -1 : 0}
 				disabled={clean}
-				aria-label={`Dismiss ${asset.name}`}
+				aria-label={`${item.shadow ? "Shadow options for" : "Dismiss"} ${asset.name}`}
 				onClick={(e) => {
 					e.stopPropagation();
-					onRemove();
+					if (item.shadow) setOptions(!options);
+					else onRemove();
 				}}
 				style={{
+					opacity: item.shadow ? 0.5 : 1,
 					animation:
 						transition === "none"
 							? undefined
@@ -272,6 +292,35 @@ function MemeImage({
 			>
 				<img src={asset.dataURL} alt={asset.name} draggable={false} />
 			</button>
+			{!clean && onShadow && (
+				<>
+					<button
+						className="meme-shadow-gear"
+						aria-label={`Visibility for ${asset.name}`}
+						onClick={() => setOptions(!options)}
+					>
+						⚙
+					</button>
+					{options && (
+						<div className="meme-shadow-options">
+							<small>
+								{item.shadow ? "Shadow · iPad only" : "Visible on screen"}
+							</small>
+							<button
+								onClick={() =>
+									void onShadow(!item.shadow)
+										.then(() => setOptions(false))
+										.catch((e) => setError(String(e)))
+								}
+							>
+								{item.shadow ? "Show on screen" : "Make shadow"}
+							</button>
+							<button onClick={onRemove}>Remove</button>
+							{error && <output>{error}</output>}
+						</div>
+					)}
+				</>
+			)}
 		</div>
 	);
 }
@@ -280,6 +329,7 @@ export function MemeLayer({
 	mode,
 	view,
 	clean,
+	tablet = false,
 	transport,
 }: {
 	state: BoardState;
@@ -287,6 +337,7 @@ export function MemeLayer({
 	view: { x: number; y: number; zoom: number };
 	clean: boolean;
 	transport: BoardAPI;
+	tablet?: boolean;
 }) {
 	return (
 		<div
@@ -295,13 +346,24 @@ export function MemeLayer({
 		>
 			{state.placedMemes?.[mode].map((item) => {
 				const asset = state.memes?.find((m) => m.id === item.assetId);
-				return asset ? (
+				return asset && (tablet || !item.shadow) ? (
 					<MemeImage
-						key={item.id}
+						key={`${item.id}:${item.placedAt}:${item.shadow}`}
 						item={item}
 						asset={asset}
 						clean={clean}
 						onRemove={() => void transport.request("removeMeme", item.id)}
+						onShadow={
+							tablet
+								? async (shadow) => {
+										await transport.request("setMemeShadow", {
+											id: item.id,
+											mode,
+											shadow,
+										});
+									}
+								: undefined
+						}
 					/>
 				) : null;
 			})}

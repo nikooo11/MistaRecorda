@@ -17,6 +17,15 @@ import { flushSync } from "react-dom";
 import type { BoardAPI, BoardElement, BoardScene, BoardState } from "../../types/board";
 import type { PresenterObject } from "../../types/presenter";
 import { TalkingPoints, type PlacementPoint } from "./TalkingPoints";
+import {
+	isShadow,
+	presentationMeta,
+	preserveShadows,
+	setShadow,
+	visibleElements,
+	SHADOW_HELP,
+} from "./shadowObjects";
+import type { MemeTransition } from "../../types/memes";
 import type { MemeAsset } from "../../types/memes";
 import { MemeLayer, MemeLibrary } from "./Memes";
 import "@excalidraw/excalidraw/index.css";
@@ -74,6 +83,8 @@ export function BoardCanvas({
 	const [ai, setAi] = useState(false);
 	const [sounds, setSounds] = useState(false);
 	const [memes, setMemes] = useState(false);
+	const [pendingCard, setPendingCard] = useState<PresenterObject>();
+	const [objectSettings, setObjectSettings] = useState(false);
 	const [pendingMeme, setPendingMeme] = useState<MemeAsset>();
 	const [memeSettings, setMemeSettings] = useState<string>();
 	const [pendingImage, setPendingImage] = useState<{
@@ -108,6 +119,7 @@ export function BoardCanvas({
 		fontFamily: number;
 		strokeColor: string;
 		id?: string;
+		shadow: boolean;
 	} | null>(null);
 	const draftRef = useRef(draft);
 	const committing = useRef(false);
@@ -265,7 +277,11 @@ export function BoardCanvas({
 						? CaptureUpdateAction.IMMEDIATELY
 						: CaptureUpdateAction.NEVER,
 				elements: restoreElements(
-					scene.elements as unknown as Parameters<typeof restoreElements>[0],
+					visibleElements(
+						scene.elements,
+						tablet,
+						clean ? Date.now() : undefined,
+					) as unknown as Parameters<typeof restoreElements>[0],
 					null,
 				),
 				appState: {
@@ -282,6 +298,34 @@ export function BoardCanvas({
 		},
 		[api, clean, fit.scale, tablet],
 	);
+	useEffect(() => {
+		if (!clean || !api || boardClosing) return;
+		const elements = state.scenes[cleanMode].elements;
+		if (
+			!elements.some(
+				(e) => !isShadow(e) && (presentationMeta(e)?.revealedAt ?? 0) + 450 > Date.now(),
+			)
+		)
+			return;
+		let frame = 0;
+		const tick = () => {
+			const now = Date.now();
+			api.updateScene({
+				elements: restoreElements(
+					visibleElements(elements, false, now) as unknown as Parameters<
+						typeof restoreElements
+					>[0],
+					null,
+				),
+				captureUpdate: CaptureUpdateAction.NEVER,
+			});
+			if (elements.some((e) => (presentationMeta(e)?.revealedAt ?? 0) + 450 > now))
+				frame = requestAnimationFrame(tick);
+		};
+		frame = requestAnimationFrame(tick);
+		return () => cancelAnimationFrame(frame);
+	}, [api, clean, cleanMode, state.scenes, boardClosing]);
+
 	useEffect(() => {
 		if (tablet) apply(initial);
 	}, [initial, tablet, apply]);
@@ -335,12 +379,17 @@ export function BoardCanvas({
 	useEffect(() => {
 		setPendingMeme(undefined);
 		setPendingImage(undefined);
+		setPendingCard(undefined);
 		setDragGhost(undefined);
 	}, [state.mode]);
 	useEffect(
 		() =>
 			transport.on<MemeAsset>("memePlacement", (asset) => {
-				if (!clean) setPendingMeme(asset);
+				if (!clean) {
+					setPendingCard(undefined);
+					setPendingImage(undefined);
+					setPendingMeme(asset);
+				}
 			}),
 		[transport, clean],
 	);
@@ -387,6 +436,7 @@ export function BoardCanvas({
 		height = 240,
 		point?: { x: number; y: number },
 		placedWidth?: number,
+		object?: PresenterObject,
 	) {
 		if (!drawing && !point) {
 			setError("Turn Draw on to place an image.");
@@ -409,7 +459,17 @@ export function BoardCanvas({
 			},
 		] as Parameters<typeof convertToExcalidrawElements>[0]);
 		api.updateScene({
-			elements: [...api.getSceneElements(), ...element],
+			elements: restoreElements(
+				[
+					...api.getSceneElements(),
+					...element.map((e) =>
+						object
+							? setShadow(e as unknown as BoardElement, !!object.shadow, object.enter)
+							: e,
+					),
+				] as Parameters<typeof restoreElements>[0],
+				null,
+			),
 			appState: {
 				selectedElementIds: Object.fromEntries(element.map((e) => [e.id, true])),
 				selectedGroupIds: {},
@@ -427,6 +487,7 @@ export function BoardCanvas({
 		const point = client ? memeCoordinates(client.x, client.y) : undefined;
 		setPendingMeme(undefined);
 		setPendingImage(undefined);
+		setPendingCard(undefined);
 		if (object.kind === "meme") {
 			const asset = current.current.memes?.find((m) => m.id === object.id);
 			if (!asset) throw Error("This meme is no longer available.");
@@ -460,6 +521,7 @@ export function BoardCanvas({
 					image.height,
 					point,
 					(current.current.width * (object.widthPercent ?? 30)) / 100,
+					object,
 				);
 				api.setActiveTool({ type: "selection" });
 			} else {
@@ -471,6 +533,47 @@ export function BoardCanvas({
 				);
 				setPendingImage({ object, width: image.width, height: image.height });
 			}
+		} else {
+			if (point) placeCard(object, point);
+			else setPendingCard(object);
+		}
+	}
+	function placeCard(object: PresenterObject, point: PlacementPoint) {
+		if (!api) return;
+		const card = convertToExcalidrawElements([
+			{
+				type: "text",
+				x: point.x,
+				y: point.y,
+				text: object.text || `${object.kind === "link" ? "↗" : "♫"} ${object.name}`,
+				fontSize: 28,
+				fontFamily: FONT_FAMILY.Helvetica,
+				strokeColor: "#405b75",
+			},
+		])[0] as unknown as BoardElement;
+		const element = setShadow(card, object.shadow ?? object.kind === "note", object.enter);
+		if (object.kind === "link" || object.kind === "sound")
+			presentationMeta(element)!.reference = { kind: object.kind, id: object.id };
+		editObjects([...(api.getSceneElements() as unknown as BoardElement[]), element], {
+			[element.id]: true,
+		});
+		api.setActiveTool({ type: "selection" });
+	}
+	async function changeShadow(shadow: boolean, enter?: MemeTransition) {
+		try {
+			await flush();
+			const ids = Object.keys(selected).filter((id) => selected[id]);
+			const next = await transport.request<BoardState>("setObjectShadow", {
+				mode: modeRef.current,
+				ids,
+				shadow,
+				enter,
+				revision: current.current.revision,
+			});
+			last.current = "";
+			apply(next);
+		} catch (e) {
+			setError(String(e));
 		}
 	}
 	function openTextDraft(x: number, y: number) {
@@ -482,6 +585,7 @@ export function BoardCanvas({
 				x,
 				y,
 				text: "",
+				shadow: true,
 				fontSize: view.currentItemFontSize,
 				fontFamily: view.currentItemFontFamily,
 				strokeColor: view.currentItemStrokeColor,
@@ -520,13 +624,34 @@ export function BoardCanvas({
 					...current.current.scenes[draft.mode].elements.filter(
 						(element) => element.id !== draft.id,
 					),
-					...elements,
+					...elements.map((e) => {
+						const original = current.current.scenes[draft.mode].elements.find(
+							(item) => item.id === draft.id,
+						);
+						return setShadow(
+							{
+								...e,
+								...(original
+									? {
+											id: original.id,
+											version: original.version + 1,
+											customData: original.customData,
+										}
+									: {}),
+							} as BoardElement,
+							draft.shadow,
+						);
+					}),
 				] as BoardElement[],
 			};
 			applying.current = true;
 			api.updateScene({
 				elements: restoreElements(
-					scene.elements as unknown as Parameters<typeof restoreElements>[0],
+					visibleElements(
+						scene.elements,
+						tablet,
+						clean ? Date.now() : undefined,
+					) as unknown as Parameters<typeof restoreElements>[0],
 					null,
 				),
 				captureUpdate: CaptureUpdateAction.IMMEDIATELY,
@@ -610,11 +735,24 @@ export function BoardCanvas({
 		);
 	}
 	const selectedCount = Object.values(selected).filter(Boolean).length;
+	const selection = state.scenes[cleanMode].elements.filter(
+		(e) => selected[e.id] && !e.isDeleted,
+	);
+	const hasShadow = selection.some(isShadow);
+	const allShadow = selection.length > 0 && selection.every(isShadow);
 	return (
 		<div
 			ref={stage}
 			data-board-ready={clean && api ? "true" : undefined}
 			onPointerDownCapture={(event) => {
+				if (pendingCard && api && event.target instanceof HTMLCanvasElement) {
+					event.preventDefault();
+					event.stopPropagation();
+					api.refresh();
+					placeCard(pendingCard, memeCoordinates(event.clientX, event.clientY));
+					setPendingCard(undefined);
+					return;
+				}
 				if (pendingImage && api && event.target instanceof HTMLCanvasElement) {
 					event.preventDefault();
 					event.stopPropagation();
@@ -625,6 +763,7 @@ export function BoardCanvas({
 						pendingImage.height,
 						memeCoordinates(event.clientX, event.clientY),
 						(current.current.width * (pendingImage.object.widthPercent ?? 30)) / 100,
+						pendingImage.object,
 					);
 					api.setActiveTool({ type: "selection" });
 					setPendingImage(undefined);
@@ -734,10 +873,11 @@ export function BoardCanvas({
 				interacted.current = true;
 			}}
 			onKeyDownCapture={(event) => {
-				if ((pendingMeme || pendingImage) && event.key === "Escape") {
+				if ((pendingMeme || pendingImage || pendingCard) && event.key === "Escape") {
 					event.stopPropagation();
 					setPendingMeme(undefined);
 					setPendingImage(undefined);
+					setPendingCard(undefined);
 				}
 				interacted.current = true;
 			}}
@@ -796,9 +936,11 @@ export function BoardCanvas({
 					zenModeEnabled={clean}
 					initialData={{
 						elements: restoreElements(
-							initial.scenes[cleanMode].elements as unknown as Parameters<
-								typeof restoreElements
-							>[0],
+							visibleElements(
+								initial.scenes[cleanMode].elements,
+								tablet,
+								clean ? Date.now() : undefined,
+							) as unknown as Parameters<typeof restoreElements>[0],
 							null,
 						),
 						files: initial.scenes[cleanMode].files as BinaryFiles,
@@ -854,6 +996,7 @@ export function BoardCanvas({
 								x: text.x,
 								y: text.y,
 								text: String(original?.text ?? ""),
+								shadow: original ? isShadow(original) : true,
 								fontSize: text.fontSize,
 								fontFamily: text.fontFamily,
 								strokeColor: text.strokeColor,
@@ -873,6 +1016,24 @@ export function BoardCanvas({
 						}
 						if (clean || applying.current || !interacted.current || !api) return;
 						const shared = current.current.scenes[modeRef.current];
+						if (
+							tablet &&
+							elements.some(
+								(e) => isShadow(e as unknown as BoardElement) && e.opacity !== 50,
+							)
+						) {
+							api.updateScene({
+								elements: restoreElements(
+									visibleElements(
+										elements as unknown as BoardElement[],
+										true,
+									) as unknown as Parameters<typeof restoreElements>[0],
+									null,
+								),
+								captureUpdate: CaptureUpdateAction.NEVER,
+							});
+							return;
+						}
 						if (tablet) {
 							const next = readTabletView(shared, fit.scale, {
 								scrollX: view.scrollX,
@@ -892,7 +1053,10 @@ export function BoardCanvas({
 										shared.elements,
 										view.editingTextElement?.id ?? draftRef.current?.id,
 									)
-								: (elements as unknown as BoardElement[]),
+								: preserveShadows(
+										elements as unknown as BoardElement[],
+										shared.elements,
+									),
 							files: files as BoardScene["files"],
 							scrollX: tablet ? shared.scrollX : view.scrollX,
 							scrollY: tablet ? shared.scrollY : view.scrollY,
@@ -900,6 +1064,9 @@ export function BoardCanvas({
 								? shared.zoom
 								: Math.max(0.1, Math.min(10, view.zoom.value / fit.scale)),
 						};
+						scene.elements = scene.elements.map((e) =>
+							isShadow(e) ? { ...e, opacity: 50 } : e,
+						);
 						const signature = sceneSignature(scene);
 						if (signature === last.current) return;
 						last.current = signature;
@@ -945,6 +1112,7 @@ export function BoardCanvas({
 					mode={boardClosing ? "board" : cleanMode}
 					view={memeView}
 					clean={clean || !drawing}
+					tablet={tablet}
 					transport={transport}
 				/>
 				{(pendingMeme || pendingImage) && (
@@ -963,15 +1131,16 @@ export function BoardCanvas({
 					/>
 				)}
 			</div>
-			{(pendingMeme || pendingImage) && (
+			{(pendingMeme || pendingImage || pendingCard) && (
 				<button
 					className="meme-cancel"
 					onClick={() => {
 						setPendingMeme(undefined);
 						setPendingImage(undefined);
+						setPendingCard(undefined);
 					}}
 				>
-					Tap to place · Cancel
+					{pendingCard ? `Tap to place ${pendingCard.name}` : "Tap to place"} · Cancel
 				</button>
 			)}
 			{!clean && tablet && (
@@ -1009,8 +1178,12 @@ export function BoardCanvas({
 						className="presenter-drag-ghost presenter-drag-label"
 						style={{ left: dragGhost.point.x, top: dragGhost.point.y }}
 					>
-						{dragGhost.object.kind === "link" ? "Open in Chrome" : "Play sound"} ·{" "}
-						{dragGhost.object.name}
+						{dragGhost.object.shadow || dragGhost.object.kind === "note"
+							? "Place shadow"
+							: dragGhost.object.kind === "link"
+								? "Open in Chrome"
+								: "Play sound"}{" "}
+						· {dragGhost.object.name}
 					</span>
 				))}
 			{clean && <BoardLaser transport={transport} state={state} />}
@@ -1079,6 +1252,63 @@ export function BoardCanvas({
 					>
 						Ungroup
 					</button>
+					{tablet && (
+						<>
+							<button
+								aria-label="Selected object settings"
+								disabled={!selectedCount}
+								aria-expanded={objectSettings}
+								onClick={() => setObjectSettings(!objectSettings)}
+							>
+								⚙
+							</button>
+							{hasShadow && (
+								<button onClick={() => void changeShadow(false)}>
+									Show on screen
+								</button>
+							)}
+							{objectSettings && selectedCount > 0 && (
+								<div
+									className="shadow-settings"
+									role="dialog"
+									aria-label="Selected object settings"
+									onKeyDown={(e) => e.stopPropagation()}
+								>
+									<label>
+										<input
+											type="checkbox"
+											checked={allShadow}
+											onChange={(e) => void changeShadow(e.target.checked)}
+										/>
+										Shadow object
+									</label>
+									<small>{SHADOW_HELP}</small>
+									<label>
+										Transition in
+										<select
+											disabled={hasShadow && !allShadow}
+											value={
+												presentationMeta(
+													selection[0] ?? ({} as BoardElement),
+												)?.enter ?? "none"
+											}
+											onChange={(e) =>
+												void changeShadow(
+													allShadow,
+													e.target.value as MemeTransition,
+												)
+											}
+										>
+											{["none", "fade", "spin", "fall"].map((t) => (
+												<option key={t}>{t}</option>
+											))}
+										</select>
+									</label>
+									<button onClick={() => setObjectSettings(false)}>Done</button>
+								</div>
+							)}
+						</>
+					)}
 				</div>
 			)}
 			{!clean && (
@@ -1180,6 +1410,7 @@ export function BoardCanvas({
 					initialEditId={memeSettings}
 					onChoose={(asset) => {
 						setPendingImage(undefined);
+						setPendingCard(undefined);
 						setPendingMeme(asset);
 					}}
 					onClose={() => {
@@ -1218,7 +1449,9 @@ export function BoardCanvas({
 						),
 					}}
 				>
-					<label htmlFor="tablet-text">Text · visible after Done</label>
+					<label htmlFor="tablet-text">
+						{draft.shadow ? "Note · iPad only" : "Text · visible after Done"}
+					</label>
 					<textarea
 						id="tablet-text"
 						ref={textInput}
@@ -1226,6 +1459,15 @@ export function BoardCanvas({
 						placeholder="Type your annotation…"
 						onChange={(event) => setDraft({ ...draft, text: event.target.value })}
 					/>
+					<label className="shadow-check">
+						<input
+							type="checkbox"
+							checked={draft.shadow}
+							onChange={(e) => setDraft({ ...draft, shadow: e.target.checked })}
+						/>
+						Shadow object · iPad only
+					</label>
+					<small>{SHADOW_HELP}</small>
 					<div>
 						<button
 							onClick={() => {

@@ -36,7 +36,7 @@ const notesSchema = z.object({
 		.record(
 			key,
 			z.object({
-				kind: z.enum(["image", "meme", "sound", "link"]),
+				kind: z.enum(["image", "meme", "sound", "link", "note"]),
 				id: z.string().min(1).max(100),
 			}),
 		)
@@ -45,13 +45,21 @@ const notesSchema = z.object({
 const preferenceSchema = z.object({
 	name: name.optional(),
 	widthPercent: z.number().finite().min(5).max(100).optional(),
+	shadow: z.boolean().optional(),
+	enter: z.enum(["none", "fade", "spin", "fall"]).optional(),
 });
-const documentSchema = z.object({
+export const canvasNoteSchema = z.object({
+	id: z.string().uuid(),
+	name,
+	text: z.string().trim().min(1).max(10000),
+});
+export const documentSchema = z.object({
 	version: z.literal(1),
 	notesVersion: z.number().int().nonnegative(),
 	notes: notesSchema,
 	links: z.array(linkSchema).max(200),
 	preferences: z.record(key, preferenceSchema).refine((r) => Object.keys(r).length <= 500),
+	canvasNotes: z.array(canvasNoteSchema).max(200).default([]),
 });
 export class PresenterStore {
 	state = emptyPresenterDocument();
@@ -83,6 +91,16 @@ export class PresenterStore {
 						);
 					next.notes = data.notes;
 					next.notesVersion++;
+				} else if (method === "saveCanvasNote") {
+					const note = canvasNoteSchema.parse(input);
+					next.canvasNotes = [
+						...(next.canvasNotes ?? []).filter((n) => n.id !== note.id),
+						note,
+					];
+				} else if (method === "replacePresentation") {
+					Object.assign(next, documentSchema.parse(input), {
+						notesVersion: next.notesVersion + 1,
+					});
 				} else if (method === "savePresenterLink") {
 					const link = linkSchema.parse(input);
 					next.links = [...next.links.filter((l) => l.id !== link.id), link];

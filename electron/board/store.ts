@@ -9,6 +9,7 @@ import {
 	emptyBoardState,
 } from "../../src/types/board";
 import { validateMemes } from "./memes";
+import { isShadow, presentationMeta, setShadow } from "../../src/components/board/shadowObjects";
 
 const kinds = new Set([
 	"rectangle",
@@ -34,6 +35,17 @@ export function validateScene(input: unknown): BoardScene {
 	)
 		throw Error("Invalid scene");
 	for (const e of s.elements) {
+		const meta = presentationMeta(e);
+		if (
+			meta &&
+			(typeof meta.shadow !== "boolean" ||
+				!Number.isFinite(meta.publicOpacity) ||
+				meta.publicOpacity < 0 ||
+				meta.publicOpacity > 100 ||
+				!["none", "fade", "spin", "fall"].includes(meta.enter) ||
+				(meta.revealedAt !== undefined && !Number.isFinite(meta.revealedAt)))
+		)
+			throw Error("Invalid shadow object settings");
 		if (
 			!e ||
 			typeof e.id !== "string" ||
@@ -42,6 +54,15 @@ export function validateScene(input: unknown): BoardScene {
 			!Number.isFinite(e.version)
 		)
 			throw Error("Invalid element");
+		if (
+			meta?.reference &&
+			(!["image", "meme", "sound", "link", "note"].includes(meta.reference.kind) ||
+				typeof meta.reference.id !== "string" ||
+				meta.reference.id.length < 1 ||
+				meta.reference.id.length > 100)
+		)
+			throw Error("Invalid shadow object reference");
+
 		for (const k of ["x", "y", "width", "height", "angle"])
 			if (
 				typeof e[k] !== "number" ||
@@ -71,7 +92,9 @@ export function validateScene(input: unknown): BoardScene {
 		Math.abs(s.scrollY) > 1e7
 	)
 		throw Error("Invalid viewport");
-	return structuredClone(s);
+	const result = structuredClone(s);
+	result.elements = result.elements.map((e) => (isShadow(e) ? { ...e, opacity: 50 } : e));
+	return result;
 }
 export class BoardStore {
 	state = emptyBoardState();
@@ -245,5 +268,11 @@ export function makeElement(input: Record<string, unknown>): BoardElement {
 			pressures: [],
 			simulatePressure: true,
 		});
-	return e;
+	return input.shadow !== undefined || input.note === true
+		? setShadow(
+				e,
+				input.shadow !== false,
+				input.enter as "none" | "fade" | "spin" | "fall" | undefined,
+			)
+		: e;
 }

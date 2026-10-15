@@ -1,7 +1,11 @@
 import { expect, test } from "vitest";
 import { DrawingMcpServer } from "./mcp";
 test("MCP requires the session token and exposes drawing guide, tools and editable scene data", async () => {
-	const server = new DrawingMcpServer(async () => ({ elements: [{ id: "editable" }] }));
+	const calls: Array<{ method: string; input: unknown }> = [];
+	const server = new DrawingMcpServer(async (method, input) => {
+		calls.push({ method, input });
+		return { elements: [{ id: "editable" }] };
+	});
 	const { url, token } = await server.start();
 	try {
 		const send = (body: unknown, auth = true) =>
@@ -43,6 +47,46 @@ test("MCP requires the session token and exposes drawing guide, tools and editab
 			})
 		).json();
 		expect(draw.result.content[0].text).toContain("editable");
+		for (const name of [
+			"board_shadow",
+			"presenter_note",
+			"presenter_notes",
+			"presenter_link",
+			"presenter_preference",
+			"presentation_save",
+			"presentation_import",
+		])
+			expect(tools.result.tools.map((t: { name: string }) => t.name)).toContain(name);
+		const change = {
+			mode: "screen",
+			ids: ["editable"],
+			shadow: true,
+			revision: 7,
+			enter: "fade",
+		};
+		await send({
+			jsonrpc: "2.0",
+			id: 4,
+			method: "tools/call",
+			params: { name: "board_shadow", arguments: change },
+		});
+		expect(calls.at(-1)).toEqual({ method: "setObjectShadow", input: change });
+		await send({
+			jsonrpc: "2.0",
+			id: 5,
+			method: "tools/call",
+			params: {
+				name: "board_draw",
+				arguments: {
+					mode: "board",
+					elements: [{ type: "text", text: "Private cue", note: true }],
+				},
+			},
+		});
+		expect(calls.at(-1)?.input).toEqual({
+			mode: "board",
+			elements: [{ type: "text", text: "Private cue", note: true }],
+		});
 	} finally {
 		server.stop();
 	}

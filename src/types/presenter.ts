@@ -1,4 +1,4 @@
-export type PresenterObjectKind = "image" | "meme" | "sound" | "link";
+export type PresenterObjectKind = "image" | "meme" | "sound" | "link" | "note";
 export interface ObjectReference {
 	kind: PresenterObjectKind;
 	id: string;
@@ -18,6 +18,13 @@ export interface PresenterLink {
 export interface ObjectPreference {
 	name?: string;
 	widthPercent?: number;
+	shadow?: boolean;
+	enter?: import("./memes").MemeTransition;
+}
+export interface PresenterNote {
+	id: string;
+	name: string;
+	text: string;
 }
 export interface PresenterDocument {
 	version: 1;
@@ -25,12 +32,16 @@ export interface PresenterDocument {
 	notes: TalkingNotes;
 	links: PresenterLink[];
 	preferences: Record<string, ObjectPreference>;
+	canvasNotes?: PresenterNote[];
 }
 export interface PresenterObject extends ObjectReference {
 	name: string;
 	preview?: string;
 	detail: string;
 	widthPercent?: number;
+	shadow?: boolean;
+	enter?: import("./memes").MemeTransition;
+	text?: string;
 }
 export const objectKey = (object: ObjectReference) => `${object.kind}:${object.id}`;
 export const emptyPresenterDocument = (): PresenterDocument => ({
@@ -39,4 +50,5 @@ export const emptyPresenterDocument = (): PresenterDocument => ({
 	notes: { body: "", references: {} },
 	links: [],
 	preferences: {},
+	canvasNotes: [],
 });

@@ -5,6 +5,7 @@ import {
 	FilmStripIcon,
 	SpeakerHighIcon,
 	GearSixIcon,
+	NoteIcon,
 } from "@phosphor-icons/react";
 import type { BoardAPI } from "../../types/board";
 import {
@@ -14,6 +15,8 @@ import {
 	type PresenterObject,
 } from "../../types/presenter";
 import type { SoundEffect } from "../../types/studio";
+import { SHADOW_HELP } from "./shadowObjects";
+import type { MemeTransition } from "../../types/memes";
 import { presenterURL, presenterId } from "./presenterModel";
 
 export function ObjectIcon({ kind }: { kind: PresenterObject["kind"] }) {
@@ -22,6 +25,7 @@ export function ObjectIcon({ kind }: { kind: PresenterObject["kind"] }) {
 		image: ImageIcon,
 		meme: FilmStripIcon,
 		sound: SpeakerHighIcon,
+		note: NoteIcon,
 	}[kind];
 	return <Icon size={18} aria-hidden="true" />;
 }
@@ -67,6 +71,9 @@ export function PresenterObjects({
 	const [name, setName] = useState("");
 	const [width, setWidth] = useState(30);
 	const [sound, setSound] = useState<Omit<SoundEffect, "file">>();
+	const [shadow, setShadow] = useState(false);
+	const [enter, setEnter] = useState<MemeTransition>("none");
+	const [noteText, setNoteText] = useState("");
 	const [busy, setBusy] = useState(false);
 	const run = async (action: () => Promise<unknown>) => {
 		setBusy(true);
@@ -86,6 +93,9 @@ export function PresenterObjects({
 		}
 		setEditing(o);
 		setName(o.name);
+		setShadow(o.shadow ?? o.kind === "note");
+		setEnter(o.enter ?? "none");
+		setNoteText(o.text ?? "");
 		setWidth(o.widthPercent ?? 30);
 		setLink(document.links.find((l) => o.kind === "link" && l.id === o.id));
 		setSound(sounds.find((s) => o.kind === "sound" && s.id === o.id));
@@ -101,11 +111,25 @@ export function PresenterObjects({
 					favorite: !!sound.favorite,
 					color: sound.color || "#466784",
 				});
-			else if (editing)
+			else if (editing?.kind === "note")
+				onChanged(
+					await transport.request<PresenterDocument>("saveCanvasNote", {
+						id: editing.id,
+						name,
+						text: noteText,
+					}),
+				);
+			const target = editing ?? (link ? { kind: "link" as const, id: link.id } : undefined);
+			if (target)
 				onChanged(
 					await transport.request<PresenterDocument>("saveObjectPreference", {
-						key: objectKey(editing),
-						preference: { name, widthPercent: width },
+						key: objectKey(target),
+						preference: {
+							...(target.kind === "image" || target.kind === "note" ? { name } : {}),
+							widthPercent: width,
+							shadow,
+							enter,
+						},
 					}),
 				);
 			setEditing(undefined);
@@ -124,7 +148,7 @@ export function PresenterObjects({
 				<strong>
 					{link
 						? "Webpage settings"
-						: `${editing?.kind === "sound" ? "Sound" : "Image"} settings`}
+						: `${editing?.kind === "sound" ? "Sound" : editing?.kind === "note" ? "Note" : "Image"} settings`}
 				</strong>
 				<label>
 					Name
@@ -193,6 +217,17 @@ export function PresenterObjects({
 							to bring a still onto the whiteboard.
 						</p>
 					</>
+				) : editing?.kind === "note" ? (
+					<label>
+						Note text
+						<textarea
+							aria-label="Canvas note text"
+							required
+							maxLength={10000}
+							value={noteText}
+							onChange={(e) => setNoteText(e.target.value)}
+						/>
+					</label>
 				) : sound ? (
 					<>
 						<label>
@@ -250,6 +285,32 @@ export function PresenterObjects({
 						</p>
 					</>
 				)}
+				<label className="presenter-check">
+					<input
+						type="checkbox"
+						checked={shadow}
+						onChange={(e) => setShadow(e.target.checked)}
+					/>
+					Shadow object · iPad only
+				</label>
+				<p className="presenter-help">
+					{SHADOW_HELP}
+					{(link || sound) &&
+						" A private cue card lets you open the link or play the sound when ready."}
+				</p>
+				{!link && !sound && (
+					<label>
+						Transition in
+						<select
+							value={enter}
+							onChange={(e) => setEnter(e.target.value as MemeTransition)}
+						>
+							{["none", "fade", "spin", "fall"].map((t) => (
+								<option key={t}>{t}</option>
+							))}
+						</select>
+					</label>
+				)}
 				<footer>
 					<button disabled={busy} type="submit">
 						Save object
@@ -292,15 +353,17 @@ export function PresenterObjects({
 		<>
 			<div className="presenter-create">
 				<button
-					onClick={() =>
+					onClick={() => {
+						setShadow(false);
+						setEnter("none");
 						setLink({
 							id: presenterId(),
 							name: "",
 							url: "",
 							startAt: "url",
 							target: "",
-						})
-					}
+						});
+					}}
 				>
 					＋ Link
 				</button>
@@ -332,6 +395,20 @@ export function PresenterObjects({
 					/>
 				</label>
 				<button onClick={onImportMeme}>＋ Meme</button>
+				<button
+					onClick={() =>
+						edit({
+							kind: "note",
+							id: presenterId(),
+							name: "New note",
+							detail: "Private note",
+							shadow: true,
+							text: "",
+						})
+					}
+				>
+					＋ Note
+				</button>
 			</div>
 			<div className="presenter-filter">
 				<input
@@ -346,7 +423,7 @@ export function PresenterObjects({
 					value={filter}
 					onChange={(e) => setFilter(e.target.value)}
 				>
-					{["all", "image", "meme", "sound", "link"].map((kind) => (
+					{["all", "image", "meme", "sound", "link", "note"].map((kind) => (
 						<option key={kind} value={kind}>
 							{kind === "all" ? "All types" : kind[0].toUpperCase() + kind.slice(1)}
 						</option>
@@ -366,7 +443,10 @@ export function PresenterObjects({
 								<ObjectPreview object={o} />
 								<span>
 									<strong>{o.name}</strong>
-									<small>{o.detail}</small>
+									<small>
+										{o.shadow ? "Shadow · " : ""}
+										{o.detail}
+									</small>
 								</span>
 							</button>
 							<button aria-label={`Settings for ${o.name}`} onClick={() => edit(o)}>

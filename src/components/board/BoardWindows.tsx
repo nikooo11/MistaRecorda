@@ -16,6 +16,7 @@ import {
 import QRCode from "qrcode";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BoardInfo, BoardStatus } from "../../types/board";
+import { EnvironmentFiles } from "./EnvironmentFiles";
 import { BoardCanvas } from "./BoardCanvas";
 import { BoardStream } from "./BoardStream";
 import { FigureAssistant, FigureSettingsPanel } from "./FigureAssistant";
@@ -480,6 +481,10 @@ export function BoardWindow({ kind }: { kind: string }) {
 						)}
 						{tab === "settings" && (
 							<>
+								<details className="studio-details">
+									<summary>Presentation environments</summary>
+									<EnvironmentFiles transport={transport} onError={setNotice} />
+								</details>
 								<FigureSettingsPanel transport={transport} />
 								<h2>Drawing settings</h2>
 								<label className="studio-field">
@@ -515,8 +520,13 @@ export function BoardWindow({ kind }: { kind: string }) {
 									Mac and Windows recordings.
 								</p>
 								<details className="studio-details">
-									<summary>Codex drawing tools</summary>
-									<p>Prepare editable diagrams from a local MCP connection.</p>
+									<summary>Agent presentation tools · MCP</summary>
+									<p>
+										Connect Codex, Claude Code or another MCP client to prepare
+										both canvases, shadow notes and talking points. Agents can
+										import screenshots you supply and arrange editable objects.
+										Shadow objects remain private until shown on the iPad.
+									</p>
 									<button
 										onClick={() => void run("mcp", !info.mcp)}
 										title="Enable or stop the authenticated local server for compatible drawing agents."

@@ -1,5 +1,6 @@
 export type MemeTransition = "none" | "fade" | "spin" | "fall";
 export interface MemeAsset {
+	shadow?: boolean;
 	id: string;
 	name: string;
 	dataURL: string;
@@ -12,6 +13,7 @@ export interface MemeAsset {
 	soundId: string;
 }
 export interface PlacedMeme {
+	shadow?: boolean;
 	id: string;
 	assetId: string;
 	x: number;

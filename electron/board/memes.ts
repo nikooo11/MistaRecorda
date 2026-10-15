@@ -4,6 +4,7 @@ import type { BoardMode, BoardState } from "../../src/types/board";
 const transition = z.enum(["none", "fade", "spin", "fall"]);
 const point = z.number().finite().min(-1e7).max(1e7);
 export const memeSchema = z.object({
+	shadow: z.boolean().optional(),
 	id: z.string().uuid(),
 	name: z.string().trim().min(1).max(80),
 	dataURL: z
@@ -19,6 +20,7 @@ export const memeSchema = z.object({
 	soundId: z.union([z.literal(""), z.string().uuid()]).default(""),
 });
 export const placedMemeSchema = z.object({
+	shadow: z.boolean().optional(),
 	id: z.string().uuid(),
 	assetId: z.string().uuid(),
 	x: point,
@@ -61,6 +63,7 @@ export function placeMeme(state: BoardState, input: unknown) {
 			x: point,
 			y: point,
 			width: z.number().positive().max(4000),
+			shadow: z.boolean().optional(),
 		})
 		.parse(input);
 	const asset = state.memes?.find((m) => m.id === data.assetId);
@@ -69,11 +72,14 @@ export function placeMeme(state: BoardState, input: unknown) {
 	state.placedMemes[data.mode] = state.placedMemes[data.mode].filter(
 		(m) =>
 			!m.removedAt &&
-			(m.stayUntilClicked || m.placedAt + m.durationSeconds * 1000 + 450 > Date.now()),
+			(m.shadow ||
+				m.stayUntilClicked ||
+				m.placedAt + m.durationSeconds * 1000 + 450 > Date.now()),
 	);
 	if (state.placedMemes[data.mode].length >= 200)
 		throw Error("Clear some memes before placing more.");
 	state.placedMemes[data.mode].push({
+		shadow: data.shadow ?? asset.shadow ?? false,
 		id: crypto.randomUUID(),
 		assetId: asset.id,
 		x: data.x,
@@ -86,7 +92,7 @@ export function placeMeme(state: BoardState, input: unknown) {
 		stayUntilClicked: asset.stayUntilClicked,
 		durationSeconds: asset.durationSeconds,
 	});
-	return asset.soundId;
+	return (data.shadow ?? asset.shadow) ? "" : asset.soundId;
 }
 export function clearMemes(state: BoardState, mode: BoardMode) {
 	state.placedMemes ??= { screen: [], board: [] };

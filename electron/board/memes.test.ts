@@ -52,3 +52,28 @@ test("placed transitions are snapshots and expired timed memes do not fill the p
 		placeMeme(state, { assetId: a.id, mode: "board", x: Infinity, y: 0, width: 100 }),
 	).toThrow();
 });
+
+test("shadow placements never expire or trigger audio before reveal", () => {
+	const state = emptyBoardState();
+	state.memes = [
+		{
+			id: "775457fe-1ca6-4c81-a2dd-e0bf49c9d40f",
+			name: "Private meme",
+			dataURL: "data:image/gif;base64,aGVsbG8=",
+			width: 100,
+			height: 100,
+			enter: "spin",
+			exit: "fade",
+			stayUntilClicked: false,
+			durationSeconds: 1,
+			soundId: "61b2f687-14fa-4dca-b47b-6d901cda9980",
+			shadow: true,
+		},
+	];
+	const args = { assetId: state.memes[0].id, mode: "board", x: 1, y: 2, width: 100 };
+	expect(placeMeme(state, args)).toBe("");
+	state.placedMemes!.board[0].placedAt = 1;
+	placeMeme(state, args);
+	expect(state.placedMemes!.board).toHaveLength(2);
+	expect(state.placedMemes!.board.every((m) => m.shadow)).toBe(true);
+});

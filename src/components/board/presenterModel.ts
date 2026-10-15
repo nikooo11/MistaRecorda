@@ -51,6 +51,7 @@ export function presenterObjects(
 				name: a.name,
 				preview: a.dataURL,
 				detail: `Meme · ${a.enter === "none" ? "no entrance" : `${a.enter} in`}`,
+				shadow: a.shadow,
 			}),
 		),
 		...sounds.map(
@@ -67,6 +68,16 @@ export function presenterObjects(
 				id: a.id,
 				name: a.name,
 				detail: `Chrome · ${presenterURL(a.url).hostname}`,
+			}),
+		),
+		...(doc.canvasNotes ?? []).map(
+			(n): PresenterObject => ({
+				kind: "note",
+				id: n.id,
+				name: n.name,
+				text: n.text,
+				detail: "Note · private by default",
+				shadow: true,
 			}),
 		),
 	].map((a) => ({ ...a, ...doc.preferences[objectKey(a)] }));

@@ -879,7 +879,8 @@ html[data-window-type^="board-"] #root {
 	border-radius: 7px;
 	box-shadow: 0 3px 12px #0002;
 	white-space: nowrap;
-	overflow-x: auto;
+	overflow: visible;
+	flex-wrap: wrap;
 }
 .board-object-tools button {
 	min-height: 34px;
@@ -1068,8 +1069,14 @@ html[data-window-type^="board-"] #root {
 .meme-cancel {
 	position: absolute;
 	left: 50%;
-	top: 110px;
-	z-index: 20;
+	transform: translateX(-50%);
+	bottom: 104px;
+	z-index: 26;
+	padding: 9px 14px;
+	border: 1px solid #8494a6;
+	border-radius: 5px;
+	background: #303b49;
+	color: #fff;
 }
 .meme-grid {
 	display: grid;
