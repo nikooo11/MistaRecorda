@@ -87,6 +87,8 @@ export function ChartPresenter({
 	const speed = chart.reveal.msPerStep;
 	return (
 		<aside
+			key={anchor ? "attached" : "floating"}
+			data-panel-attached={anchor ? "true" : undefined}
 			className={`board-tray chart-presenter ${anchor ? "is-anchored" : ""}`}
 			role="dialog"
 			aria-label="Present chart"

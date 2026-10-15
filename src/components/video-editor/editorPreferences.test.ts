@@ -83,6 +83,15 @@ describe("editorPreferences", () => {
 		});
 	});
 
+	it("leaves click-to-zoom off unless explicitly enabled", () => {
+		vi.stubGlobal("localStorage", createStorageMock());
+		expect(loadEditorPreferences().autoApplyFreshRecordingAutoZooms).toBe(false);
+		saveEditorPreferences({ autoApplyFreshRecordingAutoZooms: true });
+		expect(loadEditorPreferences().autoApplyFreshRecordingAutoZooms).toBe(true);
+		saveEditorPreferences({ autoApplyFreshRecordingAutoZooms: false });
+		expect(loadEditorPreferences().autoApplyFreshRecordingAutoZooms).toBe(false);
+	});
+
 	it("defaults MP4 exports to source quality", () => {
 		expect(DEFAULT_EDITOR_PREFERENCES.exportQuality).toBe("source");
 	});

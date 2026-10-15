@@ -8,6 +8,7 @@ import {
 	emptyBoardScene,
 	emptyBoardState,
 } from "../../src/types/board";
+import { whiteboardPages } from "../../src/components/board/whiteboards";
 import { validateMemes } from "./memes";
 import { normalizeChartCarrier } from "../../src/components/board/charts/chartModel";
 import { isShadow, presentationMeta, setShadow } from "../../src/components/board/shadowObjects";
@@ -107,6 +108,33 @@ export function validateScene(input: unknown): BoardScene {
 	);
 	return result;
 }
+export function validateWhiteboards(s: BoardState) {
+	if (
+		s.whiteboards !== undefined &&
+		(!Array.isArray(s.whiteboards) || s.whiteboards.length === 0)
+	)
+		throw Error("Invalid whiteboard tabs");
+	const pages = whiteboardPages(s);
+	if (pages.length > 20 || new Set(pages.map((p) => p.id)).size !== pages.length)
+		throw Error("Invalid whiteboard tabs");
+	for (const page of pages) {
+		if (
+			!/^[a-zA-Z0-9_-]{1,100}$/.test(page.id) ||
+			typeof page.name !== "string" ||
+			!page.name.trim() ||
+			page.name.length > 80
+		)
+			throw Error("Invalid whiteboard name");
+		page.scene = validateScene(page.scene);
+		page.memes = validateMemes({
+			...s,
+			placedMemes: { screen: [], board: page.memes },
+		}).placedMemes.board;
+	}
+	const activeWhiteboardId = s.activeWhiteboardId ?? pages[0].id;
+	if (!pages.some((p) => p.id === activeWhiteboardId)) throw Error("Missing active whiteboard");
+	return { whiteboards: pages, activeWhiteboardId };
+}
 export class BoardStore {
 	state = emptyBoardState();
 	private writes = Promise.resolve();
@@ -121,11 +149,13 @@ export class BoardStore {
 				...emptyBoardState(),
 				...s,
 				...validateMemes(s),
+				...validateWhiteboards(s),
 				assets: validateScene({
 					...emptyBoardScene(),
 					files: {
 						...s.scenes.screen.files,
 						...s.scenes.board.files,
+						...Object.assign({}, ...(s.whiteboards ?? []).map((p) => p.scene.files)),
 						...(s.assets ?? {}),
 					},
 				}).files,
@@ -140,6 +170,8 @@ export class BoardStore {
 		}
 	}
 	async save() {
+		this.state.whiteboards = whiteboardPages(this.state);
+		this.state.activeWhiteboardId ??= this.state.whiteboards[0].id;
 		const data = JSON.stringify(this.state);
 		this.writes = this.writes
 			.catch(() => undefined)

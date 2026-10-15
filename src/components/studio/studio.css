@@ -425,6 +425,8 @@
 }
 .scene-description strong,
 .scene-description small {
+	white-space: normal;
+	max-width: 100%;
 	display: block;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -728,6 +730,166 @@
 	margin: 12px 0;
 	background: #222328;
 }
-.stream-driver-setup button + button { margin-left: 8px; }
-.stream-driver-setup .setting-hint { color: #b7bac3; }
-.stream-driver-setup [role="alert"] { color: #ffd28a; }
+.stream-driver-setup button + button {
+	margin-left: 8px;
+}
+.stream-driver-setup .setting-hint {
+	color: #b7bac3;
+}
+.stream-driver-setup [role="alert"] {
+	color: #ffd28a;
+}
+
+/* Scene switching stays next to the current inputs, including during a take. */
+.scene-workspace {
+	display: grid;
+	grid-template-columns: minmax(220px, 0.9fr) minmax(260px, 1.1fr);
+	gap: 10px;
+	align-items: start;
+}
+.scene-bank,
+.scene-inputs {
+	background: var(--capture-panel);
+	border: 1px solid var(--capture-line);
+	padding: 10px;
+	border-radius: 5px;
+	min-width: 0;
+}
+.scene-bank .capture-section-heading {
+	align-items: start;
+	flex-wrap: wrap;
+	gap: 5px;
+}
+.scene-bank .recording-scene-row {
+	display: grid;
+	grid-template-columns: 1fr auto auto;
+	gap: 5px;
+	padding: 8px 0;
+}
+.capture-studio .scene-description {
+	display: flex;
+	flex-direction: column;
+	align-items: start;
+	text-align: left;
+	min-width: 0;
+}
+.scene-bank .scene-description {
+	grid-column: 1 / -1;
+	width: 100%;
+}
+.scene-description small {
+	white-space: normal;
+	max-width: 100%;
+	display: block;
+	color: var(--capture-muted);
+	font-size: 10px;
+	overflow-wrap: anywhere;
+}
+.scene-description[aria-pressed="true"] {
+	background: #304d47;
+	border-color: #6db5a1;
+}
+.scene-live-dot {
+	display: inline-block;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: #8ce3bb;
+}
+.scene-bank .shortcut-input {
+	min-width: 0;
+	width: 100%;
+}
+.scene-bank .recording-scene-form {
+	padding: 8px;
+}
+.scene-bank .recording-scene-form input:not([type="checkbox"]),
+.scene-bank .recording-scene-form select {
+	max-width: 100%;
+}
+.scene-bank .capture-note {
+	margin: 6px 0;
+}
+.scene-help summary {
+	color: var(--capture-muted);
+	font-size: 10px;
+	cursor: pointer;
+}
+.scene-inputs header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 8px;
+}
+.scene-recording {
+	color: #ff9595;
+	font-size: 10px;
+}
+.scene-source-preview {
+	aspect-ratio: 16 / 10;
+	display: grid;
+	place-items: center;
+	background: #17191c;
+	overflow: hidden;
+	border-radius: 3px;
+	color: var(--capture-muted);
+}
+.scene-source-preview img {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+.scene-input-list {
+	list-style: none;
+	padding: 0;
+	margin: 8px 0;
+}
+.scene-input-list li {
+	display: flex;
+	justify-content: space-between;
+	gap: 10px;
+	align-items: center;
+	border-bottom: 1px solid #3b3e44;
+	padding: 6px 0;
+	font-size: 11px;
+}
+.scene-input-list li strong {
+	max-width: 60%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.scene-input-list li span {
+	flex-shrink: 0;
+	color: var(--capture-muted);
+}
+.scene-sources-dock,
+.scene-layout-dock {
+	grid-column: 1 / -1;
+	border: 1px solid var(--capture-line);
+	border-radius: 4px;
+	padding: 8px;
+}
+.scene-sources-dock > summary,
+.scene-layout-dock > summary {
+	cursor: pointer;
+	font-weight: 600;
+	padding: 4px;
+}
+.scene-sources-dock[open] > summary,
+.scene-layout-dock[open] > summary {
+	margin-bottom: 10px;
+}
+.scene-sources-dock .layer-source-list {
+	max-height: 290px;
+	overflow: auto;
+}
+@media (max-width: 720px) {
+	.scene-workspace {
+		grid-template-columns: 1fr;
+	}
+}
+
+.scene-bank .scene-description strong {
+	max-width: 100%;
+}

@@ -23,6 +23,12 @@ import {
 	chartAction,
 	restartRevealedCharts,
 } from "../charts/actions";
+import {
+	addWhiteboardPage,
+	activateWhiteboardPage,
+	saveWhiteboardPage,
+	whiteboardPages,
+} from "../../src/components/board/whiteboards";
 import { FigureService } from "../figures/service";
 import { FigureSettings } from "../figures/settings";
 import { publicURL } from "../figures/sources";
@@ -329,6 +335,10 @@ const modeOf = (input: unknown): BoardMode => {
 	return mode;
 };
 const commandSchema = z.object({
+	whiteboardId: z
+		.string()
+		.regex(/^[a-zA-Z0-9_-]{1,100}$/)
+		.optional(),
 	tab: z.enum(["draw", "ipad", "scenes", "settings"]).optional(),
 	mode: z.enum(["screen", "board"]).optional(),
 	scene: z.unknown().optional(),
@@ -463,6 +473,48 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				actor,
 			);
 			return info();
+		case "createWhiteboard": {
+			const id = randomUUID();
+			addWhiteboardPage(store.state, id);
+			store.state.revision++;
+			publish(actor);
+			return { id, state: store.state };
+		}
+		case "renameWhiteboard": {
+			const name = z.string().trim().min(1).max(80).parse(data.name);
+			const pages = whiteboardPages(store.state);
+			const page = pages.find((p) => p.id === data.whiteboardId);
+			if (!page) throw Error("Unknown whiteboard");
+			page.name = name;
+			store.state.whiteboards = pages;
+			store.state.revision++;
+			publish(actor);
+			return store.state;
+		}
+		case "activateWhiteboard": {
+			if (status.recording && !store.state.enabled && !canEnableDrawingDuringCapture())
+				throw Error("Enable drawing before starting a recording");
+			await prepare();
+			activateWhiteboardPage(store.state, data.whiteboardId ?? "");
+			return action("mode", { mode: "board" }, actor);
+		}
+		case "clearWhiteboard": {
+			if (data.confirmed !== true) throw Error("Confirm clearing this whiteboard");
+			const page = whiteboardPages(store.state).find((p) => p.id === data.whiteboardId);
+			if (!page) throw Error("Unknown whiteboard");
+			saveWhiteboardPage(
+				store.state,
+				page.id,
+				{ ...page.scene, elements: [], files: {} },
+				[],
+			);
+			store.state.revision++;
+			if (page.id === (store.state.activeWhiteboardId ?? "default"))
+				send("sceneReset", store.state);
+			companion.broadcast("whiteboardReset", { id: page.id, state: store.state });
+			publish(actor);
+			return store.state;
+		}
 		case "mode": {
 			if (status.recording && !store.state.enabled && !canEnableDrawingDuringCapture())
 				throw Error("Enable drawing before starting a recording");
@@ -498,14 +550,50 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		case "scene": {
 			const mode = modeOf(input);
 			const incoming = validateScene(data.scene);
+			const whiteboardId =
+				mode === "board"
+					? (data.whiteboardId ?? store.state.activeWhiteboardId ?? "default")
+					: undefined;
 			if (actor.startsWith("desktop"))
 				incoming.elements = preserveShadows(
 					incoming.elements,
-					store.state.scenes[mode].elements,
+					mode === "board"
+						? (whiteboardPages(store.state).find((page) => page.id === whiteboardId)
+								?.scene.elements ?? [])
+						: store.state.scenes.screen.elements,
 				);
-			assertChartReveal(charts, store.state.scenes[mode].elements, incoming.elements);
-			store.updateScene(mode, incoming, data.revision ?? -1, true);
-			const patch = { mode, scene: incoming, revision: store.state.revision, tag: data.tag };
+			assertChartReveal(
+				charts,
+				mode === "board"
+					? (whiteboardPages(store.state).find((page) => page.id === whiteboardId)?.scene
+							.elements ?? [])
+					: store.state.scenes.screen.elements,
+				incoming.elements,
+			);
+			if (
+				mode === "board" &&
+				whiteboardId !== (store.state.activeWhiteboardId ?? "default")
+			) {
+				if (data.revision !== store.state.revision)
+					throw Error("The board changed. Refresh and retry your edit.");
+				const page = whiteboardPages(store.state).find((p) => p.id === whiteboardId);
+				if (!page) throw Error("Unknown whiteboard");
+				const merged = validateScene({
+					...incoming,
+					files: { ...page.scene.files, ...incoming.files },
+				});
+				const assets = store.mergeAssets(incoming.files);
+				saveWhiteboardPage(store.state, whiteboardId!, merged);
+				store.state.assets = assets;
+				store.state.revision++;
+			} else store.updateScene(mode, incoming, data.revision ?? -1, true);
+			const patch = {
+				mode,
+				scene: incoming,
+				revision: store.state.revision,
+				tag: data.tag,
+				whiteboardId,
+			};
 			send("sceneUpdate", patch);
 			companion.broadcast("sceneUpdate", patch);
 			updateEscape();
@@ -746,8 +834,13 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 						if (m.soundId) m.soundId = sounds.mapping[m.soundId] ?? "";
 					for (const ref of Object.values(bundle.presenter.notes.references))
 						if (ref.kind === "sound") ref.id = sounds.mapping[ref.id] ?? ref.id;
-					for (const mode of ["screen", "board"] as const)
-						for (const e of bundle.board.scenes[mode].elements) {
+					for (const scene of [
+						...Object.values(bundle.board.scenes),
+						...(bundle.board.whiteboards ?? [])
+							.filter((p) => p.id !== bundle.board.activeWhiteboardId)
+							.map((p) => p.scene),
+					])
+						for (const e of scene.elements) {
 							const ref = presentationMeta(e)?.reference;
 							if (ref?.kind === "sound") ref.id = sounds.mapping[ref.id] ?? ref.id;
 						}

@@ -108,6 +108,7 @@ let panelTab: import("../../src/types/studio").StudioTab = "layers";
 let guideTour: StudioInfo["guideTour"];
 let guideTourToken = 0;
 let message = "";
+let previewSequence = 0;
 let switching = false;
 let audioState: EnvironmentAudio = { ...defaultEnvironmentAudio };
 let capturedAudio: EnvironmentAudio = { ...defaultEnvironmentAudio };
@@ -149,6 +150,7 @@ const info = (): StudioInfo => ({
 			}
 		: undefined,
 	message,
+	audio: { ...audioState },
 });
 function publish() {
 	for (const w of BrowserWindow.getAllWindows())
@@ -171,16 +173,21 @@ export async function fireSound(id: string) {
 	}
 	if (!isCursorCaptureActive) {
 		if (process.platform !== "darwin") throw Error("Use Preview to listen before recording.");
-		void exec("/usr/bin/afplay", [
-			"-v",
-			String(sound.volume),
-			path.join(root(), sound.file),
-		]).catch((e) => {
-			message = e.message;
-			publish();
-		});
-		message = `Playing ${sound.name} on the Mac`;
+		const sequence = ++previewSequence;
+		const playing = `Playing ${sound.name} on the Mac`;
+		message = playing;
 		publish();
+		void exec("/usr/bin/afplay", ["-v", String(sound.volume), path.join(root(), sound.file)])
+			.then(() => {
+				if (sequence !== previewSequence || message !== playing) return;
+				message = "";
+				publish();
+			})
+			.catch((e) => {
+				if (sequence !== previewSequence || message !== playing) return;
+				message = e.message;
+				publish();
+			});
 		return;
 	}
 	if (isCursorCapturePaused()) throw Error("Resume recording before adding a sound.");
@@ -867,8 +874,13 @@ export function registerStudio() {
 				.parse(input);
 			if (next.recording && !audioRecording)
 				capturedAudio = { microphone: next.microphone, system: next.system };
+			const changed =
+				audioRecording !== next.recording ||
+				audioState.microphone !== next.microphone ||
+				audioState.system !== next.system;
 			audioRecording = next.recording;
 			audioState = { microphone: next.microphone, system: next.system };
+			if (changed) publish();
 			return info();
 		}
 		if (method === "cameraStatus") {

@@ -157,7 +157,17 @@ test("companion may request visuals and sounds but never read/write API credenti
 		socket.send(JSON.stringify({ id: 90, method, input: "secret" }));
 		expect(await rejected).toMatchObject({ type: "error", id: 90 });
 	}
-	for (const method of ["laser", "captureStill", "soundboard", "aiInfo", "aiSearch"]) {
+	for (const method of [
+		"laser",
+		"captureStill",
+		"soundboard",
+		"aiInfo",
+		"aiSearch",
+		"createWhiteboard",
+		"renameWhiteboard",
+		"activateWhiteboard",
+		"clearWhiteboard",
+	]) {
 		const reply = message("reply");
 		socket.send(JSON.stringify({ id: 91, method }));
 		expect((await reply).type).toBe("reply");

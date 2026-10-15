@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { emptyBoardScene, type BoardState } from "../../src/types/board";
 import type { PresenterDocument } from "../../src/types/presenter";
-import { validateScene } from "./store";
+import { validateScene, validateWhiteboards } from "./store";
 import { validateMemes } from "./memes";
 import { documentSchema } from "./presenter";
 import { chartBundleSchema, type ChartBundle } from "../charts/store";
@@ -29,6 +29,8 @@ export interface PresentationBundle {
 	name: string;
 	board: Pick<
 		BoardState,
+		| "whiteboards"
+		| "activeWhiteboardId"
 		| "width"
 		| "height"
 		| "scenes"
@@ -52,6 +54,8 @@ export function validatePresentationBundle(input: unknown): PresentationBundle {
 			version: z.literal(1),
 			name: z.string().trim().min(1).max(80),
 			board: z.object({
+				whiteboards: z.unknown().optional(),
+				activeWhiteboardId: z.string().optional(),
 				width: z.number().min(100).max(20000),
 				height: z.number().min(100).max(20000),
 				scenes: z.object({ screen: z.unknown(), board: z.unknown() }),
@@ -69,11 +73,17 @@ export function validatePresentationBundle(input: unknown): PresentationBundle {
 	const board = value.board as PresentationBundle["board"];
 	const screen = validateScene(board.scenes.screen),
 		whiteboard = validateScene(board.scenes.board);
+	const tabs = validateWhiteboards(board as BoardState);
 	const assets = validateScene({
 		...emptyBoardScene(),
-		files: { ...board.assets, ...screen.files, ...whiteboard.files },
+		files: {
+			...board.assets,
+			...screen.files,
+			...whiteboard.files,
+			...Object.assign({}, ...tabs.whiteboards.map((p) => p.scene.files)),
+		},
 	}).files;
-	for (const scene of [screen, whiteboard]) {
+	for (const scene of [screen, whiteboard, ...tabs.whiteboards.map((p) => p.scene)]) {
 		for (const element of scene.elements)
 			if (element.type === "image" && !element.isDeleted) {
 				const id = String(element.fileId);
@@ -82,7 +92,8 @@ export function validatePresentationBundle(input: unknown): PresentationBundle {
 			}
 	}
 	const chartIds = new Set(value.charts?.charts.map((c) => c.id) ?? []);
-	for (const scene of [screen, whiteboard])
+	// Every saved whiteboard tab is checked, not only the active one.
+	for (const scene of [screen, whiteboard, ...tabs.whiteboards.map((p) => p.scene)])
 		for (const element of scene.elements) {
 			const meta = chartMeta(element);
 			if (meta && !element.isDeleted && !chartIds.has(meta.chartId))
@@ -95,6 +106,14 @@ export function validatePresentationBundle(input: unknown): PresentationBundle {
 			.map((m) => ({ ...m, placedAt: Date.now() }));
 		for (const m of memes.placedMemes[mode])
 			if (!memes.memes.some((a) => a.id === m.assetId))
+				throw Error("Presentation has a missing meme.");
+	}
+	for (const page of tabs.whiteboards) {
+		page.memes = page.memes
+			.filter((m) => !m.removedAt)
+			.map((m) => ({ ...m, placedAt: Date.now() }));
+		for (const item of page.memes)
+			if (!memes.memes.some((asset) => asset.id === item.assetId))
 				throw Error("Presentation has a missing meme.");
 	}
 	// Validate reusable library geometry as strictly as the active canvases.
@@ -121,7 +140,7 @@ export function validatePresentationBundle(input: unknown): PresentationBundle {
 	}
 	return {
 		...value,
-		board: { ...board, scenes: { screen, board: whiteboard }, assets, ...memes },
+		board: { ...board, ...tabs, scenes: { screen, board: whiteboard }, assets, ...memes },
 	};
 }
 export function presentationName(value: unknown) {
@@ -139,7 +158,12 @@ export function fitPresentation(board: PresentationBundle["board"], width: numbe
 	const scale = Math.min(width / board.width, height / board.height);
 	const x = (width - board.width * scale) / 2,
 		y = (height - board.height * scale) / 2;
-	for (const scene of Object.values(board.scenes)) {
+	for (const scene of [
+		...Object.values(board.scenes),
+		...(board.whiteboards ?? [])
+			.filter((p) => p.id !== board.activeWhiteboardId)
+			.map((p) => p.scene),
+	]) {
 		const zoom = scene.zoom * scale;
 		if (zoom < 0.1 || zoom > 10)
 			throw Error(

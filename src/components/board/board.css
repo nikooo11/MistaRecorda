@@ -1270,3 +1270,343 @@ html[data-window-type^="board-"] #root {
 	width: 100%;
 	box-sizing: border-box;
 }
+
+/* iPad workspace: compact, movable islands rather than overlapping fixed sheets. */
+.board-tablet .tablet-floating-panel {
+	position: fixed !important;
+	z-index: 160;
+	pointer-events: auto;
+	box-sizing: border-box;
+	max-width: calc(100vw - 70px);
+	max-height: min(58vh, 480px);
+	overflow: auto;
+	padding: 7px;
+	border: 1px solid #b8c2cd;
+	border-radius: 7px;
+	background: #fafbfc;
+	box-shadow: 0 4px 16px #0002;
+	font: 12px system-ui;
+}
+.board-tablet :is(.board-tray, .talking-panel).tablet-floating-panel {
+	width: 300px;
+}
+.board-tablet .tablet-panel-handle {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	position: sticky;
+	top: -7px;
+	z-index: 2;
+	background: #e9edf2;
+	border-bottom: 1px solid #c8d0da;
+	margin: -7px -7px 7px;
+	padding: 3px 5px;
+}
+.board-tablet .tablet-panel-handle button {
+	min-height: 32px;
+	padding: 4px 8px;
+	border: 0;
+	border-radius: 4px;
+	font: 12px system-ui;
+	color: #263342;
+	background: transparent;
+}
+.board-tablet .tablet-panel-handle button:first-child {
+	flex: 1;
+	text-align: left;
+	cursor: grab;
+	touch-action: none;
+}
+.board-tablet .tablet-panel-handle button:last-child {
+	min-width: 34px;
+	font-size: 18px;
+}
+.board-tablet .tablet-panel-collapsed {
+	width: max-content !important;
+	min-width: 130px;
+	height: auto !important;
+	padding: 7px !important;
+}
+.board-tablet .tablet-panel-collapsed > :not(.tablet-panel-handle) {
+	display: none !important;
+}
+.board-tablet .tablet-panel-collapsed > .tablet-panel-handle {
+	margin-bottom: -7px;
+	border-bottom: 0;
+}
+.board-tablet :is(.board-actions, .board-object-tools).tablet-floating-panel {
+	display: block;
+	width: min(420px, calc(100vw - 16px));
+	white-space: normal;
+}
+.board-tablet :is(.board-actions, .board-object-tools).tablet-floating-panel > button {
+	margin: 2px;
+	min-height: 34px;
+	padding: 5px 7px;
+}
+.board-tablet .board-object-tools > span {
+	display: none;
+}
+.board-tablet .board-tray p {
+	margin: 7px 0;
+	line-height: 1.4;
+}
+.board-tablet .board-tray header {
+	gap: 6px;
+}
+.board-tablet .board-tray header strong {
+	display: none;
+}
+.board-tablet .board-tray header {
+	justify-content: flex-end;
+}
+.board-tablet .soundboard-grid {
+	gap: 5px;
+}
+.board-tablet .soundboard-grid button {
+	min-height: 44px;
+	padding: 6px;
+	gap: 2px;
+}
+.board-tablet .board-tray input[type="search"] {
+	box-sizing: border-box;
+	width: 100%;
+	margin: 6px 0;
+	min-height: 34px;
+}
+.board-tablet .excalidraw .selected-shape-actions.tablet-floating-panel {
+	width: 190px;
+}
+.board-tablet .excalidraw .App-toolbar.tablet-floating-panel {
+	display: block;
+}
+.board-tablet .excalidraw .App-toolbar.tablet-floating-panel > :not(.tablet-panel-handle) {
+	display: inline-flex;
+}
+.board-tablet .excalidraw .App-toolbar.tablet-panel-collapsed > :not(.tablet-panel-handle) {
+	display: none !important;
+}
+.board-tablet .tablet-colors.tablet-floating-panel {
+	width: 48px;
+	padding: 5px;
+	overflow: visible;
+}
+.board-tablet .tablet-colors > button {
+	display: block;
+	width: 30px;
+	height: 30px;
+	margin: 6px auto;
+	border: 1px solid #88939e;
+	border-radius: 6px;
+	touch-action: manipulation;
+}
+.board-tablet .tablet-colors > button[aria-pressed="true"] {
+	outline: 2px solid #635bce;
+	outline-offset: 2px;
+}
+.board-tablet .tablet-colors .tablet-panel-handle {
+	flex-direction: column;
+	gap: 0;
+	margin: -5px -5px 4px;
+	padding: 0;
+}
+.board-tablet .tablet-colors .tablet-panel-handle button {
+	text-align: center;
+	width: 100%;
+	min-height: 26px;
+	padding: 0;
+}
+.board-tablet .tablet-colors.tablet-panel-collapsed {
+	min-width: 48px;
+}
+.companion-header {
+	gap: 8px;
+	padding: 4px 8px;
+	font-size: 12px;
+	flex-wrap: wrap;
+}
+.companion-header .companion-draw-toggle {
+	min-height: 34px;
+}
+.board-tablet .excalidraw .HintViewer {
+	display: none;
+}
+/* The desktop board uses perspective for its entrance animation. On the iPad
+   it would make fixed panel coordinates relative to the stage instead of Safari. */
+.board-stage.board-tablet {
+	perspective: none;
+}
+
+.board-tablet .tablet-launcher {
+	position: absolute;
+	right: 4px;
+	top: 64px;
+	z-index: 170;
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	max-height: calc(100% - 124px);
+	overflow-y: auto;
+	pointer-events: auto;
+}
+.board-tablet .tablet-launcher button {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	width: 48px;
+	min-height: 44px;
+	padding: 3px;
+	border: 1px solid #bcc8c9;
+	border-radius: 6px;
+	background: #e9efed;
+	color: #263342;
+	touch-action: manipulation;
+}
+.board-tablet .tablet-launcher button[aria-expanded="true"] {
+	background: #dedbff;
+	border-color: #8b80cd;
+}
+.board-tablet .tablet-launcher span {
+	font-size: 18px;
+	line-height: 20px;
+}
+.board-tablet .tablet-launcher small {
+	font: 10px system-ui;
+}
+.board-tablet .tablet-panel-collapsed[data-tablet-docked="true"] {
+	display: none !important;
+}
+.board-tablet :is(.board-tray, .talking-panel).tablet-floating-panel > header {
+	display: none;
+}
+.board-tablet .soundboard-help {
+	display: none;
+}
+.board-tablet .soundboard-tray {
+	height: max-content;
+}
+.board-tablet .soundboard-tray > nav {
+	display: flex;
+	gap: 4px;
+}
+.board-tablet .soundboard-tray > nav button {
+	padding: 4px 8px;
+	min-height: 30px;
+	font-size: 12px;
+}
+.board-tablet .soundboard-tray output:empty {
+	display: none;
+}
+.board-tablet .soundboard-tray output {
+	display: block;
+	font-size: 11px;
+	margin-top: 3px;
+}
+.board-tablet .talking-panel.tablet-floating-panel {
+	color: #263342;
+	bottom: auto;
+}
+.board-tablet .talking-panel > nav {
+	flex-wrap: wrap;
+}
+.board-tablet .tablet-panel-handle button {
+	width: auto;
+	height: auto;
+	margin: 0;
+}
+.board-tablet .board-actions :is(button, .board-import) {
+	color: #263342;
+}
+.board-tablet .board-actions button:hover {
+	background: #e2e8ed;
+}
+.meme-help {
+	margin: 6px 0 10px;
+}
+.meme-help summary {
+	cursor: pointer;
+}
+.board-tablet .meme-library .board-import {
+	display: inline-block;
+	padding: 5px 8px;
+}
+.board-tablet .tablet-launcher {
+	z-index: 1000;
+}
+.board-tablet .excalidraw .sidebar.tablet-floating-panel {
+	width: 300px;
+	height: auto;
+}
+.board-tablet .tablet-boards-launch {
+	position: absolute;
+	right: 4px;
+	top: 12px;
+	z-index: 1000;
+	width: 48px;
+	min-height: 44px;
+	padding: 3px;
+	border: 1px solid #bcc8c9;
+	border-radius: 6px;
+	background: #e9efed;
+	color: #263342;
+	font-size: 18px;
+}
+.tablet-boards-launch small {
+	display: block;
+	font: 10px system-ui;
+}
+.tablet-boards-launch[aria-expanded="true"] {
+	background: #dedbff;
+	border-color: #8b80cd;
+}
+.whiteboard-tab {
+	display: flex;
+	position: relative;
+	margin: 4px 0;
+}
+.whiteboard-tab [role="tab"] {
+	flex: 1;
+	padding-right: 32px;
+	text-align: left;
+}
+.whiteboard-tab [aria-selected="true"] {
+	background: #dcd9ff;
+	border-color: #756bcc;
+}
+.whiteboard-tab .whiteboard-live {
+	position: absolute;
+	right: 3px;
+	top: 3px;
+	min-height: 26px;
+	width: 26px;
+	padding: 0;
+	color: #bf3333;
+	background: transparent;
+	border: 0;
+}
+.whiteboard-tab .whiteboard-live.is-active {
+	color: #238345;
+}
+.whiteboard-tab-actions {
+	display: flex;
+	gap: 4px;
+	margin: 8px 0;
+}
+.whiteboard-tabs form {
+	display: flex;
+	gap: 4px;
+	margin: 8px 0;
+}
+.whiteboard-tabs input {
+	min-width: 0;
+	width: 100%;
+}
+.board-tablet .talking-panel .presenter-help {
+	color: #576476;
+}
+.board-tablet .presenter-ui {
+	/* Allow the notes panel to share the same stacking order as other movable panels. */
+	z-index: auto;
+}

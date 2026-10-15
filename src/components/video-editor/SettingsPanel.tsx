@@ -1203,7 +1203,7 @@ export function SettingsPanel({
 	onZoomMotionBlurTuningChange,
 	connectZooms = true,
 	onConnectZoomsChange,
-	autoApplyFreshRecordingAutoZooms = true,
+	autoApplyFreshRecordingAutoZooms = false,
 	onAutoApplyFreshRecordingAutoZoomsChange,
 	zoomInDurationMs = DEFAULT_ZOOM_IN_DURATION_MS,
 	onZoomInDurationMsChange,
@@ -2918,7 +2918,10 @@ export function SettingsPanel({
 			<div className="space-y-4">
 				<section className="rounded border border-foreground/15 p-3 text-xs">
 					<SettingsGuideLink />
-					<p className="mt-2 text-muted-foreground">Choose settings for a screen recording, live stream or call. Short explanations and examples, with no automatic changes.</p>
+					<p className="mt-2 text-muted-foreground">
+						Choose settings for a screen recording, live stream or call. Short
+						explanations and examples, with no automatic changes.
+					</p>
 				</section>
 				<section className="flex flex-col gap-2">
 					<SectionLabel>{t("editor.theme.appearance", "Appearance")}</SectionLabel>
@@ -2969,13 +2972,13 @@ export function SettingsPanel({
 							<div className="text-[11px] font-medium text-foreground">
 								{tSettings(
 									"effects.autoApplyFreshRecordingZooms",
-									"Auto-apply fresh recording zooms",
+									"Automatic click-to-zoom",
 								)}
 							</div>
 							<div className="mt-0.5 text-[10px] text-muted-foreground/70">
 								{tSettings(
 									"effects.autoApplyFreshRecordingZoomsDescription",
-									"Suggest cursor-follow zooms automatically when you open a new recording.",
+									"Add zooms around clicks when a new recording opens. Off by default: use the zoom shortcut while recording or add zooms in the editor.",
 								)}
 							</div>
 						</div>

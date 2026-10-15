@@ -152,7 +152,7 @@ export const DEFAULT_EDITOR_PREFERENCES: EditorPreferences = {
 	customAspectWidth: "16",
 	customAspectHeight: "9",
 	customWallpapers: [],
-	autoApplyFreshRecordingAutoZooms: true,
+	autoApplyFreshRecordingAutoZooms: false,
 	whisperExecutablePath: null,
 	whisperModelPath: null,
 };

@@ -13,6 +13,7 @@ interface TestWindow {
 	hide: ReturnType<typeof vi.fn>;
 }
 const host = vi.hoisted(() => ({
+	previewCallbacks: [] as Array<(error: Error | null, stdout: string, stderr: string) => void>,
 	root: "",
 	windows: [] as TestWindow[],
 	handlers: new Map<string, Handler>(),
@@ -36,6 +37,26 @@ const host = vi.hoisted(() => ({
 	}>,
 	focus: vi.fn(async (_id: string) => ""),
 }));
+vi.mock("node:child_process", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:child_process")>();
+	const { promisify } = await import("node:util");
+	const execute = promisify(actual.execFile);
+	const execFile = Object.assign(
+		(...args: unknown[]) => Reflect.apply(actual.execFile, undefined, args),
+		{
+			[promisify.custom]: (file: string, ...args: unknown[]) => {
+				if (file !== "/usr/bin/afplay")
+					return Reflect.apply(execute, undefined, [file, ...args]);
+				return new Promise((resolve, reject) =>
+					host.previewCallbacks.push((error, stdout, stderr) =>
+						error ? reject(error) : resolve({ stdout, stderr }),
+					),
+				);
+			},
+		},
+	);
+	return { ...actual, execFile };
+});
 vi.mock("electron", () => ({
 	app: { getPath: () => host.root, getAppPath: () => host.root, on: vi.fn() },
 	BrowserWindow: class {
@@ -160,6 +181,7 @@ import {
 
 const actualPlatform = process.platform;
 beforeEach(() => {
+	host.previewCallbacks = [];
 	host.nativeStdout = new EventEmitter();
 	host.nativeEvents = new EventEmitter();
 	host.focus.mockReset().mockResolvedValue("");
@@ -577,4 +599,53 @@ test("startup persists bundled defaults and exposes playable clips to Mac and iP
 	registerStudio();
 	await request("info");
 	expect(await fs.readFile(path.join(host.root, "studio/settings.json"), "utf8")).toBe(broken);
+});
+
+test("preview status ends with playback and older sounds cannot clear newer notices", async () => {
+	Object.defineProperty(process, "platform", { value: "darwin" });
+	host.root = await fs.mkdtemp(path.join(os.tmpdir(), "studio-preview-status-"));
+	await fs.mkdir(path.join(host.root, "studio"));
+	await fs.writeFile(
+		path.join(host.root, "studio/settings.json"),
+		JSON.stringify({
+			glow: false,
+			windows: [],
+			sounds: [
+				{
+					id: "11111111-1111-4111-8111-111111111111",
+					name: "Bass Drop",
+					file: "11111111-1111-4111-8111-111111111111.wav",
+					durationMs: 2900,
+					shortcut: "",
+					volume: 1,
+				},
+				{
+					id: "22222222-2222-4222-8222-222222222222",
+					name: "Chime",
+					file: "22222222-2222-4222-8222-222222222222.wav",
+					durationMs: 800,
+					shortcut: "",
+					volume: 1,
+				},
+			],
+		}),
+	);
+	registerStudio();
+	const frame = { url: "http://127.0.0.1:9876/?windowType=studio" };
+	const event = { senderFrame: frame, sender: { mainFrame: frame } };
+	const request = (method: string, input?: unknown) =>
+		host.handlers.get("studio:request")!(event, method, input) as Promise<{ message: string }>;
+	expect((await request("fireSound", "11111111-1111-4111-8111-111111111111")).message).toContain(
+		"Playing Bass Drop",
+	);
+	await request("fireSound", "22222222-2222-4222-8222-222222222222");
+	host.previewCallbacks.shift()!(null, "", "");
+	expect((await request("info")).message).toContain("Playing Chime");
+	host.previewCallbacks.shift()!(null, "", "");
+	await vi.waitFor(async () => expect((await request("info")).message).toBe(""));
+	await request("fireSound", "11111111-1111-4111-8111-111111111111");
+	host.previewCallbacks.shift()!(new Error("Audio device disconnected"), "", "");
+	await vi.waitFor(async () =>
+		expect((await request("info")).message).toContain("Audio device disconnected"),
+	);
 });

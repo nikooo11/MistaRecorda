@@ -40,6 +40,7 @@ import { useChartClock, useCharts } from "./charts/useCharts";
 import "./charts/charts.css";
 import { BoardLaser } from "./BoardLaser";
 import { clearCanvas } from "./clearCanvas";
+import { useTabletPanels, toggleTabletPanel } from "./tabletPanels";
 import { FigureAssistant } from "./FigureAssistant";
 import {
 	duplicateObjects,
@@ -68,7 +69,11 @@ export function BoardCanvas({
 	streamed = false,
 	drawing = true,
 	onEnableDrawing,
+	extraControls,
+	viewedWhiteboardId,
 }: {
+	viewedWhiteboardId?: string;
+	extraControls?: (flush: () => Promise<void>) => React.ReactNode;
 	transport: BoardAPI;
 	initial: BoardState;
 	clean?: boolean;
@@ -80,12 +85,35 @@ export function BoardCanvas({
 }) {
 	const stage = useRef<HTMLDivElement>(null);
 	const paper = useRef<HTMLDivElement>(null);
+	const resetPanels = useTabletPanels(stage, tablet && !clean);
+	const pencilPan = useRef<{
+		id: number;
+		x: number;
+		y: number;
+		scrollX: number;
+		scrollY: number;
+		zoom: number;
+	}>();
+	const drawTool = useRef<AppState["activeTool"]["type"]>("freedraw");
 	const clientTag = useRef(objectId());
 	const resetGeneration = useRef(0);
 	const [fit, setFit] = useState({ scale: 1, left: 0, top: 0 });
 	const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
 	const [state, setState] = useState(initial);
+	useLayoutEffect(() => {
+		if (!tablet || !api) return;
+		if (!drawing) {
+			const tool = api.getAppState().activeTool.type;
+			if (tool !== "hand") drawTool.current = tool;
+			api.setActiveTool({ type: "hand" });
+		} else
+			api.setActiveTool({
+				type: drawTool.current === "custom" ? "freedraw" : drawTool.current,
+			});
+		pencilPan.current = undefined;
+	}, [tablet, drawing, api]);
 	const [error, setError] = useState("");
+	const [notesRequest, setNotesRequest] = useState(0);
 	const [assets, setAssets] = useState(false);
 	const [ai, setAi] = useState(false);
 	const [sounds, setSounds] = useState(false);
@@ -114,6 +142,7 @@ export function BoardCanvas({
 	}>();
 	const [memePoint, setMemePoint] = useState({ x: 100, y: 100 });
 	const [memeView, setMemeView] = useState({ x: 0, y: 0, zoom: 1 });
+	const [inkColor, setInkColor] = useState("#1e1e1e");
 	const [selected, setSelected] = useState<Record<string, boolean>>({});
 	const [multiSelect, setMultiSelect] = useState(false);
 	const [clipboard, setClipboard] = useState<{
@@ -179,11 +208,18 @@ export function BoardCanvas({
 	const timer = useRef<ReturnType<typeof setTimeout>>();
 	const last = useRef("");
 	const modeRef = useRef(tablet ? tabletSceneMode(initial) : initial.mode);
+	const surfaceRef = useRef(
+		`${modeRef.current}:${modeRef.current === "board" ? (viewedWhiteboardId ?? initial.activeWhiteboardId ?? "default") : ""}`,
+	);
 	useEffect(() => {
 		if (!tablet || !stage.current) return;
 		const observer = new ResizeObserver(() => {
-			const r = stage.current!.getBoundingClientRect();
+			if (!stage.current) return;
+			const r = stage.current.getBoundingClientRect();
 			const scale = Math.min(r.width / state.width, r.height / state.height);
+			// A layout resize is not a pan/zoom gesture. Prevent Excalidraw
+			// resize callbacks from interpreting its old zoom with the new fit.
+			interacted.current = false;
 			setFit({
 				scale,
 				left: (r.width - state.width * scale) / 2,
@@ -269,7 +305,9 @@ export function BoardCanvas({
 				: clean && next.output === "board"
 					? "board"
 					: next.mode;
-			if (tablet && mode !== modeRef.current) {
+			const surface = `${mode}:${mode === "board" ? (viewedWhiteboardId ?? next.activeWhiteboardId ?? "default") : ""}`;
+			const changedSurface = surface !== surfaceRef.current;
+			if (tablet && changedSurface) {
 				pending.current = null;
 				localView.current = fittedTabletView();
 				setTabletView(localView.current);
@@ -301,6 +339,7 @@ export function BoardCanvas({
 			const signature = sceneSignature(scene);
 			const actual = api.getAppState();
 			if (
+				!changedSurface &&
 				signature === last.current &&
 				mode === modeRef.current &&
 				Math.abs(actual.zoom.value - viewport.zoom) < 0.0001 &&
@@ -308,10 +347,12 @@ export function BoardCanvas({
 				Math.abs(actual.scrollY - viewport.scrollY) < 0.0001
 			)
 				return;
-			if (!clean && (saving.current || pending.current) && mode === modeRef.current) return;
+			if (!clean && (saving.current || pending.current) && !changedSurface) return;
 			applying.current = true;
 			interacted.current = false;
 			modeRef.current = mode;
+			if (changedSurface) clearCanvas(api);
+			surfaceRef.current = surface;
 			last.current = signature;
 			api.addFiles(Object.values(scene.files) as BinaryFileData[]);
 			api.updateScene({
@@ -339,7 +380,7 @@ export function BoardCanvas({
 				applying.current = false;
 			});
 		},
-		[api, clean, fit.scale, tablet],
+		[api, clean, fit.scale, tablet, viewedWhiteboardId],
 	);
 	useEffect(() => {
 		if (!clean || !api || boardClosing) return;
@@ -425,7 +466,7 @@ export function BoardCanvas({
 		setPendingCard(undefined);
 		setPendingChart(undefined);
 		setDragGhost(undefined);
-	}, [state.mode]);
+	}, [state.mode, state.activeWhiteboardId, viewedWhiteboardId]);
 	useEffect(
 		() =>
 			transport.on<MemeAsset>("memePlacement", (asset) => {
@@ -898,6 +939,30 @@ export function BoardCanvas({
 					).catch((e) => setError(String(e)));
 					return;
 				}
+				// Pencil navigation is handled before Excalidraw sees the event. It must
+				// never restore a remembered drawing tool or synthesize an ink stroke.
+				if (
+					tablet &&
+					!drawing &&
+					event.target instanceof HTMLCanvasElement &&
+					event.pointerType === "pen" &&
+					api
+				) {
+					event.preventDefault();
+					event.stopPropagation();
+					const view = api.getAppState();
+					pencilPan.current = {
+						id: event.pointerId,
+						x: event.clientX,
+						y: event.clientY,
+						scrollX: view.scrollX,
+						scrollY: view.scrollY,
+						zoom: view.zoom.value,
+					};
+					event.currentTarget.setPointerCapture(event.pointerId);
+					interacted.current = true;
+					return;
+				}
 				if (pendingCard && api && event.target instanceof HTMLCanvasElement) {
 					event.preventDefault();
 					event.stopPropagation();
@@ -953,7 +1018,7 @@ export function BoardCanvas({
 						flushSync(() => api.refresh());
 				}
 				interacted.current = true;
-				if (multiSelect && api && event.target instanceof HTMLCanvasElement) {
+				if (drawing && multiSelect && api && event.target instanceof HTMLCanvasElement) {
 					event.preventDefault();
 					event.stopPropagation();
 					const view = api.getAppState();
@@ -1000,6 +1065,18 @@ export function BoardCanvas({
 				}
 			}}
 			onPointerMoveCapture={(event) => {
+				const pan = pencilPan.current;
+				if (pan?.id === event.pointerId && api) {
+					event.preventDefault();
+					event.stopPropagation();
+					api.updateScene({
+						appState: {
+							scrollX: pan.scrollX + (event.clientX - pan.x) / pan.zoom,
+							scrollY: pan.scrollY + (event.clientY - pan.y) / pan.zoom,
+						},
+					});
+					return;
+				}
 				if ((pendingMeme || pendingImage) && api)
 					setMemePoint(memeCoordinates(event.clientX, event.clientY));
 				if (
@@ -1021,6 +1098,17 @@ export function BoardCanvas({
 						y: (event.clientY - view.offsetTop) / view.zoom.value - view.scrollY,
 					})
 					.catch((e) => setError(String(e)));
+			}}
+			onPointerUpCapture={(event) => {
+				if (pencilPan.current?.id !== event.pointerId) return;
+				event.preventDefault();
+				event.stopPropagation();
+				pencilPan.current = undefined;
+				if (event.currentTarget.hasPointerCapture(event.pointerId))
+					event.currentTarget.releasePointerCapture(event.pointerId);
+			}}
+			onPointerCancelCapture={() => {
+				pencilPan.current = undefined;
 			}}
 			onWheelCapture={() => {
 				interacted.current = true;
@@ -1140,6 +1228,9 @@ export function BoardCanvas({
 						},
 					}}
 					onChange={(elements, view, files) => {
+						setInkColor((old) =>
+							old === view.currentItemStrokeColor ? old : view.currentItemStrokeColor,
+						);
 						setMemeView((old) =>
 							old.x === view.scrollX &&
 							old.y === view.scrollY &&
@@ -1353,6 +1444,8 @@ export function BoardCanvas({
 			)}
 			{!clean && tablet && (
 				<TalkingPoints
+					dock
+					openRequest={notesRequest}
 					transport={transport}
 					state={state}
 					onPlace={usePresenterObject}
@@ -1362,8 +1455,6 @@ export function BoardCanvas({
 					onMemeSettings={(id) => {
 						setMemeSettings(id);
 						setMemes(true);
-						setSounds(false);
-						setAi(false);
 					}}
 					charts={charts.charts}
 					onChartSettings={(id) => {
@@ -1401,6 +1492,25 @@ export function BoardCanvas({
 					</span>
 				))}
 			{clean && <BoardLaser transport={transport} state={state} />}
+			{tablet && !clean && drawing && (
+				<aside className="tablet-colors" aria-label="Colors">
+					{["#1e1e1e", "#e03131", "#2f9e44", "#1971c2", "#f08c00", "#ffffff"].map(
+						(color) => (
+							<button
+								key={color}
+								aria-label={`Ink color ${color}`}
+								aria-pressed={inkColor === color}
+								style={{ backgroundColor: color }}
+								onClick={() =>
+									api?.updateScene({
+										appState: { currentItemStrokeColor: color },
+									})
+								}
+							/>
+						),
+					)}
+				</aside>
+			)}
 			{!clean && drawing && (
 				<div className="board-object-tools" aria-label="Object editing">
 					<button
@@ -1536,9 +1646,48 @@ export function BoardCanvas({
 					)}
 				</div>
 			)}
+			{!clean && extraControls?.(flush)}
+			{!clean && tablet && (
+				<nav className="tablet-launcher" aria-label="Presenter menus">
+					{[
+						["Soundboard", "♫", "Sounds", () => setSounds(true)],
+						["Memes", "▧", "Memes", () => setMemes(true)],
+						["AI figures", "✧", "AI", () => setAi(true)],
+						["Points to talk about", "☷", "Notes", () => setNotesRequest((n) => n + 1)],
+						["Standby images", "▣", "Images", () => setAssets(true)],
+						["AI Chart", "◔", "Chart", () => setChartPanel(true)],
+						["Present chart", "▷", "Reveal", () => setPresenting(true)],
+						...(drawing ? [["Object editing", "↖", "Objects", () => {}]] : []),
+					].map(([name, icon, label, spawn]) => (
+						<button
+							key={String(name)}
+							data-panel-target={String(name)}
+							aria-label={`Toggle ${name}`}
+							title={`Open or minimize ${name}`}
+							onClick={() => {
+								if (!toggleTabletPanel(stage.current, String(name)))
+									(spawn as () => void)();
+							}}
+						>
+							<span aria-hidden="true">{String(icon)}</span>
+							<small>{String(label)}</small>
+						</button>
+					))}
+				</nav>
+			)}
 			{!clean && (
 				<div className="board-actions">
-					{tablet && <button onClick={fitScreen}>Fit screen</button>}
+					{tablet && (
+						<>
+							<button onClick={fitScreen}>Fit screen</button>
+							<button
+								onClick={resetPanels}
+								title="Restore compact panel positions without changing your drawings."
+							>
+								Reset panels
+							</button>
+						</>
+					)}
 					<button
 						disabled={capturing}
 						onClick={async () => {
@@ -1563,8 +1712,6 @@ export function BoardCanvas({
 						aria-expanded={memes}
 						onClick={() => {
 							setMemes(!memes);
-							setSounds(false);
-							setAi(false);
 						}}
 					>
 						Memes
@@ -1591,7 +1738,6 @@ export function BoardCanvas({
 						aria-expanded={ai}
 						onClick={() => {
 							setAi(!ai);
-							setSounds(false);
 						}}
 					>
 						<SparkleIcon size={15} />
@@ -1601,7 +1747,6 @@ export function BoardCanvas({
 						aria-expanded={sounds}
 						onClick={() => {
 							setSounds(!sounds);
-							setAi(false);
 						}}
 					>
 						Soundboard
@@ -1792,7 +1937,7 @@ export function BoardCanvas({
 				</div>
 			)}
 			{!clean && assets && (
-				<aside className="board-assets">
+				<aside className="board-assets" aria-label="Standby images">
 					<p>
 						Tap an image to place another copy. Use Excalidraw’s Library for reusable
 						shapes and grouped drawings.

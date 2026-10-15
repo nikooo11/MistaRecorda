@@ -114,4 +114,19 @@ test("environments round-trip chart objects; old environments still load; dangli
 	const legacy = { ...old, board: { ...old.board, scenes: { screen: old.board.scenes.screen, board: { ...old.board.scenes.board, elements: [] } } } };
 	expect(validatePresentationBundle(JSON.parse(JSON.stringify(legacy))).charts).toBeUndefined();
 	expect(() => validatePresentationBundle(JSON.parse(JSON.stringify(old)))).toThrow(/missing chart/);
+	// A chart on an inactive saved whiteboard tab still needs its chart data.
+	const chartElement = parsed.board.scenes.board.elements[0];
+	const tabbed = {
+		...old,
+		board: {
+			...legacy.board,
+			whiteboards: [
+				{ id: "default", name: "Whiteboard 1", scene: legacy.board.scenes.board, memes: [] },
+				{ id: "second", name: "Whiteboard 2", scene: { ...legacy.board.scenes.board, elements: [chartElement] }, memes: [] },
+			],
+			activeWhiteboardId: "default",
+		},
+	};
+	expect(() => validatePresentationBundle(JSON.parse(JSON.stringify(tabbed)))).toThrow(/missing chart/);
+	expect(validatePresentationBundle(JSON.parse(JSON.stringify({ ...tabbed, charts: bundle.charts }))).charts?.charts).toHaveLength(1);
 });

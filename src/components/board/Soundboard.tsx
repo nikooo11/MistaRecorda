@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BoardAPI } from "../../types/board";
 import type { SoundEffect } from "../../types/studio";
 import { VoiceCuePicker } from "../studio/VoiceCuePicker";
@@ -11,6 +11,8 @@ export function Soundboard({ transport, onClose }: { transport: BoardAPI; onClos
 		includeSoundboardInRecording: boolean;
 	}>();
 	const [notice, setNotice] = useState("");
+	const noticeTimer = useRef<ReturnType<typeof setTimeout>>();
+	useEffect(() => () => clearTimeout(noticeTimer.current), []);
 	const [tab, setTab] = useState<"sounds" | "voices">("sounds");
 	const [search, setSearch] = useState("");
 	useEffect(() => {
@@ -24,6 +26,7 @@ export function Soundboard({ transport, onClose }: { transport: BoardAPI; onClos
 		return () => clearInterval(timer);
 	}, [transport]);
 	const play = async (id: string) => {
+		clearTimeout(noticeTimer.current);
 		try {
 			await transport.request("playSound", id);
 			setNotice(
@@ -35,12 +38,16 @@ export function Soundboard({ transport, onClose }: { transport: BoardAPI; onClos
 							: "Added as an editable clip"
 						: "Playing on the Mac",
 			);
+			noticeTimer.current = setTimeout(
+				() => setNotice(""),
+				Math.max(1800, info?.sounds.find((s) => s.id === id)?.durationMs ?? 3000),
+			);
 		} catch (e) {
 			setNotice(String(e));
 		}
 	};
 	return (
-		<aside className="board-tray" aria-label="Soundboard">
+		<aside className="board-tray soundboard-tray" aria-label="Soundboard">
 			<header>
 				<strong>Soundboard</strong>
 				<button onClick={onClose}>Close</button>
@@ -72,7 +79,7 @@ export function Soundboard({ transport, onClose }: { transport: BoardAPI; onClos
 				)
 			) : (
 				<>
-					<p>
+					<p className="soundboard-help">
 						Tap to play on the Mac.{" "}
 						{info?.streaming
 							? "Sent to stream output"
@@ -110,9 +117,12 @@ export function Soundboard({ transport, onClose }: { transport: BoardAPI; onClos
 							))}
 					</div>
 					{info && !info.sounds.length && <p>No sounds imported yet.</p>}
-					<small>
-						Use headphones to prevent speaker playback from entering your microphone.
-					</small>
+					{info && !info.includeSoundboardInRecording && (
+						<small>
+							Use headphones so speaker playback does not duplicate editable sound
+							clips.
+						</small>
+					)}
 				</>
 			)}
 			<output role="status">{notice}</output>

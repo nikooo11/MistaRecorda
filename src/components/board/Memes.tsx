@@ -67,14 +67,17 @@ export function MemeLibrary({
 				<strong>Memes</strong>
 				<button onClick={onClose}>Close</button>
 			</header>
-			<p>
-				Choose a meme, move the 50% preview, then tap to place it. Nothing appears in the
-				recording until placed.
-			</p>
-			<p className="meme-preference-help">
-				♥ Love keeps a meme at the top across projects. ★ Favorites are for this take or
-				saved environment. They reset when recording stops.
-			</p>
+			<details className="meme-help">
+				<summary>Placement, loves & favorites</summary>
+				<p>
+					Choose a meme, move the 50% preview, then tap to place it. Nothing appears in
+					the recording until placed.
+				</p>
+				<p className="meme-preference-help">
+					♥ Love keeps a meme at the top across projects. ★ Favorites are for this take or
+					saved environment. They reset when recording stops.
+				</p>
+			</details>
 			<label className="board-import">
 				＋ Import image or GIF
 				<input
