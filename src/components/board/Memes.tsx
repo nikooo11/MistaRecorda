@@ -1,6 +1,9 @@
 import { SHADOW_HELP } from "./shadowObjects";
 import { presenterId } from "./presenterModel";
 import { useEffect, useState } from "react";
+import { HeartIcon, StarIcon, GearSixIcon } from "@phosphor-icons/react";
+import { matchingMemes } from "./memePreferences";
+import { MemePreviewButton } from "./MemePreviewButton";
 import type { BoardAPI, BoardState } from "../../types/board";
 import type { MemeAsset, MemeTransition, PlacedMeme } from "../../types/memes";
 import type { SoundEffect } from "../../types/studio";
@@ -25,6 +28,21 @@ export function MemeLibrary({
 	const [sounds, setSounds] = useState<SoundEffect[]>([]);
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState(false);
+	const [query, setQuery] = useState("");
+	const [tagDraft, setTagDraft] = useState(
+		() => state.memes?.find((m) => m.id === initialEditId)?.tags?.join(", ") ?? "",
+	);
+	const preference = async (id: string, kind: "love" | "favorite", value: boolean) => {
+		setBusy(true);
+		setError("");
+		try {
+			await transport.request("setMemePreference", { id, kind, value });
+		} catch (e) {
+			setError(String(e));
+		} finally {
+			setBusy(false);
+		}
+	};
 	useEffect(() => {
 		void transport
 			.request<{ sounds: SoundEffect[] }>("soundboard")
@@ -52,6 +70,10 @@ export function MemeLibrary({
 			<p>
 				Choose a meme, move the 50% preview, then tap to place it. Nothing appears in the
 				recording until placed.
+			</p>
+			<p className="meme-preference-help">
+				♥ Love keeps a meme at the top across projects. ★ Favorites are for this take or
+				saved environment. They reset when recording stops.
 			</p>
 			<label className="board-import">
 				＋ Import image or GIF
@@ -95,34 +117,98 @@ export function MemeLibrary({
 					}}
 				/>
 			</label>
+			<input
+				type="search"
+				className="meme-search"
+				aria-label="Find memes"
+				placeholder="Find memes: stupid, celebrate, surprised…"
+				value={query}
+				onChange={(e) => setQuery(e.target.value)}
+			/>
 			<div className="meme-grid">
-				{state.memes?.map((asset) => (
+				{matchingMemes(state, query).map((asset) => (
 					<div key={asset.id}>
-						<button
+						<MemePreviewButton
+							asset={asset}
+							soundName={sounds.find((s) => s.id === asset.soundId)?.name}
 							onClick={() => {
 								onChoose(asset);
 								onClose();
 							}}
-							title={`Place ${asset.name}`}
-						>
-							<img src={asset.dataURL} alt="" />
-							<span>{asset.name}</span>
-						</button>
-						<button
-							aria-label={`Settings for ${asset.name}`}
-							onClick={() => setEdit(asset)}
-						>
-							⚙
-						</button>
+						/>
+						<div className="meme-card-actions">
+							<button
+								disabled={busy}
+								aria-label={`${asset.loved ? "Unlove" : "Love"} ${asset.name}`}
+								aria-pressed={!!asset.loved}
+								title="Love · keep at the top across projects"
+								onClick={() => void preference(asset.id, "love", !asset.loved)}
+							>
+								<HeartIcon size={17} weight={asset.loved ? "fill" : "regular"} />
+							</button>
+							<button
+								disabled={busy}
+								aria-label={`${state.favoriteMemeIds?.includes(asset.id) ? "Unfavorite" : "Favorite"} ${asset.name}`}
+								aria-pressed={!!state.favoriteMemeIds?.includes(asset.id)}
+								title="Favorite · this take or saved environment only"
+								onClick={() =>
+									void preference(
+										asset.id,
+										"favorite",
+										!state.favoriteMemeIds?.includes(asset.id),
+									)
+								}
+							>
+								<StarIcon
+									size={17}
+									weight={
+										state.favoriteMemeIds?.includes(asset.id)
+											? "fill"
+											: "regular"
+									}
+								/>
+							</button>
+							<button
+								aria-label={`Settings for ${asset.name}`}
+								onClick={() => {
+									setTagDraft(asset.tags?.join(", ") ?? "");
+									setEdit(asset);
+								}}
+							>
+								<GearSixIcon size={17} />
+							</button>
+						</div>
 					</div>
 				))}
 			</div>
+			<button
+				disabled={busy}
+				onClick={async () => {
+					setBusy(true);
+					setError("");
+					try {
+						await transport.request("restoreDefaultMemes");
+					} catch (e) {
+						setError(String(e));
+					} finally {
+						setBusy(false);
+					}
+				}}
+			>
+				Restore default memes
+			</button>
 			{edit && (
 				<form
 					className="meme-options"
 					onSubmit={(e) => {
 						e.preventDefault();
-						void save(edit);
+						void save({
+							...edit,
+							tags: tagDraft
+								.split(",")
+								.map((tag) => tag.trim())
+								.filter(Boolean),
+						});
 					}}
 				>
 					<input
@@ -132,6 +218,28 @@ export function MemeLibrary({
 						maxLength={80}
 						onChange={(e) => setEdit({ ...edit, name: e.target.value })}
 					/>
+					<label>
+						AI suggestion hint
+						<input
+							value={edit.description ?? ""}
+							maxLength={300}
+							placeholder="When would you use this reaction?"
+							onChange={(e) => setEdit({ ...edit, description: e.target.value })}
+						/>
+					</label>
+					<label>
+						Search tags
+						<textarea
+							value={tagDraft}
+							maxLength={1200}
+							rows={2}
+							placeholder="stupid, really, disbelief…"
+							onChange={(e) => setTagDraft(e.target.value)}
+						/>
+						<small>
+							Separate tags with commas. Used by search and the AI mic (up to 30).
+						</small>
+					</label>
 					{(["enter", "exit"] as const).map((key) => (
 						<label key={key}>
 							{key === "enter" ? "Transition in" : "Transition out"}

@@ -9,6 +9,7 @@ test("existing settings gain a camera shortcut without changing user choices", (
 		includeSoundboardInRecording: true,
 		windows: [],
 		sounds: [],
+		installedDefaultSoundIds: [],
 		scenes: [],
 		sourceAliases: [],
 		cameraShortcut: "CommandOrControl+Shift+W",

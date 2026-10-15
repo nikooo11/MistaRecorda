@@ -1465,7 +1465,18 @@ export function BoardCanvas({
 					}}
 				/>
 			)}
-			{!clean && ai && <FigureAssistant transport={transport} onClose={() => setAi(false)} />}
+			{!clean && ai && (
+				<FigureAssistant
+					transport={transport}
+					memes={state.memes ?? []}
+					onChooseMeme={(asset) => {
+						setPendingImage(undefined);
+						setPendingCard(undefined);
+						setPendingMeme(asset);
+					}}
+					onClose={() => setAi(false)}
+				/>
+			)}
 			{!clean && sounds && (
 				<Soundboard transport={transport} onClose={() => setSounds(false)} />
 			)}

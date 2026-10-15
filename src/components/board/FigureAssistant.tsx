@@ -2,12 +2,18 @@ import { useEffect, useState } from "react";
 import { MicrophoneIcon, SparkleIcon, XIcon, StopIcon } from "@phosphor-icons/react";
 import type { BoardAPI } from "../../types/board";
 import type { FigureState } from "../../types/figures";
+import type { MemeAsset } from "../../types/memes";
+import { MemePreviewButton } from "./MemePreviewButton";
 export function FigureAssistant({
 	transport,
 	onClose,
+	memes,
+	onChooseMeme,
 }: {
 	transport: BoardAPI;
 	onClose: () => void;
+	memes: MemeAsset[];
+	onChooseMeme: (asset: MemeAsset) => void;
 }) {
 	const [state, setState] = useState<FigureState>();
 	const [topic, setTopic] = useState("");
@@ -109,6 +115,10 @@ export function FigureAssistant({
 								? `Listening on Mac · ${Math.floor((Date.now() - (state?.started ?? 0)) / 1000)}s`
 								: "Type, use iPad keyboard dictation, or listen via Mac mic. Sent to OpenAI only when requested."}
 						</small>
+						<small>
+							Suggests links, charts and memes. Meme names, tags and hints are
+							included in your search; the GIF files stay on your devices.
+						</small>
 					</div>
 					{working && (
 						<p role="status">
@@ -141,77 +151,104 @@ export function FigureAssistant({
 							</button>
 						</div>
 					)}
-					{state?.results.map((result) => (
-						<article className="figure-result" key={result.id}>
-							<span className="figure-kind">
-								{result.kind === "broll" ? "B-roll" : result.kind} · {result.source}
-							</span>
-							<strong>{result.title}</strong>
-							<p>{result.summary}</p>
-							<small>{result.usage}</small>
-							<div className="figure-actions">
-								<button
-									disabled={busy}
-									onClick={() => void run("aiOpen", result.id)}
-								>
-									Chrome link ↗
-								</button>
-								{result.imageUrl && (
+					{state?.results.map((result) => {
+						if (result.kind === "meme") {
+							const asset = memes.find((m) => m.id === result.memeId);
+							return asset ? (
+								<article className="figure-result" key={result.id}>
+									<span className="figure-kind">Meme · Your library</span>
+									<MemePreviewButton
+										asset={asset}
+										disabled={busy}
+										onClick={() => {
+											onChooseMeme(asset);
+											onClose();
+										}}
+									/>
+									<p>{result.summary}</p>
+									<small>
+										{asset.soundId ? "Contains audio · " : "No audio · "}Tap the
+										preview, then place it on the screen or whiteboard.
+									</small>
+								</article>
+							) : null;
+						}
+						return (
+							<article className="figure-result" key={result.id}>
+								<span className="figure-kind">
+									{result.kind === "broll" ? "B-roll" : result.kind} ·{" "}
+									{result.source}
+								</span>
+								<strong>{result.title}</strong>
+								<p>{result.summary}</p>
+								<small>{result.usage}</small>
+								<div className="figure-actions">
 									<button
 										disabled={busy}
-										onClick={() =>
-											void run("aiImport", result.id).then(
-												(v) =>
-													v &&
-													setError(
-														"Added to whiteboard and standby images.",
-													),
-											)
-										}
+										onClick={() => void run("aiOpen", result.id)}
 									>
-										Add to board
+										Chrome link ↗
 									</button>
-								)}
-								{result.prompt && (
-									<button
-										disabled={working || listening}
-										aria-expanded={expand === result.id}
-										onClick={() =>
-											setExpand(expand === result.id ? "" : result.id)
-										}
-									>
-										Illustrate…
-									</button>
-								)}
-							</div>
-							{expand === result.id && (
-								<div>
-									<textarea
-										aria-label={`Image prompt for ${result.title}`}
-										value={prompts[result.id] ?? result.prompt}
-										maxLength={2000}
-										onChange={(e) =>
-											setPrompts({ ...prompts, [result.id]: e.target.value })
-										}
-									/>
-									<button
-										disabled={busy || working || listening}
-										onClick={() =>
-											void run("aiGenerate", {
-												id: result.id,
-												prompt: prompts[result.id] ?? result.prompt,
-											})
-										}
-									>
-										Generate preview
-									</button>
-									<small>
-										Uses your OpenAI image credits. Import only when ready.
-									</small>
+									{result.imageUrl && (
+										<button
+											disabled={busy}
+											onClick={() =>
+												void run("aiImport", result.id).then(
+													(v) =>
+														v &&
+														setError(
+															"Added to whiteboard and standby images.",
+														),
+												)
+											}
+										>
+											Add to board
+										</button>
+									)}
+									{result.prompt && (
+										<button
+											disabled={working || listening}
+											aria-expanded={expand === result.id}
+											onClick={() =>
+												setExpand(expand === result.id ? "" : result.id)
+											}
+										>
+											Illustrate…
+										</button>
+									)}
 								</div>
-							)}
-						</article>
-					))}
+								{expand === result.id && (
+									<div>
+										<textarea
+											aria-label={`Image prompt for ${result.title}`}
+											value={prompts[result.id] ?? result.prompt}
+											maxLength={2000}
+											onChange={(e) =>
+												setPrompts({
+													...prompts,
+													[result.id]: e.target.value,
+												})
+											}
+										/>
+										<button
+											disabled={busy || working || listening}
+											onClick={() =>
+												void run("aiGenerate", {
+													id: result.id,
+													prompt: prompts[result.id] ?? result.prompt,
+												})
+											}
+										>
+											Generate preview
+										</button>
+										<small>
+											Uses your OpenAI image credits. Import only when ready.
+										</small>
+									</div>
+								)}
+							</article>
+						);
+					})}
 				</>
 			)}
 			{(error || state?.error) && (
@@ -266,8 +303,8 @@ export function FigureSettingsPanel({ transport }: { transport: BoardAPI }) {
 		<section className="figure-settings">
 			<h2>AI figures</h2>
 			<p>
-				GPT-6 Astra · Search, charts and visual ideas. OpenAI bills your API account. Search
-				limit: $1 per request; speech and images billed separately.
+				GPT-6 Astra · Search, charts, visual ideas and memes from your library. OpenAI bills
+				your API account. Search limit: $1 per request; speech and images billed separately.
 			</p>
 			<label className="studio-field">
 				Your OpenAI API key

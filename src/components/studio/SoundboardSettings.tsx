@@ -35,10 +35,12 @@ export function SoundRecordingOption({
 						? "Sounds become part of the recorded audio."
 						: "Sounds become movable clips in the editor."}
 				</small>
-				<p className="sound-caution">
-					⚠ Use headphones. Speaker playback can enter your microphone and create an echo
-					or duplicate sound.
-				</p>
+				{!included && (
+					<p className="sound-caution">
+						⚠ Use headphones. Sounds still play for you; speakers can leak into the
+						microphone and duplicate the editable sound clips.
+					</p>
+				)}
 			</div>
 		</HelpTarget>
 	);
@@ -219,6 +221,13 @@ export function SoundboardSettings({
 							</p>
 						)}
 					</div>
+					<button
+						disabled={busy || info.recording}
+						onClick={() => void run("restoreDefaultSounds")}
+						title="Bring back removed starter sounds. Keeps your sounds, names, colors, favorites and shortcuts."
+					>
+						Restore default sounds
+					</button>
 				</>
 			)}
 		</>

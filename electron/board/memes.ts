@@ -1,16 +1,29 @@
 import { z } from "zod";
 import type { BoardMode, BoardState } from "../../src/types/board";
+import { bundledMemeFromURL } from "../../src/lib/bundledMemes";
 
 const transition = z.enum(["none", "fade", "spin", "fall"]);
 const point = z.number().finite().min(-1e7).max(1e7);
 export const memeSchema = z.object({
+	tags: z
+		.array(z.string().trim().min(1).max(40))
+		.max(30)
+		.transform((tags) => [...new Set(tags.map((tag) => tag.toLowerCase()))])
+		.optional(),
+	description: z.string().trim().max(300).optional(),
+	loved: z.boolean().optional(),
 	shadow: z.boolean().optional(),
 	id: z.string().uuid(),
 	name: z.string().trim().min(1).max(80),
 	dataURL: z
 		.string()
 		.max(16 * 1024 * 1024)
-		.regex(/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/),
+		.refine(
+			(value) =>
+				/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(value) ||
+				!!bundledMemeFromURL(value),
+			"Choose an uploaded image or a bundled meme.",
+		),
 	width: z.number().positive().max(20000),
 	height: z.number().positive().max(20000),
 	enter: transition.default("none"),
@@ -43,6 +56,14 @@ export function validateMemes(state: BoardState) {
 		throw Error("Meme library exceeds 36 MB. Remove an unused meme first.");
 	return {
 		memes,
+		favoriteMemeIds: [
+			...new Set(
+				z
+					.array(z.string().uuid())
+					.max(60)
+					.parse(state.favoriteMemeIds ?? []),
+			),
+		].filter((id) => memes.some((m) => m.id === id)),
 		placedMemes: {
 			screen: z
 				.array(placedMemeSchema)

@@ -1,5 +1,8 @@
 export type MemeTransition = "none" | "fade" | "spin" | "fall";
 export interface MemeAsset {
+	tags?: string[];
+	description?: string;
+	loved?: boolean;
 	shadow?: boolean;
 	id: string;
 	name: string;

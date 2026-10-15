@@ -133,7 +133,14 @@ export function BoardWindow({ kind }: { kind: string }) {
 	const connected = info.devices.filter((d) => d.approved && d.connected).length;
 	return (
 		<main className={`board-panel ${compact ? "board-compact" : ""}`}>
-			{ai && <FigureAssistant transport={transport} onClose={() => setAi(false)} />}
+			{ai && (
+				<FigureAssistant
+					transport={transport}
+					memes={info.state.memes ?? []}
+					onChooseMeme={(asset) => void run("armMeme", asset.id)}
+					onClose={() => setAi(false)}
+				/>
+			)}
 			{memes && (
 				<MemeLibrary
 					transport={transport}

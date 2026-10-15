@@ -164,3 +164,38 @@ test("companion may request visuals and sounds but never read/write API credenti
 		expect(action).toHaveBeenLastCalledWith(method, undefined, p.deviceId);
 	}
 });
+
+test("bundled animated memes load on iPad and preference changes require pairing approval", async () => {
+	const action = await connect();
+	const dir = path.join(root, "assets/memes/starter-v1");
+	await fs.mkdir(dir, { recursive: true });
+	const gif = Buffer.from("GIF89a");
+	await fs.writeFile(path.join(dir, "test.gif"), gif);
+	const response = await fetch(
+		`http://127.0.0.1:${server.port}/assets/memes/starter-v1/test.gif?v=123`,
+	);
+	expect(response.headers.get("content-type")).toBe("image/gif");
+	expect(response.headers.get("cache-control")).toContain("immutable");
+	expect(Buffer.from(await response.arrayBuffer())).toEqual(gif);
+	const paired = message();
+	socket.send(JSON.stringify({ type: "pair", code: server.code }));
+	const device = await paired;
+	const rejected = message("error");
+	socket.send(
+		JSON.stringify({
+			id: 1,
+			method: "setMemePreference",
+			input: { kind: "love", value: true },
+		}),
+	);
+	expect((await rejected).message).toContain("Approve");
+	const approved = message("approved");
+	await server.approve(device.deviceId);
+	await approved;
+	for (const method of ["setMemePreference", "restoreDefaultMemes"]) {
+		const reply = message("reply");
+		socket.send(JSON.stringify({ id: 2, method, input: {} }));
+		await reply;
+		expect(action).toHaveBeenLastCalledWith(method, {}, device.deviceId);
+	}
+});

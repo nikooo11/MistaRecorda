@@ -50,6 +50,9 @@ import { EdgeBoardTrigger } from "./edgeTrigger";
 import { gifSize } from "./gifSize";
 import { DrawingMcpServer } from "./mcp";
 import { clearMemes, memeSchema, placeMeme, validateMemes } from "./memes";
+import { seedDefaultMemes } from "./defaultMemes";
+import { bundledMemeFromURL } from "../../src/lib/bundledMemes";
+import { finishMemeTake, mergeMemeLibraries } from "../../src/components/board/memePreferences";
 import { PresenterStore } from "./presenter";
 import { openChrome } from "./openChrome";
 import { CompanionPreview } from "./preview";
@@ -743,6 +746,14 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 					store.state = {
 						...store.state,
 						...bundle.board,
+						...validateMemes({
+							...store.state,
+							...bundle.board,
+							memes: mergeMemeLibraries(
+								store.state.memes ?? [],
+								bundle.board.memes ?? [],
+							),
+						}),
 						width: store.state.width,
 						height: store.state.height,
 						revision: store.state.revision + 1,
@@ -862,11 +873,47 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			send("memePlacement", asset);
 			return true;
 		}
+		case "restoreDefaultMemes": {
+			if (status.recording) throw Error("Stop recording before restoring default memes.");
+			const previous = store.state;
+			const previousRevision = previous.revision;
+			const next = await seedDefaultMemes(previous, defaultMemeAssets(), true);
+			if (store.state !== previous || store.state.revision !== previousRevision)
+				throw Error("The board changed. Please try again.");
+			store.state = next;
+			store.state.revision++;
+			publish(actor);
+			return store.state;
+		}
+		case "setMemePreference": {
+			const request = z
+				.object({
+					id: z.string().uuid(),
+					kind: z.enum(["love", "favorite"]),
+					value: z.boolean(),
+				})
+				.parse(input);
+			const meme = store.state.memes?.find((m) => m.id === request.id);
+			if (!meme) throw Error("Meme no longer exists.");
+			if (request.kind === "love") meme.loved = request.value;
+			else {
+				const favorites = new Set(store.state.favoriteMemeIds ?? []);
+				if (request.value) favorites.add(meme.id);
+				else favorites.delete(meme.id);
+				store.state.favoriteMemeIds = [...favorites];
+			}
+			store.state.revision++;
+			publish(actor);
+			return store.state;
+		}
 		case "saveMeme": {
 			const meme = memeSchema.parse(input);
-			const size = meme.dataURL.startsWith("data:image/gif;")
-				? gifSize(Buffer.from(meme.dataURL.split(",")[1], "base64"))
-				: nativeImage.createFromDataURL(meme.dataURL).getSize();
+			meme.loved = store.state.memes?.find((m) => m.id === meme.id)?.loved ?? false;
+			const size =
+				bundledMemeFromURL(meme.dataURL) ??
+				(meme.dataURL.startsWith("data:image/gif;")
+					? gifSize(Buffer.from(meme.dataURL.split(",")[1], "base64"))
+					: nativeImage.createFromDataURL(meme.dataURL).getSize());
 			if (!size.width || !size.height) throw Error("Choose a valid image or GIF.");
 			const next = {
 				...store.state,
@@ -883,6 +930,9 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		case "deleteMeme": {
 			const id = z.string().uuid().parse(input);
 			store.state.memes = (store.state.memes ?? []).filter((m) => m.id !== id);
+			store.state.favoriteMemeIds = (store.state.favoriteMemeIds ?? []).filter(
+				(m) => m !== id,
+			);
 			for (const mode of ["screen", "board"] as const)
 				if (store.state.placedMemes)
 					store.state.placedMemes[mode] = store.state.placedMemes[mode].filter(
@@ -1121,7 +1171,8 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		case "cameraError":
 			send("error", `Webcam could not start: ${input}`);
 			return true;
-		case "status":
+		case "status": {
+			const wasRecording = status.recording;
 			status = z
 				.object({
 					recording: z.boolean(),
@@ -1133,10 +1184,15 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 					sourceName: z.string().optional(),
 				})
 				.parse(input);
+			if (finishMemeTake(store.state, wasRecording, status.recording)) {
+				store.state.revision++;
+				publish();
+			}
 			send("status", status);
 			companion.broadcast("status", status);
 			applyVisibility();
 			return true;
+		}
 		case "control":
 			if (
 				![
@@ -1243,6 +1299,8 @@ export function assertBoardCaptureSource(source: { sourceType?: string; display_
 		for (const w of BrowserWindow.getAllWindows())
 			if (w !== surface) w.setContentProtection(true);
 }
+const defaultMemeAssets = () =>
+	path.join(app.getAppPath(), app.isPackaged ? "dist" : "public", "assets/memes/starter-v1");
 export async function registerBoard() {
 	store = new BoardStore(path.join(app.getPath("userData"), "drawing-board"));
 	presenter = new PresenterStore(store.root);
@@ -1254,8 +1312,18 @@ export async function registerBoard() {
 			companion?.broadcast("figures", state);
 			if (state.phase !== "listening") stream?.webContents.send("board:figureMic", "cancel");
 		},
+		() => store.state.memes ?? [],
 	);
-	await store.load().catch((e) => console.error("[drawing-board] Could not load saved board", e));
+	try {
+		await store.load();
+		const next = await seedDefaultMemes(store.state, defaultMemeAssets());
+		if (next !== store.state) {
+			store.state = next;
+			await store.save();
+		}
+	} catch (e) {
+		console.error("[drawing-board] Could not load saved board or default memes", e);
+	}
 	companion = new CompanionServer(path.join(app.getAppPath(), "dist"), action, devicesChanged);
 	preview = new CompanionPreview((id, data) => companion.send(id, "signal", data));
 	mcp = new DrawingMcpServer((method, input) => action(method, input, "codex"));

@@ -35,6 +35,8 @@ export interface PresenterDocument {
 	canvasNotes?: PresenterNote[];
 }
 export interface PresenterObject extends ObjectReference {
+	searchTerms?: string[];
+	containsAudio?: boolean;
 	name: string;
 	preview?: string;
 	detail: string;

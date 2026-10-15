@@ -59,11 +59,14 @@ export class CompanionServer {
 					".css": "text/css",
 					".woff2": "font/woff2",
 					".png": "image/png",
+					".gif": "image/gif",
 					".svg": "image/svg+xml",
 				};
 				res.writeHead(200, {
 					"Content-Type": mime[path.extname(file)] ?? "application/octet-stream",
-					"Cache-Control": "no-store",
+					"Cache-Control": relative.startsWith("assets/memes/starter-v1/")
+						? "public, max-age=31536000, immutable"
+						: "no-store",
 					"X-Content-Type-Options": "nosniff",
 					"Referrer-Policy": "no-referrer",
 				});
@@ -236,6 +239,8 @@ export class CompanionServer {
 								"streamInfo",
 								"streamStop",
 								"saveMeme",
+								"setMemePreference",
+								"restoreDefaultMemes",
 								"deleteMeme",
 								"placeMeme",
 								"removeMeme",

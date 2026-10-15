@@ -40,6 +40,15 @@ export function ObjectPreview({ object }: { object: PresenterObject }) {
 			<span className="presenter-type">
 				<ObjectIcon kind={object.kind} />
 			</span>
+			{object.containsAudio && (
+				<span
+					className="meme-audio-badge"
+					title="Contains audio"
+					aria-label="Contains audio"
+				>
+					<SpeakerHighIcon size={14} />
+				</span>
+			)}
 		</span>
 	);
 }
@@ -435,7 +444,10 @@ export function PresenterObjects({
 					.filter(
 						(o) =>
 							(filter === "all" || filter === o.kind) &&
-							o.name.toLowerCase().includes(search.toLowerCase()),
+							[o.name, ...(o.searchTerms ?? [])]
+								.join(" ")
+								.toLowerCase()
+								.includes(search.toLowerCase()),
 					)
 					.map((o) => (
 						<div className={`presenter-object type-${o.kind}`} key={objectKey(o)}>

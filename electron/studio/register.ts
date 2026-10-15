@@ -54,6 +54,7 @@ import { getPackagedRendererBaseUrl } from "../rendererServer";
 import { requireScreenRecordingAccess } from "../screenCaptureAccess";
 import { bakeSounds } from "./bakeSounds";
 import { CaptureCamera } from "./camera";
+import { seedDefaultSounds } from "./defaultSounds";
 import { focusRecordingWindow } from "./focusWindow";
 import { setCaptureCanvasAspect } from "./geometry";
 import {
@@ -743,22 +744,41 @@ async function openPanel() {
 	await panel.loadURL(`${base}?windowType=studio`);
 	showCapturePanel(panel, BrowserWindow.getAllWindows());
 }
+const defaultSoundAssets = () =>
+	path.join(app.getAppPath(), app.isPackaged ? "dist" : "public", "sounds/starter-v1");
+
 export function registerStudio() {
 	app.on("browser-window-created", (_, window) => {
 		if (process.platform === "win32" && window.getTitle() !== "MistaRecorda Drawing Surface")
 			window.setContentProtection(true);
 	});
-	const ready = fs
-		.readFile(path.join(root(), "settings.json"), "utf8")
-		.then((s) => {
-			settings = studioSettingsSchema.parse(JSON.parse(s));
-			bindAll(settings);
-		})
-		.catch((e) => {
-			if (e.code !== "ENOENT")
+	const ready = (async () => {
+		try {
+			settings = studioSettingsSchema.parse(
+				JSON.parse(await fs.readFile(path.join(root(), "settings.json"), "utf8")),
+			);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
 				message = "Some saved shortcuts could not be restored. Review Capture settings.";
-			else bindAll(settings);
-		});
+				return; // Never replace an unreadable settings file with seeded defaults.
+			}
+		}
+		try {
+			const next = await seedDefaultSounds(settings, root(), defaultSoundAssets());
+			if (next !== settings) {
+				settings = next;
+				await save();
+			}
+		} catch {
+			message =
+				"Default sounds could not be loaded. You can retry with Restore default sounds.";
+		}
+		try {
+			bindAll(settings);
+		} catch {
+			message = "Some saved shortcuts could not be restored. Review Capture settings.";
+		}
+	})();
 	ipcMain.handle("studio:request", async (e, method, input) => {
 		const u = new URL(e.senderFrame?.url ?? "about:blank");
 		u.search = "";
@@ -1018,6 +1038,19 @@ export function registerStudio() {
 			const next = { ...settings, windows: settings.windows.filter((w) => w.slot !== input) };
 			bindAll(next);
 			settings = next;
+			await save();
+			return info();
+		}
+		if (method === "restoreDefaultSounds") {
+			if (isCursorCaptureActive)
+				throw Error("Stop recording before restoring default sounds.");
+			const previous = settings;
+			const next = await seedDefaultSounds(settings, root(), defaultSoundAssets(), true);
+			if (settings !== previous)
+				throw Error("Soundboard settings changed. Please try again.");
+			settings = next;
+			message =
+				"Default sounds are ready. Your existing sounds and customizations were kept.";
 			await save();
 			return info();
 		}

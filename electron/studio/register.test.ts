@@ -149,6 +149,8 @@ vi.mock("../ipc/ffmpeg/binary", () => ({
 }));
 
 import {
+	boardSoundList,
+	boardSoundPreview,
 	persistStudioTake,
 	prepareStudioCapture,
 	registerStudio,
@@ -517,4 +519,62 @@ test("environment shortcuts restore current-window focus and retain activation w
 	host.focus.mockClear();
 	await request("selectSource", source);
 	expect(host.focus).not.toHaveBeenCalled();
+});
+
+test("startup persists bundled defaults and exposes playable clips to Mac and iPad without resetting removed sounds", async () => {
+	host.root = await fs.mkdtemp(path.join(os.tmpdir(), "studio-default-pack-"));
+	await fs.cp(
+		path.resolve("public/sounds/starter-v1"),
+		path.join(host.root, "public/sounds/starter-v1"),
+		{ recursive: true },
+	);
+	await fs.mkdir(path.join(host.root, "studio"));
+	await fs.writeFile(
+		path.join(host.root, "studio/settings.json"),
+		JSON.stringify({ glow: true, windows: [], sounds: [] }),
+	);
+	const frame = { url: "http://127.0.0.1:9876/?windowType=studio" };
+	const event = { senderFrame: frame, sender: { mainFrame: frame } };
+	const request = (method: string, input?: unknown) =>
+		host.handlers.get("studio:request")!(event, method, input);
+	registerStudio();
+	await request("info");
+	const listed = boardSoundList().sounds;
+	expect(listed.map((s) => s.name)).toEqual([
+		"Fahhhhh",
+		"Core",
+		"Shocked",
+		"Bass Drop",
+		"Boom Timer",
+		"Bow and Arrow",
+		"Gear",
+	]);
+	for (const sound of listed)
+		expect((await boardSoundPreview(sound.id)).dataURL).toMatch(
+			/^data:audio\/wav;base64,UklGR/,
+		);
+	const persisted = JSON.parse(
+		await fs.readFile(path.join(host.root, "studio/settings.json"), "utf8"),
+	);
+	expect(persisted.installedDefaultSoundIds).toHaveLength(7);
+	await request("removeSound", listed[0].id);
+	registerStudio();
+	await request("info");
+	expect(boardSoundList().sounds).toHaveLength(6);
+	host.active = true;
+	await expect(request("restoreDefaultSounds")).rejects.toThrow("Stop recording");
+	host.active = false;
+	await request("restoreDefaultSounds");
+	expect(boardSoundList().sounds).toHaveLength(7);
+	persisted.sounds[0].shortcut = persisted.cameraShortcut;
+	await fs.writeFile(path.join(host.root, "studio/settings.json"), JSON.stringify(persisted));
+	registerStudio();
+	await expect(request("info")).resolves.toMatchObject({
+		message: "Some saved shortcuts could not be restored. Review Capture settings.",
+	});
+	const broken = "{unfinished settings";
+	await fs.writeFile(path.join(host.root, "studio/settings.json"), broken);
+	registerStudio();
+	await request("info");
+	expect(await fs.readFile(path.join(host.root, "studio/settings.json"), "utf8")).toBe(broken);
 });

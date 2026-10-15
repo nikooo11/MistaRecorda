@@ -3,6 +3,7 @@ import https from "node:https";
 import { isIP } from "node:net";
 import { z } from "zod";
 import type { FigureSuggestion } from "../../src/types/figures";
+import type { MemeAsset } from "../../src/types/memes";
 export function publicURL(value: string) {
 	const u = new URL(value);
 	if (
@@ -43,20 +44,55 @@ const suggestion = z.object({
 	usage: z.string().max(300),
 	prompt: z.string().max(1500),
 });
-export function parseSuggestions(text: string): FigureSuggestion[] {
+const memeSuggestion = z.object({
+	kind: z.literal("meme"),
+	memeId: z.string().uuid(),
+	summary: z.string().min(1).max(600),
+});
+export function parseSuggestions(text: string, memes: MemeAsset[] = []): FigureSuggestion[] {
 	const input = JSON.parse(
 		text
 			.trim()
 			.replace(/^```(?:json)?\s*/, "")
 			.replace(/\s*```$/, ""),
 	);
+	const seen = new Set<string>();
 	return z
-		.object({ results: z.array(suggestion).min(1).max(3) })
+		.object({
+			results: z
+				.array(z.union([suggestion, memeSuggestion]))
+				.min(1)
+				.max(5)
+				.refine(
+					(items) =>
+						items.filter((s) => s.kind !== "meme").length <= 3 &&
+						items.filter((s) => s.kind === "meme").length <= 2,
+				),
+		})
 		.parse(input)
-		.results.map((s, i) => {
+		.results.flatMap((s, i): FigureSuggestion[] => {
+			if (s.kind === "meme") {
+				const asset = memes.find((m) => m.id === s.memeId);
+				if (!asset || seen.has(asset.id)) return [];
+				seen.add(asset.id);
+				return [
+					{
+						id: String(i),
+						kind: "meme",
+						memeId: asset.id,
+						title: asset.name,
+						summary: s.summary,
+						url: "",
+						source: "Your meme library",
+						imageUrl: null,
+						usage: "Uses its saved sound and transitions. Tap to preview, then place.",
+						prompt: "",
+					},
+				];
+			}
 			publicURL(s.url);
 			if (s.imageUrl) publicURL(s.imageUrl);
-			return { ...s, id: String(i) };
+			return [{ ...s, id: String(i) }];
 		});
 }
 // Pin each HTTPS connection to a validated public address, including redirects.

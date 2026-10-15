@@ -1,4 +1,5 @@
 import type { BoardState } from "../../types/board";
+import { sortedMemes } from "./memePreferences";
 import type { SoundEffect } from "../../types/studio";
 import {
 	objectKey,
@@ -44,13 +45,15 @@ export function presenterObjects(
 				detail: "Image · place & resize",
 			}),
 		),
-		...(state.memes ?? []).map(
+		...sortedMemes(state).map(
 			(a): PresenterObject => ({
 				kind: "meme",
 				id: a.id,
 				name: a.name,
 				preview: a.dataURL,
-				detail: `Meme · ${a.enter === "none" ? "no entrance" : `${a.enter} in`}`,
+				detail: `Meme · ${a.enter === "none" ? "no entrance" : `${a.enter} in`}${a.loved ? " · ♥" : ""}${state.favoriteMemeIds?.includes(a.id) ? " · ★" : ""}`,
+				searchTerms: [a.description ?? "", ...(a.tags ?? [])],
+				containsAudio: !!a.soundId,
 				shadow: a.shadow,
 			}),
 		),

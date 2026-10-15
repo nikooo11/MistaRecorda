@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "name": "Starter sounds",
+  "sourceUrl": "https://www.youtube.com/watch?v=LL2m6ak3auc",
+  "sourceFile": "2026 Viral Sound Effects For Free 🔥 Free Sound Effects For YouTube For Gaming video.mp3",
+  "sourceSha256": "8369ac7fba2be25a38933c45145b6be1c5eb1ec1b01a8586b5ad12b61412119f",
+  "processing": "Seven labeled sections; stereo 48 kHz PCM; 3 ms edge fades; original levels preserved.",
+  "sounds": [
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000001",
+      "name": "Fahhhhh",
+      "asset": "01-fahhhhh.wav",
+      "durationMs": 1860,
+      "color": "#9B596A",
+      "sourceStartSeconds": 0.25,
+      "sourceEndSeconds": 2.11,
+      "sha256": "5ee1ed057eccc69f8c434758c688637296659c3a39dd6cd1740839b364d30537"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000002",
+      "name": "Core",
+      "asset": "02-core.wav",
+      "durationMs": 710,
+      "color": "#7766A3",
+      "sourceStartSeconds": 2.11,
+      "sourceEndSeconds": 2.82,
+      "sha256": "3ca40f35fdd32cf642ade20977ca86e0b3442147e977e03db0d8e199f6a9703f"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000003",
+      "name": "Shocked",
+      "asset": "03-shocked.wav",
+      "durationMs": 1210,
+      "color": "#AD7940",
+      "sourceStartSeconds": 2.85,
+      "sourceEndSeconds": 4.06,
+      "sha256": "751f9ac1ea91731faccec2e97e7e161377c663456043d048322cd385d219e4ec"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000004",
+      "name": "Bass Drop",
+      "asset": "04-bass-drop.wav",
+      "durationMs": 2940,
+      "color": "#466784",
+      "sourceStartSeconds": 4.2,
+      "sourceEndSeconds": 7.14,
+      "sha256": "075dc13b9264e361746952cf170828aba23d1582891def06e7df6aab7fc0b7c7"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000005",
+      "name": "Boom Timer",
+      "asset": "05-boom-timer.wav",
+      "durationMs": 1625,
+      "color": "#4F827C",
+      "sourceStartSeconds": 7.14,
+      "sourceEndSeconds": 8.765,
+      "sha256": "377fb638653fe99a56c6e5831f8d3dbcab4bb47c3c71f778b53579271bb91cd4"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000006",
+      "name": "Bow and Arrow",
+      "asset": "06-bow-and-arrow.wav",
+      "durationMs": 1275,
+      "color": "#697F48",
+      "sourceStartSeconds": 8.765,
+      "sourceEndSeconds": 10.04,
+      "sha256": "fd543fc49eef0fd400cb8557fda7200f90b96265e831c1d994cc214e77a514f3"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000007",
+      "name": "Gear",
+      "asset": "07-gear.wav",
+      "durationMs": 1960,
+      "color": "#717888",
+      "sourceStartSeconds": 10.08,
+      "sourceEndSeconds": 12.04,
+      "sha256": "97c60ffe6de5821f5713c469a979567a5e700f37b136cd067e24162fa95f5ede"
+    }
+  ]
+}

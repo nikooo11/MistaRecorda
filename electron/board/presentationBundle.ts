@@ -27,7 +27,14 @@ export interface PresentationBundle {
 	name: string;
 	board: Pick<
 		BoardState,
-		"width" | "height" | "scenes" | "assets" | "memes" | "placedMemes" | "library"
+		| "width"
+		| "height"
+		| "scenes"
+		| "assets"
+		| "memes"
+		| "placedMemes"
+		| "library"
+		| "favoriteMemeIds"
 	>;
 	presenter: PresenterDocument;
 	sounds: BundledSound[];
@@ -46,6 +53,7 @@ export function validatePresentationBundle(input: unknown): PresentationBundle {
 				scenes: z.object({ screen: z.unknown(), board: z.unknown() }),
 				assets: z.unknown(),
 				memes: z.unknown(),
+				favoriteMemeIds: z.array(z.string().uuid()).max(60).optional(),
 				placedMemes: z.unknown(),
 				library: z.array(z.unknown()).max(1000),
 			}),

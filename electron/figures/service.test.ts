@@ -118,3 +118,53 @@ test("cancelled transcription cannot replace the topic with late audio", async (
 	expect(s.state.phase).toBe("idle");
 	expect(s.state.topic).toBe("");
 });
+
+test("AI mic transcript can find library memes using tags without uploading GIFs or triggering sounds", async () => {
+	const base = await service();
+	const meme = {
+		id: "8c4c2b71-3d8a-41f5-9a42-000000000001",
+		name: "Seriously",
+		tags: ["stupid", "really", "disbelief"],
+		description: "A disbelieving reaction",
+		dataURL: "data:image/gif;base64,R0lGODlhAQABAAAAACw=",
+		width: 10,
+		height: 10,
+		enter: "none" as const,
+		exit: "none" as const,
+		stayUntilClicked: true,
+		durationSeconds: 5,
+		soundId: "",
+		loved: true,
+	};
+	const s = new FigureService(
+		base.settings,
+		() => {},
+		() => [meme],
+	);
+	mocks.transcribe.mockResolvedValue({ text: "Seriously, that was a stupid idea" });
+	await s.listen();
+	await s.transcribe({ data: "YQ==", mime: "audio/webm" });
+	await finished(s);
+	mocks.create.mockResolvedValue(
+		stream(
+			JSON.stringify({
+				results: [
+					{
+						kind: "meme",
+						memeId: meme.id,
+						summary: "A disbelieving reaction fits this comment",
+					},
+				],
+			}),
+		),
+	);
+	await s.search(s.state.topic);
+	await finished(s);
+	const input = JSON.parse(mocks.create.mock.calls[0][0].input);
+	expect(input.topic).toContain("stupid idea");
+	expect(input.memeLibrary[0]).toMatchObject({ id: meme.id, tags: meme.tags, loved: true });
+	expect(JSON.stringify(input)).not.toContain("base64");
+	expect(s.state.results[0]).toMatchObject({ kind: "meme", memeId: meme.id, title: "Seriously" });
+	expect(mocks.generate).not.toHaveBeenCalled();
+	expect(mocks.remove).toHaveBeenCalled();
+});

@@ -30,6 +30,7 @@ export interface StudioSettings {
 	includeSoundboardInRecording?: boolean;
 	windows: WindowSlot[];
 	sounds: SoundEffect[];
+	installedDefaultSoundIds?: string[];
 	cameraShortcut: string;
 	cameraLayout: import("../lib/cameraLayout").CameraLayout;
 	scenes: RecordingScene[];

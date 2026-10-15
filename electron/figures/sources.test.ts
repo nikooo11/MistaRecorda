@@ -48,3 +48,61 @@ test("suggestions require bounded, sourced fields and tolerate JSON fences", () 
 	).toThrow();
 	expect(() => parseSuggestions(JSON.stringify({ results: Array(4).fill(item) }))).toThrow();
 });
+
+test("meme suggestions resolve only real library IDs, retain source suggestions and discard invented memes", () => {
+	const meme = {
+		id: "8c4c2b71-3d8a-41f5-9a42-000000000001",
+		name: "Seriously",
+		dataURL: "data:image/gif;base64,R0lGODlhAQABAAAAACw=",
+		width: 10,
+		height: 10,
+		enter: "none" as const,
+		exit: "none" as const,
+		stayUntilClicked: true,
+		durationSeconds: 5,
+		soundId: "",
+	};
+	const results = parseSuggestions(
+		JSON.stringify({
+			results: [
+				{
+					kind: "meme",
+					memeId: meme.id,
+					title: "Invented title",
+					summary: "Disbelief at the claim",
+				},
+				{
+					kind: "meme",
+					memeId: "8c4c2b71-3d8a-41f5-9a42-000000000099",
+					summary: "Not in the library",
+				},
+				{
+					title: "Report",
+					kind: "chart",
+					summary: "Monthly report",
+					url: "https://www.bls.gov",
+					source: "BLS",
+					imageUrl: null,
+					usage: "Check source",
+					prompt: "",
+				},
+			],
+		}),
+		[meme],
+	);
+	expect(results).toHaveLength(2);
+	expect(results[0]).toMatchObject({
+		kind: "meme",
+		memeId: meme.id,
+		title: "Seriously",
+		url: "",
+		imageUrl: null,
+	});
+	expect(results[1]).toMatchObject({ kind: "chart", source: "BLS" });
+	expect(
+		parseSuggestions(
+			JSON.stringify({ results: [{ kind: "meme", memeId: meme.id, summary: "Deleted" }] }),
+			[],
+		),
+	).toEqual([]);
+});

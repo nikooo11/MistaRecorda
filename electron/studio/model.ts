@@ -80,6 +80,7 @@ export const studioSettingsSchema = z.object({
 		)
 		.max(64),
 	sounds: z.array(soundSchema).max(200),
+	installedDefaultSoundIds: z.array(z.string().uuid()).max(2000).default([]),
 });
 export class SoundTake {
 	regions: AudioRegion[] = [];

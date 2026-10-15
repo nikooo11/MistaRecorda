@@ -1,7 +1,8 @@
 export interface FigureSuggestion {
 	id: string;
 	title: string;
-	kind: "chart" | "figure" | "broll";
+	kind: "chart" | "figure" | "broll" | "meme";
+	memeId?: string;
 	summary: string;
 	url: string;
 	source: string;
