@@ -1,20 +1,23 @@
-import { CameraOverlay } from "./components/studio/CameraOverlay";
-import { StudioPanel } from "./components/studio/StudioPanel";
 import { lazy, Suspense } from "react";
+import { CameraOverlay } from "./components/studio/CameraOverlay";
+import { StreamAudioEngine } from "./components/studio/StreamAudioEngine";
+import { StudioPanel } from "./components/studio/StudioPanel";
+
 const BoardWindow = lazy(() =>
 	import("./components/board/BoardWindows").then((m) => ({ default: m.BoardWindow })),
 );
-import { VoiceNotifications } from "./components/voice/VoiceNotifications";
-import { VoicePanel } from "./components/voice/VoicePanel";
-import { RecordingZoomSettingsPanel } from "./components/recording-zoom/RecordingZoomSettings";
+
 import { useEffect, useState } from "react";
 import { CountdownOverlay } from "./components/countdown/CountdownOverlay";
 import { LaunchWindow } from "./components/launch/LaunchWindow";
 import { SourceSelector } from "./components/launch/SourceSelector";
 import { UpdateToastWindow } from "./components/launch/UpdateToastWindow";
+import { RecordingZoomSettingsPanel } from "./components/recording-zoom/RecordingZoomSettings";
 import { Toaster } from "./components/ui/sonner";
 import { ShortcutsConfigDialog } from "./components/video-editor/ShortcutsConfigDialog";
 import VideoEditor from "./components/video-editor/VideoEditor";
+import { VoiceNotifications } from "./components/voice/VoiceNotifications";
+import { VoicePanel } from "./components/voice/VoicePanel";
 import { useI18n } from "./contexts/I18nContext";
 import { ShortcutsProvider } from "./contexts/ShortcutsContext";
 import { loadAllCustomFonts } from "./lib/customFonts";
@@ -79,6 +82,8 @@ export default function App() {
 			);
 		case "camera-overlay":
 			return <CameraOverlay />;
+		case "studio-audio":
+			return <StreamAudioEngine />;
 		case "studio":
 			return <StudioPanel />;
 		case "zoom-settings":

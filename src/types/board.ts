@@ -20,6 +20,8 @@ export interface BoardScene {
 	zoom: number;
 }
 export interface BoardState {
+	memes?: import("./memes").MemeAsset[];
+	placedMemes?: Record<BoardMode, import("./memes").PlacedMeme[]>;
 	version: 1;
 	revision: number;
 	enabled: boolean;
@@ -49,6 +51,8 @@ export const emptyBoardState = (): BoardState => ({
 	scenes: { screen: emptyBoardScene(), board: emptyBoardScene() },
 	library: [],
 	assets: {},
+	memes: [],
+	placedMemes: { screen: [], board: [] },
 });
 export interface BoardStatus {
 	recording: boolean;

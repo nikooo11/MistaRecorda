@@ -19,15 +19,29 @@ export function voiceProcessingKey(s: VoiceSettings): string {
 export function voiceChangeEnabled(recording: VoiceRecording | null): boolean {
 	return recording?.voiceChangeEnabled ?? recording?.micSelection === "changed";
 }
+export function recordingVoiceKey(
+	recording: VoiceRecording | null,
+	settings: VoiceSettings,
+): string {
+	return recording?.voiceCues?.some((c) => c.settings)
+		? JSON.stringify(
+				recording.voiceCues.map((c) => [
+					c.startMs,
+					c.settings ? voiceProcessingKey(c.settings) : null,
+				]),
+			)
+		: voiceProcessingKey(settings);
+}
 export function isVoiceExportReady(
 	recording: VoiceRecording | null,
 	settings: VoiceSettings | null,
 ): boolean {
 	if (!voiceChangeEnabled(recording)) return true;
 	return Boolean(
-		settings?.voiceId &&
+		(settings?.voiceId || recording?.voiceCues?.some((c) => c.settings)) &&
+			settings &&
 			recording?.changedMicPath &&
 			recording.micSelection === "changed" &&
-			recording.changedSettingsKey === voiceProcessingKey(settings),
+			recording.changedSettingsKey === recordingVoiceKey(recording, settings),
 	);
 }

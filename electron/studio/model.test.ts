@@ -1,10 +1,12 @@
-import { DEFAULT_CAMERA_LAYOUT } from "../../src/lib/cameraLayout";
 import { expect, test } from "vitest";
+import { DEFAULT_CAMERA_LAYOUT } from "../../src/lib/cameraLayout";
 import { SoundTake, shortcutSchema, soundSchema, studioSettingsSchema } from "./model";
+
 test("existing settings gain a camera shortcut without changing user choices", () => {
 	const result = studioSettingsSchema.parse({ glow: false, windows: [], sounds: [] });
 	expect(result).toEqual({
 		glow: false,
+		includeSoundboardInRecording: true,
 		windows: [],
 		sounds: [],
 		scenes: [],

@@ -1,20 +1,25 @@
-import { isVoiceExportReady, voiceProcessingKey } from "../../../src/lib/voiceExport";
-import { audioDuration, ffmpeg } from "./chunker";
-import { prepareRecordingAudio, recordingBase } from "../recording/library";
-import { pathToFileURL } from "node:url";
-import { getPackagedRendererBaseUrl } from "../../rendererServer";
-import { registerPresetHandlers, synchronizeFavoriteVoice } from "./presetHandlers";
 import fs from "node:fs/promises";
-import { shell } from "electron";
-import { getRecordingsDir } from "../utils";
-import { readAudioMetadata, writeAudioMetadata } from "../recording/library";
-import { resolveApprovedLocalMediaPath } from "../project/manager";
-import { startVoiceJob, cancelJob, jobProgress } from "./job";
 import path from "node:path";
-import { app, BrowserWindow, ipcMain, safeStorage, type IpcMainInvokeEvent } from "electron";
+import { pathToFileURL } from "node:url";
+import { app, BrowserWindow, type IpcMainInvokeEvent, ipcMain, safeStorage, shell } from "electron";
+import { isVoiceExportReady, recordingVoiceKey } from "../../../src/lib/voiceExport";
 import type { VoiceRequests, VoiceResult } from "../../../src/types/voice";
+import { getPackagedRendererBaseUrl } from "../../rendererServer";
+import { validateVoiceCues } from "../../studio/validateVoiceCues";
+import { resolveApprovedLocalMediaPath } from "../project/manager";
+import {
+	prepareRecordingAudio,
+	readAudioMetadata,
+	recordingBase,
+	writeAudioMetadata,
+} from "../recording/library";
+import { getRecordingsDir } from "../utils";
+import { audioDuration, ffmpeg } from "./chunker";
 import { ElevenLabs } from "./elevenlabs";
+import { cancelJob, jobProgress, startVoiceJob } from "./job";
+import { registerPresetHandlers, synchronizeFavoriteVoice } from "./presetHandlers";
 import { VoiceSettingsStore, validateSettings } from "./settings";
+
 let voiceWindow: BrowserWindow | null = null;
 let startupSelection: Promise<void> = Promise.resolve();
 export function openVoiceWindow(importRequested = false) {
@@ -210,6 +215,25 @@ export function registerVoiceHandlers() {
 			isVoiceExportReady(await readAudioMetadata(p), await voiceStore().read())
 		);
 	});
+	voiceHandle("setVoiceCues", async (input) => {
+		const p = await resolveApprovedLocalMediaPath(input.videoPath);
+		if (!p) throw Error("noAccess");
+		if (jobProgress().some((j) => j.videoPath === p && j.state === "running"))
+			throw Error("alreadyRunning");
+		const meta = await prepareRecordingAudio(p);
+		const cues = validateVoiceCues(input.cues);
+		const duration = await audioDuration(p);
+		if (cues.some((c) => c.startMs >= duration * 1000))
+			throw Error("Voice region starts after the recording ends.");
+		await writeAudioMetadata({
+			...meta,
+			voiceCues: cues,
+			micSelection: "original",
+			voiceChangeEnabled: cues.some((c) => c.settings),
+		});
+		for (const w of BrowserWindow.getAllWindows()) w.webContents.send("voice:audioChanged", p);
+		return true;
+	});
 	voiceHandle("setVoiceChange", async (input) => {
 		if (typeof input?.enabled !== "boolean") throw new Error("invalidSettings");
 		const p = await resolveApprovedLocalMediaPath(input.videoPath);
@@ -219,7 +243,7 @@ export function registerVoiceHandlers() {
 		const reuse =
 			input.enabled &&
 			meta.changedMicPath &&
-			meta.changedSettingsKey === voiceProcessingKey(await voiceStore().read());
+			meta.changedSettingsKey === recordingVoiceKey(meta, await voiceStore().read());
 		await writeAudioMetadata({
 			...meta,
 			voiceChangeEnabled: input.enabled,

@@ -1,10 +1,10 @@
-import { VoiceCostEstimate } from "./VoiceCostEstimate";
 import { useEffect, useState } from "react";
+import { useScopedT } from "@/contexts/I18nContext";
+import { voiceProcessingKey } from "@/lib/voiceExport";
 import { unwrapVoice, type VoiceInfo } from "@/types/voice";
 import type { VoicePreset } from "@/types/voicePreset";
-import { voiceProcessingKey } from "@/lib/voiceExport";
-import { useScopedT } from "@/contexts/I18nContext";
 import type { VoiceExportState } from "./useVoiceExport";
+import { VoiceCostEstimate } from "./VoiceCostEstimate";
 import { VoicePreviewButton } from "./VoicePreviewButton";
 import { modelLabel } from "./voiceModels";
 
@@ -92,7 +92,9 @@ export function VoiceExportControls({
 					disabled={!recording?.micPath || busy || processing}
 					onChange={(e) => void state.toggle(e.target.checked)}
 				/>
-				Change microphone voice
+				{recording?.voiceCues?.some((c) => c.settings)
+					? "Process recorded voice selections"
+					: "Change microphone voice"}
 			</label>
 			{!recording?.micPath ? (
 				<p className="mt-1 text-muted-foreground">
@@ -102,7 +104,19 @@ export function VoiceExportControls({
 				</p>
 			) : (
 				<>
-					<div className="mt-2 flex items-center gap-1">
+					{recording?.voiceCues?.some((c) => c.settings) && (
+						<p className="mt-2">
+							This take uses the voices marked on the narration track. Edit them in
+							Voice → Narration voices.
+						</p>
+					)}
+					<div
+						className={
+							recording?.voiceCues?.some((c) => c.settings)
+								? "hidden"
+								: "mt-2 flex items-center gap-1"
+						}
+					>
 						<select
 							aria-label="Export voice selection"
 							value={value}
@@ -253,8 +267,9 @@ export function VoiceExportControls({
 								disabled={
 									busy ||
 									processing ||
-									!settings?.voiceId ||
-									!settings.hasKey ||
+									(!settings?.voiceId &&
+										!recording?.voiceCues?.some((c) => c.settings)) ||
+									!settings?.hasKey ||
 									!settings.noticeAccepted ||
 									state.ready
 								}

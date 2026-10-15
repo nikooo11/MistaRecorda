@@ -1,8 +1,10 @@
+import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { AudioRegion } from "../../src/components/video-editor/types";
+
 type Handler = (event: unknown, method: string, input?: unknown) => Promise<unknown>;
 interface TestWindow {
 	webContents: { getURL(): string; isDestroyed(): boolean; send: ReturnType<typeof vi.fn> };
@@ -24,6 +26,15 @@ const host = vi.hoisted(() => ({
 	control: vi.fn(),
 	nativeWrite: vi.fn(),
 	native: false,
+	nativeStdout: undefined as unknown as EventEmitter,
+	nativeEvents: undefined as unknown as EventEmitter,
+	nativeSources: [] as Array<{
+		id: string;
+		name: string;
+		appName?: string;
+		windowTitle?: string;
+	}>,
+	focus: vi.fn(async (_id: string) => ""),
 }));
 vi.mock("electron", () => ({
 	app: { getPath: () => host.root, getAppPath: () => host.root, on: vi.fn() },
@@ -66,13 +77,27 @@ vi.mock("electron", () => ({
 	},
 	ipcMain: { handle: (name: string, handler: Handler) => host.handlers.set(name, handler) },
 }));
-vi.mock("../ipc/cursor/bounds", () => ({}));
+vi.mock("./voiceCues", () => ({
+	startVoiceCues: vi.fn(),
+	persistVoiceCues: vi.fn(),
+	recordingVoiceList: vi.fn(),
+	selectRecordingVoice: vi.fn(),
+}));
+vi.mock("./focusWindow", () => ({ focusRecordingWindow: host.focus }));
+vi.mock("../ipc/cursor/bounds", () => ({
+	getNativeMacWindowSources: async () => host.nativeSources,
+	resolveMacWindowBounds: async () => ({ x: 100, y: 100, width: 800, height: 600 }),
+	startWindowBoundsCapture: vi.fn(async () => {}),
+}));
 vi.mock("../ipc/cursor/telemetry", () => ({
 	getCursorCaptureElapsedMs: () => host.time,
 	getRecordingBoundsInDips: () => null,
 	isCursorCapturePaused: () => host.paused,
 }));
-vi.mock("../ipc/zoom/capture", () => ({ zoomStatus: () => ({ outlineAvailable: false }) }));
+vi.mock("../ipc/zoom/capture", () => ({
+	zoomStatus: () => ({ outlineAvailable: false }),
+	closeHeldZoom: vi.fn(),
+}));
 vi.mock("../ipc/state", () => ({
 	get isCursorCaptureActive() {
 		return host.active;
@@ -88,7 +113,16 @@ vi.mock("../ipc/state", () => ({
 		return host.native;
 	},
 	get nativeCaptureProcess() {
-		return host.native ? { stdin: { writable: true, write: host.nativeWrite } } : null;
+		return host.native
+			? {
+					stdin: { writable: true, write: host.nativeWrite },
+					stdout: host.nativeStdout,
+					once: (...args: Parameters<EventEmitter["once"]>) =>
+						host.nativeEvents.once(...args),
+					off: (...args: Parameters<EventEmitter["off"]>) =>
+						host.nativeEvents.off(...args),
+				}
+			: null;
 	},
 }));
 vi.mock("../ipc/project/manager", () => ({
@@ -113,14 +147,25 @@ vi.mock("../ipc/ffmpeg/binary", () => ({
 			`node_modules/ffprobe-static/bin/${process.platform}/${process.arch}/ffprobe`,
 		),
 }));
+
 import {
+	persistStudioTake,
 	prepareStudioCapture,
 	registerStudio,
 	startStudioTake,
 	stopStudioTake,
-	persistStudioTake,
 } from "./register";
+
+const actualPlatform = process.platform;
+beforeEach(() => {
+	host.nativeStdout = new EventEmitter();
+	host.nativeEvents = new EventEmitter();
+	host.focus.mockReset().mockResolvedValue("");
+	host.nativeWrite.mockReset();
+});
 afterEach(async () => {
+	Object.defineProperty(process, "platform", { value: actualPlatform });
+	host.native = false;
 	stopStudioTake();
 	host.active = false;
 	if (host.root) await fs.rm(host.root, { recursive: true, force: true });
@@ -233,6 +278,7 @@ test("sound hotkey cues survive recording persistence, ignore pause, and cannot 
 		JSON.stringify({
 			glow: true,
 			windows: [],
+			includeSoundboardInRecording: false,
 			sounds: [{ id, file, name: "Chime", durationMs: 500, volume: 0.7, shortcut: "" }],
 		}),
 	);
@@ -353,20 +399,122 @@ test("environment audio defaults can be muted and restored live without losing t
 });
 
 test("renaming a source preserves its capture identity and persists across refresh", async () => {
- host.root = await fs.mkdtemp(path.join(os.tmpdir(), "studio-source-name-"));
- registerStudio();
- const frame = { url: "http://127.0.0.1:9876/?windowType=studio" };
- const event = { senderFrame: frame, sender: { mainFrame: frame } };
- const request = (method: string, input?: unknown) => host.handlers.get("studio:request")!(event, method, input);
- const source={id:"window:888:0",name:"Google Chrome — Example",appName:"Google Chrome",windowTitle:"Example",sourceType:"window"};
- await request("renameSource",{source,name:"Article"});
- const saved=JSON.parse(await fs.readFile(path.join(host.root,"studio/settings.json"),"utf8"));
- expect(saved.sourceAliases).toEqual([{source,name:"Article"}]);
- expect(saved.sourceAliases[0].source.windowTitle).toBe("Example");
- await request("renameSource",{source,name:"Reference"});
- const renamed=await request("info") as {settings:{sourceAliases:unknown[]}};
- expect(renamed.settings.sourceAliases).toEqual([{source,name:"Reference"}]);
- await request("renameSource",{source,name:""});
- const reset=await request("info") as {settings:{sourceAliases:unknown[]}};
- expect(reset.settings.sourceAliases).toEqual([]);
+	host.root = await fs.mkdtemp(path.join(os.tmpdir(), "studio-source-name-"));
+	registerStudio();
+	const frame = { url: "http://127.0.0.1:9876/?windowType=studio" };
+	const event = { senderFrame: frame, sender: { mainFrame: frame } };
+	const request = (method: string, input?: unknown) =>
+		host.handlers.get("studio:request")!(event, method, input);
+	const source = {
+		id: "window:888:0",
+		name: "Google Chrome — Example",
+		appName: "Google Chrome",
+		windowTitle: "Example",
+		sourceType: "window",
+	};
+	await request("renameSource", { source, name: "Article" });
+	const saved = JSON.parse(
+		await fs.readFile(path.join(host.root, "studio/settings.json"), "utf8"),
+	);
+	expect(saved.sourceAliases).toEqual([{ source, name: "Article" }]);
+	expect(saved.sourceAliases[0].source.windowTitle).toBe("Example");
+	await request("renameSource", { source, name: "Reference" });
+	const renamed = (await request("info")) as { settings: { sourceAliases: unknown[] } };
+	expect(renamed.settings.sourceAliases).toEqual([{ source, name: "Reference" }]);
+	await request("renameSource", { source, name: "" });
+	const reset = (await request("info")) as { settings: { sourceAliases: unknown[] } };
+	expect(reset.settings.sourceAliases).toEqual([]);
+});
+
+async function windowSwitchSetup() {
+	Object.defineProperty(process, "platform", { value: "darwin" });
+	host.root = await fs.mkdtemp(path.join(os.tmpdir(), "studio-window-focus-"));
+	registerStudio();
+	const frame = { url: "http://127.0.0.1:9876/?windowType=studio" };
+	const event = { senderFrame: frame, sender: { mainFrame: frame } };
+	const request = (method: string, input?: unknown) =>
+		host.handlers.get("studio:request")!(event, method, input);
+	await request("info");
+	const source = {
+		id: "window:91:0",
+		name: "Chrome — Article",
+		appName: "Chrome",
+		windowTitle: "Article",
+		sourceType: "window",
+	};
+	host.nativeSources = [source];
+	host.selected = { id: "window:90:0" };
+	host.native = true;
+	host.active = true;
+	return { request, source };
+}
+
+test("window hotkey raises the resolved target only after the recorder confirms the switch", async () => {
+	const { request, source } = await windowSwitchSetup();
+	// A saved window may have been recreated. Always focus the resolved native ID.
+	host.active = false;
+	await request("assignWindow", {
+		slot: 1,
+		shortcut: "F8",
+		source: { ...source, id: "window:81:0" },
+	});
+	host.active = true;
+	host.bindings.get("F8")!();
+	await vi.waitFor(() => expect(host.nativeWrite).toHaveBeenCalledWith("switch-window 91\n"));
+	expect(host.focus).not.toHaveBeenCalled();
+	host.nativeStdout.emit("data", Buffer.from("SOURCE_SWITCHED 91\n"));
+	await vi.waitFor(() => expect(host.focus).toHaveBeenCalledWith("window:91:0"));
+	expect(host.selected?.id).toBe("window:91:0");
+	await vi.waitFor(async () => expect(await request("info")).toMatchObject({ switching: false }));
+	// Pressing the current window's hotkey again restores focus without recapturing.
+	host.nativeWrite.mockClear();
+	host.focus.mockClear();
+	host.active = true;
+	host.bindings.get("F8")!();
+	await vi.waitFor(() => expect(host.focus).toHaveBeenCalledWith("window:91:0"));
+	expect(host.nativeWrite).not.toHaveBeenCalled();
+});
+
+test("failed and closed window switches do not steal focus or change the recording source", async () => {
+	const { request, source } = await windowSwitchSetup();
+	const switching = request("selectSource", source);
+	const rejection = expect(switching).rejects.toThrow("current recording continues");
+	await vi.waitFor(() => expect(host.nativeWrite).toHaveBeenCalled());
+	host.nativeStdout.emit("data", Buffer.from("SOURCE_SWITCH_FAILED\n"));
+	await rejection;
+	expect(host.selected?.id).toBe("window:90:0");
+	expect(host.focus).not.toHaveBeenCalled();
+	host.nativeSources = [];
+	await expect(request("selectSource", source)).rejects.toThrow("closed");
+	expect(host.focus).not.toHaveBeenCalled();
+});
+
+test("environment shortcuts restore current-window focus and retain activation warnings", async () => {
+	const { request, source } = await windowSwitchSetup();
+	host.selected = source;
+	const scene = {
+		id: crypto.randomUUID(),
+		name: "Article",
+		source,
+		camera: false,
+		shortcut: "F9",
+	};
+	host.active = false;
+	await request("saveScene", scene);
+	host.active = true;
+	host.focus.mockResolvedValue("Allow Accessibility to bring windows to the front.");
+	host.bindings.get("F9")!();
+	await vi.waitFor(async () =>
+		expect(await request("info")).toMatchObject({
+			switching: false,
+			message: "Scene: Article. Allow Accessibility to bring windows to the front.",
+		}),
+	);
+	expect(host.focus).toHaveBeenCalledWith(source.id);
+	expect(host.selected?.id).toBe(source.id);
+	expect(host.nativeWrite).not.toHaveBeenCalled();
+	host.active = false;
+	host.focus.mockClear();
+	await request("selectSource", source);
+	expect(host.focus).not.toHaveBeenCalled();
 });

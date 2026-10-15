@@ -1,14 +1,15 @@
-import { voiceProcessingKey } from "../../../src/lib/voiceExport";
-import { mixArgs } from "./mix";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { app, BrowserWindow } from "electron";
+import { cueSpans } from "../../../src/lib/voiceCues";
+import { recordingVoiceKey } from "../../../src/lib/voiceExport";
 import type { VoiceProgress, VoiceSettings } from "../../../src/types/voice";
+import { validateVoiceCues } from "../../studio/validateVoiceCues";
 import {
+	type RecordingAudioMetadata,
 	readAudioMetadata,
 	recordingBase,
 	writeAudioMetadata,
-	type RecordingAudioMetadata,
 } from "../recording/library";
 import {
 	audioDuration,
@@ -20,6 +21,8 @@ import {
 	silences,
 } from "./chunker";
 import type { ElevenLabs } from "./elevenlabs";
+import { mixArgs } from "./mix";
+
 const active = new Map<string, { controller: AbortController; progress: VoiceProgress }>();
 const history = new Map<string, VoiceProgress>();
 function emit(progress: VoiceProgress) {
@@ -142,10 +145,12 @@ export async function startVoiceJob(
 	client: ElevenLabs,
 ) {
 	if (!settings.noticeAccepted) throw new Error("noticeRequired");
-	if (!settings.voiceId) throw new Error("chooseVoice");
 	if ([...active.values()].some((j) => j.progress.videoPath === videoPath))
 		throw new Error("alreadyRunning");
 	const metadata = await readAudioMetadata(videoPath);
+	if (!settings.voiceId && !metadata?.voiceCues?.some((c) => c.settings))
+		throw new Error("chooseVoice");
+	if (metadata?.voiceCues) metadata.voiceCues = validateVoiceCues(metadata.voiceCues);
 	if (!metadata?.micPath) throw new Error("missingMic");
 	// Resolve real paths too: a crafted sidecar symlink must not upload another file.
 	if (
@@ -165,6 +170,87 @@ export async function startVoiceJob(
 	void run(metadata, settings, client, controller, progress);
 	return jobId;
 }
+export async function convertCuedMicrophone(
+	micPath: string,
+	settings: VoiceSettings,
+	client: ElevenLabs,
+	temp: string,
+	signal: AbortSignal,
+	onProgress: (completed: number, total: number) => void,
+	metadata: RecordingAudioMetadata,
+) {
+	const duration = await audioDuration(micPath, signal);
+	const offset = metadata.micOffsetMs;
+	const spans = cueSpans(validateVoiceCues(metadata.voiceCues), duration * 1000 + offset)
+		.map((c) => ({
+			...c,
+			startMs: Math.max(0, c.startMs - offset),
+			endMs: Math.max(0, c.endMs - offset),
+		}))
+		.filter((c) => c.endMs > c.startMs);
+	const outputs: string[] = [];
+	onProgress(0, spans.length);
+	for (const [i, span] of spans.entries()) {
+		signal.throwIfAborted();
+		const folder = path.join(temp, `region-${i}`);
+		await fs.mkdir(folder);
+		const input = path.join(folder, "original.wav");
+		await ffmpeg(
+			[
+				"-ss",
+				String(span.startMs / 1000),
+				"-i",
+				micPath,
+				"-t",
+				String((span.endMs - span.startMs) / 1000),
+				"-ar",
+				"48000",
+				"-ac",
+				"1",
+				"-c:a",
+				"pcm_s16le",
+				input,
+			],
+			signal,
+		);
+		outputs.push(
+			span.settings
+				? await convertMicrophone(
+						input,
+						{ ...span.settings, noticeAccepted: settings.noticeAccepted },
+						client,
+						folder,
+						signal,
+						() => {
+							/* Overall progress counts completed regions. */
+						},
+					)
+				: input,
+		);
+		onProgress(i + 1, spans.length);
+	}
+	const output = path.join(temp, "voice-mic.wav");
+	if (!outputs.length) throw Error("invalidAudio");
+	const graph = `${outputs.map((_, i) => `[${i}:a]`).join("")}concat=n=${outputs.length}:v=0:a=1,${durationFilter(duration)}[out]`;
+	await ffmpeg(
+		[
+			...outputs.flatMap((p) => ["-i", p]),
+			"-filter_complex",
+			graph,
+			"-map",
+			"[out]",
+			"-ac",
+			"1",
+			"-ar",
+			"48000",
+			"-c:a",
+			"pcm_s16le",
+			output,
+		],
+		signal,
+	);
+	return output;
+}
 async function run(
 	metadata: RecordingAudioMetadata,
 	settings: VoiceSettings,
@@ -177,7 +263,10 @@ async function run(
 	const created: string[] = [];
 	try {
 		await fs.mkdir(temp, { recursive: true });
-		const output = await convertMicrophone(
+		const convert = metadata.voiceCues?.some((c) => c.settings)
+			? convertCuedMicrophone
+			: convertMicrophone;
+		const output = await convert(
 			metadata.micPath!,
 			settings,
 			client,
@@ -187,6 +276,7 @@ async function run(
 				Object.assign(progress, { completed, total });
 				emit(progress);
 			},
+			metadata,
 		);
 		controller.signal.throwIfAborted();
 		const base = recordingBase(metadata.videoPath);
@@ -216,9 +306,11 @@ async function run(
 			voiceVideoPath: video,
 			micSelection: "changed",
 			changedVoiceId: settings.voiceId,
-			changedVoiceName: settings.voiceName,
+			changedVoiceName: metadata.voiceCues?.some((c) => c.settings)
+				? "Recorded voice selections"
+				: settings.voiceName,
 			changedModelId: settings.modelId,
-			changedSettingsKey: voiceProcessingKey(settings),
+			changedSettingsKey: recordingVoiceKey(metadata, settings),
 			voiceChangeEnabled: true,
 		});
 		committed = true;

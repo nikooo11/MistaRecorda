@@ -1,13 +1,15 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
 import {
-	emptyBoardState,
-	emptyBoardScene,
-	type BoardScene,
 	type BoardElement,
+	type BoardScene,
 	type BoardState,
+	emptyBoardScene,
+	emptyBoardState,
 } from "../../src/types/board";
+import { validateMemes } from "./memes";
+
 const kinds = new Set([
 	"rectangle",
 	"ellipse",
@@ -84,6 +86,7 @@ export class BoardStore {
 			this.state = {
 				...emptyBoardState(),
 				...s,
+				...validateMemes(s),
 				assets: validateScene({
 					...emptyBoardScene(),
 					files: {

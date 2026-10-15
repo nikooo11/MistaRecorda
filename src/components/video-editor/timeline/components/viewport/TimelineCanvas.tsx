@@ -75,6 +75,7 @@ interface TimelineCanvasProps {
 	onClearBlockSelection?: () => void;
 	keyframes?: { id: string; time: number }[];
 	sourceAudioTracks?: SourceAudioTrackWithPeaks[];
+	sourceVoiceCues?: import("@/lib/voiceCues").VoiceCue[];
 	getSourceAudioTrackSettingsForClip?: (clipId: string | null) => SourceAudioTrackSettings;
 	showSourceAudioTrack?: boolean;
 	liveSpanPreviewById?: Record<string, { start: number; end: number }>;
@@ -373,6 +374,7 @@ interface TimelineCanvasRowsProps {
 	onSelectAudio?: (id: string | null) => void;
 	onSelectCaption?: (id: string | null) => void;
 	sourceAudioTracks?: SourceAudioTrackWithPeaks[];
+	sourceVoiceCues?: import("@/lib/voiceCues").VoiceCue[];
 	getSourceAudioTrackSettingsForClip?: (clipId: string | null) => SourceAudioTrackSettings;
 	showSourceAudioTrack?: boolean;
 	liveSpanPreviewById?: Record<string, { start: number; end: number }>;
@@ -452,6 +454,7 @@ const TimelineCanvasRows = memo(function TimelineCanvasRows({
 	onSelectAudio,
 	onSelectCaption,
 	sourceAudioTracks = [],
+	sourceVoiceCues = [],
 	getSourceAudioTrackSettingsForClip,
 	showSourceAudioTrack = false,
 	liveSpanPreviewById,
@@ -580,6 +583,40 @@ const TimelineCanvasRows = memo(function TimelineCanvasRows({
 										muted={item.muted}
 									>
 										{track.label}
+										{track.id === "mic" &&
+											sourceVoiceCues.map((cue, i) => {
+												const span = item.sourceSpan ?? item.span;
+												const start = Math.max(cue.startMs, span.start);
+												const end = Math.min(
+													sourceVoiceCues[i + 1]?.startMs ?? span.end,
+													span.end,
+												);
+												if (end <= start) return null;
+												return (
+													<span
+														key={cue.id}
+														title={
+															cue.settings?.voiceName ||
+															"Original voice"
+														}
+														style={{
+															position: "absolute",
+															top: 0,
+															bottom: 0,
+															left: `${(100 * (start - span.start)) / (span.end - span.start)}%`,
+															width: `${(100 * (end - start)) / (span.end - span.start)}%`,
+															background: `${cue.color}66`,
+															borderLeft: `2px solid ${cue.color}`,
+															fontSize: 10,
+															padding: "2px 4px",
+															overflow: "hidden",
+															pointerEvents: "none",
+														}}
+													>
+														{cue.settings?.voiceName || "Original"}
+													</span>
+												);
+											})}
 									</Item>
 								);
 							})}
@@ -772,6 +809,7 @@ export default function TimelineCanvas({
 	onClearBlockSelection,
 	keyframes = [],
 	sourceAudioTracks = [],
+	sourceVoiceCues = [],
 	getSourceAudioTrackSettingsForClip,
 	showSourceAudioTrack = false,
 	liveSpanPreviewById,
@@ -1046,6 +1084,7 @@ export default function TimelineCanvas({
 					onSelectAudio={onSelectAudio}
 					onSelectCaption={onSelectCaption}
 					sourceAudioTracks={sourceAudioTracks}
+					sourceVoiceCues={sourceVoiceCues}
 					getSourceAudioTrackSettingsForClip={getSourceAudioTrackSettingsForClip}
 					showSourceAudioTrack={showSourceAudioTrack}
 					liveSpanPreviewById={liveSpanPreviewById}

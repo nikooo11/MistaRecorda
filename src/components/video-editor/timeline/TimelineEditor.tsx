@@ -84,6 +84,7 @@ export interface TimelineEditorProps {
 	sourceAudioResourceVersion?: number;
 	onSourceAudioAvailabilityChange?: (available: boolean) => void;
 	sourceAudioTrackSettings?: SourceAudioTrackSettings;
+	sourceVoiceCues?: import("@/lib/voiceCues").VoiceCue[];
 	getSourceAudioTrackSettingsForClip?: (clipId: string | null) => SourceAudioTrackSettings;
 	onSourceAudioTracksMetaChange?: (tracks: SourceAudioTrackMeta) => void;
 }
@@ -165,6 +166,7 @@ const TimelineEditor = forwardRef<TimelineEditorHandle, TimelineEditorProps>(
 			cursorTelemetrySourcePath,
 			showSourceAudioTrack = false,
 			sourceAudioResourceVersion = 0,
+			sourceVoiceCues,
 			onSourceAudioAvailabilityChange,
 			sourceAudioTrackSettings = {},
 			getSourceAudioTrackSettingsForClip,
@@ -505,6 +507,7 @@ const TimelineEditor = forwardRef<TimelineEditorHandle, TimelineEditorProps>(
 							onClearBlockSelection={clearSelectedBlocks}
 							keyframes={keyframes}
 							sourceAudioTracks={sourceAudioTracks}
+							sourceVoiceCues={sourceVoiceCues}
 							getSourceAudioTrackSettingsForClip={getSourceAudioTrackSettingsForClip}
 							showSourceAudioTrack={showSourceAudioTrack}
 							liveSpanPreviewById={liveZoomPreview.previewSpans}

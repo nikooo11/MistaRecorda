@@ -1,4 +1,4 @@
-import type { VoicePreset, PresetEntry } from "./voicePreset";
+import type { PresetEntry, VoicePreset } from "./voicePreset";
 export interface VoiceSettings {
 	noticeAccepted: boolean;
 	voiceId: string;
@@ -60,6 +60,7 @@ export interface VoiceProgress {
 	outputPath?: string;
 }
 export interface VoiceRecording {
+	voiceCues?: import("../lib/voiceCues").VoiceCue[];
 	videoPath: string;
 	micPath: string | null;
 	systemAudioPath: string | null;
@@ -75,6 +76,10 @@ export interface VoiceRecording {
 	voiceChangeEnabled?: boolean;
 }
 export interface VoiceRequests {
+	setVoiceCues: {
+		input: { videoPath: string; cues: import("../lib/voiceCues").VoiceCue[] };
+		output: boolean;
+	};
 	createVoice: {
 		input: { name: string; description: string; consent: boolean };
 		output: { voiceId: string; requiresVerification: boolean } | null;

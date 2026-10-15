@@ -3,6 +3,7 @@ const CAPTURE_WINDOW_TYPES = new Set([
 	"board-surface",
 	"board-stream",
 	"camera-overlay",
+	"studio-audio",
 ]);
 const TRUSTED_RENDERER_PROTOCOLS = new Set(["http:", "https:", "file:"]);
 const FILE_SECURITY_ORIGINS = new Set(["null", "file://", "file:///"]);

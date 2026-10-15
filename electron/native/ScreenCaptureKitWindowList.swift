@@ -1,6 +1,78 @@
 import Foundation
 import CoreGraphics
 import ScreenCaptureKit
+import AppKit
+import ApplicationServices
+
+func focusFailure(_ code: String) -> Never {
+	fputs("\(code)\n", stderr)
+	exit(1)
+}
+
+func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+	var value: CFTypeRef?
+	guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
+	return value
+}
+
+func windowFrame(_ window: AXUIElement) -> CGRect? {
+	guard let position = attribute(window, kAXPositionAttribute), CFGetTypeID(position) == AXValueGetTypeID(),
+		let size = attribute(window, kAXSizeAttribute), CFGetTypeID(size) == AXValueGetTypeID() else { return nil }
+	var point = CGPoint.zero
+	var dimensions = CGSize.zero
+	guard AXValueGetValue(position as! AXValue, .cgPoint, &point),
+		AXValueGetValue(size as! AXValue, .cgSize, &dimensions) else { return nil }
+	return CGRect(origin: point, size: dimensions)
+}
+
+func bringWindowToFront(_ id: CGWindowID) {
+	guard AXIsProcessTrusted() else { focusFailure("ACCESSIBILITY_PERMISSION_REQUIRED") }
+	guard let entries = CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as? [[String: Any]],
+		let entry = entries.first(where: { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == id }),
+		let pid = entry[kCGWindowOwnerPID as String] as? Int32,
+		let bounds = entry[kCGWindowBounds as String] as? [String: Any],
+		let frame = CGRect(dictionaryRepresentation: bounds as CFDictionary),
+		let running = NSRunningApplication(processIdentifier: pid) else { focusFailure("WINDOW_UNAVAILABLE") }
+	let application = AXUIElementCreateApplication(pid)
+	AXUIElementSetMessagingTimeout(application, 0.6)
+	guard let windows = attribute(application, kAXWindowsAttribute) as? [AXUIElement] else { focusFailure("WINDOW_UNAVAILABLE") }
+	// Public AX APIs do not expose CGWindowID. Match the resolved window within
+	// its owning process using both its current geometry and title. Never pick
+	// the first window of an app: multiple Chrome windows may share a title.
+	let matches = windows.filter { window in
+		guard let candidate = windowFrame(window) else { return false }
+		return abs(candidate.minX - frame.minX) < 2 && abs(candidate.minY - frame.minY) < 2 &&
+			abs(candidate.width - frame.width) < 2 && abs(candidate.height - frame.height) < 2
+	}
+	let title = entry[kCGWindowName as String] as? String ?? ""
+	let titled = matches.filter { (attribute($0, kAXTitleAttribute) as? String) == title }
+	let candidates = titled.isEmpty ? matches : titled
+	guard candidates.count == 1, let window = candidates.first else { focusFailure("WINDOW_AMBIGUOUS_OR_UNAVAILABLE") }
+	_ = AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+	_ = AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
+	_ = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+	_ = running.unhide()
+	guard running.activate(options: []) else { focusFailure("WINDOW_ACTIVATION_FAILED") }
+	guard AXUIElementPerformAction(window, kAXRaiseAction as CFString) == .success else { focusFailure("WINDOW_RAISE_FAILED") }
+	_ = AXUIElementSetAttributeValue(window, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+	// Activation is asynchronous. Confirm the selected window actually received
+	// focus, without repeatedly activating it and fighting the user's input.
+	for _ in 0..<10 {
+		if running.isActive, let focused = attribute(application, kAXFocusedWindowAttribute), CFEqual(focused, window) {
+			print("WINDOW_FOCUSED \(id)")
+			return
+		}
+		RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.05))
+	}
+	focusFailure("WINDOW_FOCUS_NOT_CONFIRMED")
+}
+
+if CommandLine.arguments.count > 1 {
+	guard CommandLine.arguments.count == 3, CommandLine.arguments[1] == "--focus",
+		let id = UInt32(CommandLine.arguments[2]), id > 0 else { focusFailure("INVALID_WINDOW_ID") }
+	bringWindowToFront(id)
+	exit(0)
+}
 
 struct WindowListEntry: Codable {
 	let id: String

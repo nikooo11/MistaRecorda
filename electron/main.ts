@@ -1,14 +1,3 @@
-import { isCameraPreviewWebContents } from "./studio/register";
-import {
-	registerBoard,
- isFigureMicrophoneWebContents,
-	isBoardCaptureWebContents,
-	sendRecordingControl,
-	toggleDrawingBoard,
-	openDrawingStudio,
-} from "./board/register";
-import { openVoiceWindow } from "./ipc/voice/register";
-import { requireScreenRecordingAccess } from "./screenCaptureAccess";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -17,6 +6,7 @@ import {
 	BrowserWindow,
 	desktopCapturer,
 	dialog,
+	webContents as electronWebContents,
 	ipcMain,
 	Menu,
 	Notification,
@@ -25,9 +15,16 @@ import {
 	shell,
 	systemPreferences,
 	Tray,
-	webContents as electronWebContents,
 } from "electron";
 import { RECORDINGS_DIR } from "./appPaths";
+import {
+	isBoardCaptureWebContents,
+	isFigureMicrophoneWebContents,
+	openDrawingStudio,
+	registerBoard,
+	sendRecordingControl,
+	toggleDrawingBoard,
+} from "./board/register";
 import { showCursor } from "./cursorHider";
 import { registerExtensionIpcHandlers } from "./extensions/extensionIpc";
 import { getGpuSwitches } from "./gpuSwitches";
@@ -38,10 +35,14 @@ import {
 	killWindowsCaptureProcess,
 	registerIpcHandlers,
 } from "./ipc/handlers";
+import { openVoiceWindow } from "./ipc/voice/register";
 import { ensureMediaServer } from "./mediaServer";
+import { hardenWebContentsNavigation, shouldHardenWebContentsType } from "./navigationPolicy";
 import { shouldGrantDisplayCapture, shouldGrantMediaPermission } from "./permissionPolicy";
 import { ensurePackagedRendererServer, getPackagedRendererBaseUrl } from "./rendererServer";
-import { hardenWebContentsNavigation, shouldHardenWebContentsType } from "./navigationPolicy";
+import { requireScreenRecordingAccess } from "./screenCaptureAccess";
+import { isCameraPreviewWebContents } from "./studio/register";
+import { isStreamAudioWebContents } from "./studio/streamAudio";
 import type { UpdateToastPayload } from "./updater";
 import {
 	checkForAppUpdates,
@@ -969,7 +970,10 @@ app.whenReady().then(async () => {
 				{
 					permission,
 					isTrustedCaptureWindow:
-						isHudWebContents(webContents) || isCameraPreviewWebContents(webContents) || isFigureMicrophoneWebContents(webContents),
+						isHudWebContents(webContents) ||
+						isCameraPreviewWebContents(webContents) ||
+						isFigureMicrophoneWebContents(webContents) ||
+						isStreamAudioWebContents(webContents),
 					isMainFrame: details.isMainFrame,
 					currentDocumentUrl: webContents?.getURL() ?? "",
 					// Electron 39 may supply the last committed document URL, including its
@@ -993,7 +997,9 @@ app.whenReady().then(async () => {
 						permission,
 						isTrustedCaptureWindow:
 							isHudWebContents(webContents) ||
-							isCameraPreviewWebContents(webContents) || isFigureMicrophoneWebContents(webContents),
+							isCameraPreviewWebContents(webContents) ||
+							isFigureMicrophoneWebContents(webContents) ||
+							isStreamAudioWebContents(webContents),
 						isMainFrame: details.isMainFrame,
 						currentDocumentUrl: webContents.getURL(),
 						requestingUrl: details.requestingUrl,

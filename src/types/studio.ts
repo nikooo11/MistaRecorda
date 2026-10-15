@@ -16,6 +16,8 @@ export interface SoundEffect {
 	durationMs: number;
 	shortcut: string;
 	volume: number;
+	favorite?: boolean;
+	color?: string;
 }
 export interface WindowSlot {
 	slot: number;
@@ -25,6 +27,7 @@ export interface WindowSlot {
 export interface StudioSettings {
 	sourceAliases?: Array<{ source: StudioSource; name: string }>;
 	glow: boolean;
+	includeSoundboardInRecording?: boolean;
 	windows: WindowSlot[];
 	sounds: SoundEffect[];
 	cameraShortcut: string;
@@ -55,5 +58,8 @@ export interface StudioInfo {
 export interface StudioAPI {
 	request<T = StudioInfo>(method: string, input?: unknown): Promise<T>;
 	onChanged(callback: (info: StudioInfo) => void): () => void;
+	onAudioCommand(
+		callback: (command: { id: string; method: string; input?: unknown }) => void,
+	): () => void;
 	getSounds(path: string): Promise<AudioRegion[]>;
 }

@@ -26,6 +26,11 @@ export const soundSchema = z.object({
 	durationMs: z.number().positive().max(120000),
 	shortcut: shortcutSchema,
 	volume: z.number().min(0).max(2),
+	favorite: z.boolean().default(false),
+	color: z
+		.string()
+		.regex(/^#[0-9a-fA-F]{6}$/)
+		.default("#466784"),
 });
 export const cameraLayoutSchema = z.object({
 	x: z.number().min(0).max(1),
@@ -41,6 +46,7 @@ export const studioSettingsSchema = z.object({
 		.max(100)
 		.default([]),
 	glow: z.boolean(),
+	includeSoundboardInRecording: z.boolean().default(true),
 	cameraLayout: cameraLayoutSchema.default({
 		x: 0.97,
 		y: 0.97,
@@ -73,7 +79,7 @@ export const studioSettingsSchema = z.object({
 			}),
 		)
 		.max(64),
-	sounds: z.array(soundSchema).max(24),
+	sounds: z.array(soundSchema).max(200),
 });
 export class SoundTake {
 	regions: AudioRegion[] = [];

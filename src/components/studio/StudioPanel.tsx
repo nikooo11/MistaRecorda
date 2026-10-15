@@ -1,22 +1,21 @@
-import { LayerSources } from "./LayerSources";
-import { isSelectedSource, sourceSwitchUnavailable } from "./sourceSwitching";
-import { CaptureLayers } from "./CaptureLayers";
-import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	GearSixIcon,
 	KeyboardIcon,
 	MonitorIcon,
 	SpeakerHighIcon,
-	PlusIcon,
-	PlayIcon,
-	TrashIcon,
-	StopIcon,
 	StackIcon,
+	TrashIcon,
 } from "@phosphor-icons/react";
-import type { StudioInfo, StudioSource, SoundEffect } from "../../types/studio";
+import { useCallback, useEffect, useState } from "react";
+import type { StudioInfo, StudioSource } from "../../types/studio";
+import { CaptureLayers } from "./CaptureLayers";
+import { LayerSources } from "./LayerSources";
+import { SoundboardSettings, SoundRecordingOption } from "./SoundboardSettings";
+import { isSelectedSource, sourceSwitchUnavailable } from "./sourceSwitching";
 import "./studio.css";
 import { RecordingScenes } from "./RecordingScenes";
 import { ShortcutInput } from "./ShortcutInput";
+
 export { ShortcutInput } from "./ShortcutInput";
 export function StudioPanel() {
 	const [info, setInfo] = useState<StudioInfo>();
@@ -25,8 +24,6 @@ export function StudioPanel() {
 	const [sources, setSources] = useState<StudioSource[]>([]);
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState(false);
-	const [playing, setPlaying] = useState("");
-	const audio = useRef<HTMLAudioElement>();
 	const run = useCallback(async (method: string, input?: unknown) => {
 		setBusy(true);
 		setError("");
@@ -66,30 +63,9 @@ export function StudioPanel() {
 			sourceChanged?.();
 		};
 	}, [run, refresh]);
-	useEffect(() => () => audio.current?.pause(), []);
 	useEffect(() => {
 		if (info?.panelTab) setTab(info.panelTab);
 	}, [info?.panelTab]);
-	const preview = async (sound: SoundEffect) => {
-		audio.current?.pause();
-		if (playing === sound.id) {
-			setPlaying("");
-			return;
-		}
-		try {
-			const path = await window.electronAPI.studio.request<string>("soundPath", sound.id);
-			const result = await window.electronAPI.getLocalMediaUrl(path);
-			if (!result.success) throw Error("Could not open sound.");
-			const player = new Audio(result.url);
-			audio.current = player;
-			player.volume = Math.min(1, sound.volume);
-			player.onended = () => setPlaying("");
-			await player.play();
-			setPlaying(sound.id);
-		} catch (e) {
-			setError((e as Error).message);
-		}
-	};
 	if (!info)
 		return <main className="capture-studio">{error || "Opening capture settings…"}</main>;
 	return (
@@ -298,143 +274,11 @@ export function StudioPanel() {
 						})}
 					</>
 				)}
-				{tab === "sounds" && (
-					<>
-						<div className="capture-section-heading">
-							<div>
-								<h2>Sound effects</h2>
-								<p>
-									Import audio and assign a shortcut to insert it during
-									recording.
-								</p>
-							</div>
-							<button
-								className="capture-primary"
-								disabled={busy || info.recording}
-								onClick={() => void run("importSound")}
-								title="Import a WAV, MP3, M4A, OGG, FLAC, or AAC clip up to 25 MB and two minutes. A local copy is kept by the app."
-							>
-								<PlusIcon size={17} /> Import sound
-							</button>
-						</div>
-						<div className="capture-note">
-							Effects remain editable in the timeline and are included in playback and
-							export.
-						</div>
-						{!info.settings.sounds.length && (
-							<div className="sound-empty">
-								<h3>No sound effects</h3>
-								<p>Import a WAV, MP3, M4A, OGG, FLAC, or AAC file to begin.</p>
-							</div>
-						)}
-						{info.settings.sounds.map((sound) => (
-							<div className="sound-card" key={sound.id}>
-								<button
-									className="sound-preview"
-									aria-label={`${playing === sound.id ? "Stop" : "Preview"} ${sound.name}`}
-									title="Listen to this effect before recording. Click again to stop."
-									disabled={info.recording}
-									onClick={() => void preview(sound)}
-								>
-									{playing === sound.id ? (
-										<StopIcon size={20} weight="fill" />
-									) : (
-										<PlayIcon size={20} weight="fill" />
-									)}
-								</button>
-								<div className="sound-name">
-									<strong>{sound.name}</strong>
-									<small>
-										{(sound.durationMs / 1000).toFixed(1)} seconds · WAV
-									</small>
-								</div>
-								<ShortcutInput
-									value={sound.shortcut}
-									disabled={busy || info.recording}
-									label={`${sound.name} shortcut`}
-									assigned={[
-										{
-											shortcut: info.settings.cameraShortcut,
-											name: "Face camera",
-										},
-										...info.settings.scenes.map((s) => ({
-											shortcut: s.shortcut,
-											name: s.name,
-										})),
-										...info.settings.windows.map((w) => ({
-											shortcut: w.shortcut,
-											name: `Window ${w.slot}`,
-										})),
-										...info.settings.sounds
-											.filter((s) => s.id !== sound.id)
-											.map((s) => ({ shortcut: s.shortcut, name: s.name })),
-									]}
-									onChange={(shortcut) =>
-										saveShortcut("updateSound", { ...sound, shortcut })
-									}
-								/>
-								<label className="sound-volume">
-									Volume{" "}
-									<input
-										type="range"
-										aria-label={`${sound.name} volume`}
-										min="0"
-										max="2"
-										step=".05"
-										disabled={info.recording}
-										value={sound.volume}
-										onChange={(e) =>
-											setInfo({
-												...info,
-												settings: {
-													...info.settings,
-													sounds: info.settings.sounds.map((s) =>
-														s.id === sound.id
-															? {
-																	...s,
-																	volume: Number(e.target.value),
-																}
-															: s,
-													),
-												},
-											})
-										}
-										onPointerUp={(e) =>
-											void run("updateSound", {
-												...sound,
-												volume: Number(e.currentTarget.value),
-											})
-										}
-										onKeyUp={(e) =>
-											void run("updateSound", {
-												...sound,
-												volume: Number(e.currentTarget.value),
-											})
-										}
-									/>
-								</label>
-								<button
-									disabled={!info.recording || busy}
-									onClick={() => void run("fireSound", sound.id)}
-									title="Add this sound to the current take at the current recording time."
-								>
-									Trigger
-								</button>
-								<button
-									aria-label={`Remove ${sound.name}`}
-									disabled={info.recording || busy}
-									onClick={() => void run("removeSound", sound.id)}
-									title="Remove this effect from the sound pad. Existing recordings keep their own copies."
-								>
-									<TrashIcon size={17} />
-								</button>
-							</div>
-						))}
-					</>
-				)}
+				{tab === "sounds" && <SoundboardSettings info={info} busy={busy} run={run} />}
 				{tab === "controls" && (
 					<>
 						<h2>Ready to record</h2>
+						<SoundRecordingOption info={info} disabled={busy} run={run} />
 						<p>
 							Choose a screen or window in the recorder, check your mic, then press
 							Record.

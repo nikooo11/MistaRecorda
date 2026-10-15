@@ -2,6 +2,7 @@ import Foundation
 import ScreenCaptureKit
 import AVFoundation
 import CoreGraphics
+import CoreImage
 
 struct CaptureConfig: Codable {
 	let fps: Int?
@@ -19,6 +20,7 @@ struct CaptureConfig: Codable {
 	let presenterWindowTitles: [String]?
 	let cleanSurfaceTitle: String?
  let cleanSurfaceWindowId: UInt32?
+ let drawingMode: String?
 }
 
 let targetCaptureFPS = 60
@@ -60,6 +62,100 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	private var systemAudioAudible = true
 	private var writesSystemAudioToSeparateTrack = false
 	private var writesMicrophoneToSeparateTrack = false
+
+	private var soundPlayers: [String: AVAudioPlayer] = [:]
+	private var drawingStream: SCStream?
+	private var drawingFrame: CGRect = .zero
+	private var windowFrame: CGRect = .zero
+	private var drawingIsBoard = false
+	private var drawingImage: CIImage?
+	private var windowImage: CIImage?
+	private var outputSize: CGSize = .zero
+	private var compositePool: CVPixelBufferPool?
+	private let imageContext = CIContext(options: [.cacheIntermediates: false])
+
+	func playSound(_ encoded: String) {
+		struct Sound: Decodable { let token: String; let path: String; let volume: Float }
+		guard let data = Data(base64Encoded: encoded), let sound = try? JSONDecoder().decode(Sound.self, from: data) else { return }
+		queue.async {
+			do {
+				guard self.isRecording, !self.isPaused else { throw NSError(domain: "Sound", code: 1) }
+				let player = try AVAudioPlayer(contentsOf: URL(fileURLWithPath: sound.path))
+				player.volume = min(2, max(0, sound.volume))
+				self.soundPlayers = self.soundPlayers.filter { $0.value.isPlaying }
+				self.soundPlayers[sound.token] = player
+				guard player.play() else { throw NSError(domain: "Sound", code: 2) }
+				print("SOUND_PLAYING \(sound.token)"); fflush(stdout)
+			} catch { print("SOUND_FAILED \(sound.token)"); fflush(stdout) }
+		}
+	}
+
+	func setDrawing(windowID: UInt32, board: Bool) async throws {
+		guard trackedWindowId != nil else { return } // Display capture already includes the clean surface.
+		if drawingStream == nil {
+			var window: SCWindow?
+			// WindowServer can expose a newly created transparent window before its
+			// geometry settles. Configuring a 2x2 stream here permanently blurs the board.
+			for attempt in 0..<20 {
+				let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+				if let candidate = content.windows.first(where: { $0.windowID == windowID }),
+					candidate.frame.width >= 2, candidate.frame.height >= 2 {
+					window = candidate
+					break
+				}
+				if attempt < 19 { try await Task.sleep(nanoseconds: 50_000_000) }
+			}
+			guard let window else { throw NSError(domain: "Drawing", code: 1, userInfo: [NSLocalizedDescriptionKey: "Drawing window is not ready for capture."]) }
+			let config = SCStreamConfiguration()
+			config.width = max(2, Int(window.frame.width) * 2)
+			config.height = max(2, Int(window.frame.height) * 2)
+			config.minimumFrameInterval = CMTime(value: 1, timescale: 60)
+			config.queueDepth = 3
+			config.showsCursor = false
+			config.shouldBeOpaque = false
+			config.pixelFormat = kCVPixelFormatType_32BGRA
+			config.ignoreShadowsSingleWindow = true
+			fputs("Drawing capture window \(window.windowID): \(config.width)x\(config.height), frame \(window.frame)\n", stderr)
+			let overlay = SCStream(filter: SCContentFilter(desktopIndependentWindow: window), configuration: config, delegate: self)
+			try overlay.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
+			await withCheckedContinuation { continuation in
+				queue.async { self.drawingFrame = window.frame; self.drawingStream = overlay; continuation.resume() }
+			}
+			try await overlay.startCapture()
+		}
+		await withCheckedContinuation { continuation in
+			queue.async { self.drawingIsBoard = board; continuation.resume() }
+		}
+	}
+
+	private func compositedSample(_ source: CMSampleBuffer) -> CMSampleBuffer? {
+		guard let base = windowImage, let overlay = drawingImage, let pool = compositePool else { return nil }
+		let canvas = CGRect(origin: .zero, size: outputSize)
+		let crop: CGRect
+		if drawingIsBoard { crop = overlay.extent }
+		else {
+			let sx = overlay.extent.width / drawingFrame.width
+			let sy = overlay.extent.height / drawingFrame.height
+			crop = CGRect(x: (windowFrame.minX - drawingFrame.minX) * sx,
+				y: (drawingFrame.maxY - windowFrame.maxY) * sy, width: windowFrame.width * sx, height: windowFrame.height * sy)
+		}
+		guard crop.width > 0, crop.height > 0 else { return nil }
+		let scale = min(canvas.width / crop.width, canvas.height / crop.height)
+		let x = (canvas.width - crop.width * scale) / 2, y = (canvas.height - crop.height * scale) / 2
+		let ink = overlay.cropped(to: crop).transformed(by: CGAffineTransform(translationX: -crop.minX, y: -crop.minY))
+			.transformed(by: CGAffineTransform(scaleX: scale, y: scale)).transformed(by: CGAffineTransform(translationX: x, y: y))
+		let background = drawingIsBoard ? CIImage(color: .black).cropped(to: canvas) : base
+		let combined = ink.composited(over: background).cropped(to: canvas)
+		var pixel: CVPixelBuffer?
+		guard CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pixel) == kCVReturnSuccess, let pixel else { return nil }
+		imageContext.render(combined, to: pixel, bounds: canvas, colorSpace: CGColorSpaceCreateDeviceRGB())
+		var format: CMVideoFormatDescription?
+		guard CMVideoFormatDescriptionCreateForImageBuffer(allocator: kCFAllocatorDefault, imageBuffer: pixel, formatDescriptionOut: &format) == noErr, let format else { return nil }
+		var timing = CMSampleTimingInfo(duration: source.duration, presentationTimeStamp: source.presentationTimeStamp, decodeTimeStamp: .invalid)
+		var sample: CMSampleBuffer?
+		CMSampleBufferCreateReadyWithImageBuffer(allocator: kCFAllocatorDefault, imageBuffer: pixel, formatDescription: format, sampleTiming: &timing, sampleBufferOut: &sample)
+		return sample
+	}
 
 	private let microphoneOutputTypeRawValue = 2
 
@@ -134,6 +230,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 				throw NSError(domain: "RecordlyCapture", code: 3, userInfo: [NSLocalizedDescriptionKey: "Window not found"])
 			}
 
+			windowFrame = window.frame
 			filter = SCContentFilter(desktopIndependentWindow: window)
 
 			let candidateDisplay = availableContent.displays.first(where: {
@@ -176,6 +273,8 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 			streamConfig.height = outputHeight
 		}
 
+		outputSize = CGSize(width: outputWidth, height: outputHeight)
+		CVPixelBufferPoolCreate(nil, nil, [kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA, kCVPixelBufferWidthKey: outputWidth, kCVPixelBufferHeightKey: outputHeight, kCVPixelBufferIOSurfacePropertiesKey: [:]] as CFDictionary, &compositePool)
 		// Older helpers or a missing exclusion never authorize the app to show an outline.
 		if config.windowId != nil || availableContent.applications.contains(where: { $0.processID == config.zoomOverlayOwnerPID }) || zoomOverlays.contains(where: { config.zoomOverlayTitle != nil && $0.title == config.zoomOverlayTitle }) {
 			print("ZOOM_OVERLAY_EXCLUDED")
@@ -318,6 +417,9 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		firstSampleTime = .zero
 		lastVideoPresentationTime = .zero
 		lastVideoDuration = .zero
+		if config.windowId != nil, let surfaceID = config.cleanSurfaceWindowId {
+			try await setDrawing(windowID: surfaceID, board: config.drawingMode == "board")
+		}
 		startWindowValidationIfNeeded()
 		print("Recording started")
 		fflush(stdout)
@@ -342,6 +444,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		// Keep the writer, frame size, audio and media clock alive across source changes.
 		try await stream.updateContentFilter(SCContentFilter(desktopIndependentWindow: window))
 		trackedWindowId = windowID
+		queue.async { self.windowFrame = window.frame; self.windowImage = nil }
 		startWindowValidationIfNeeded()
 		print("SOURCE_SWITCHED \(windowID)")
 		fflush(stdout)
@@ -373,6 +476,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	func pauseCapture() {
 		guard isRecording, !isPaused else { return }
 		isPaused = true
+		for player in soundPlayers.values { player.pause() }
 		pauseStartedHostTime = CMClockGetTime(CMClockGetHostTimeClock())
 		pendingResumeAdjustment = false
 	}
@@ -380,6 +484,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	func resumeCapture() {
 		guard isRecording, isPaused else { return }
 		isPaused = false
+		for player in soundPlayers.values { player.play() }
 		pendingResumeAdjustment = true
 	}
 
@@ -402,6 +507,20 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 				firstSampleTime = sampleBuffer.presentationTimeStamp
 			}
 
+			if let pixel = sampleBuffer.imageBuffer {
+				if stream === drawingStream && drawingImage == nil {
+					fputs("Drawing capture first frame: \(CVPixelBufferGetWidth(pixel))x\(CVPixelBufferGetHeight(pixel))\n", stderr)
+				}
+				if stream === drawingStream { drawingImage = CIImage(cvPixelBuffer: pixel) }
+				else { windowImage = CIImage(cvPixelBuffer: pixel) }
+			}
+			guard windowImage != nil else { return }
+			// Either stream may drive a frame, so ink animates even over a static window.
+			guard frameCount == 0 || presentationTime > lastVideoPresentationTime else { return }
+			if drawingStream != nil && frameCount > 0 && (presentationTime - lastVideoPresentationTime).seconds < 1.0 / 65.0 { return }
+			let composed = compositedSample(sampleBuffer)
+			if stream === drawingStream && composed == nil { return }
+			let sampleBuffer = composed ?? sampleBuffer
 			lastSampleBuffer = sampleBuffer
 			let timing = CMSampleTimingInfo(duration: sampleBuffer.duration, presentationTimeStamp: presentationTime, decodeTimeStamp: sampleBuffer.decodeTimeStamp)
 			if let retimedSampleBuffer = try? CMSampleBuffer(copying: sampleBuffer, withNewTiming: [timing]) {
@@ -448,6 +567,12 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		windowValidationTask = nil
 		trackedWindowId = nil
 
+		for player in soundPlayers.values { player.stop() }
+		soundPlayers.removeAll()
+		if let overlay = drawingStream { try? await overlay.stopCapture() }
+		drawingStream = nil
+		drawingImage = nil
+		windowImage = nil
 		if let activeStream = stream {
 			do {
 				try await activeStream.stopCapture()
@@ -656,7 +781,9 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 				do {
 					let availableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
 					if Task.isCancelled || self.trackedWindowId != trackedWindowId { return }
-					let windowStillAvailable = availableContent.windows.contains(where: { $0.windowID == trackedWindowId })
+					let tracked = availableContent.windows.first(where: { $0.windowID == trackedWindowId })
+					if let tracked { self.queue.async { self.windowFrame = tracked.frame } }
+					let windowStillAvailable = tracked != nil
 					if !windowStillAvailable {
 						print("WINDOW_UNAVAILABLE")
 						fflush(stdout)
@@ -717,6 +844,15 @@ final class RecorderService {
 		}
 	}
 
+	func playSound(_ encoded: String) { recorder.playSound(encoded) }
+	func setDrawing(_ id: UInt32, board: Bool) {
+		queue.async {
+			Task {
+				do { try await self.recorder.setDrawing(windowID: id, board: board); print("DRAWING_READY"); fflush(stdout) }
+				catch { print("DRAWING_FAILED"); fflush(stdout) }
+			}
+		}
+	}
 	func setAudio(microphone: Bool, system: Bool) {
 		recorder.setAudio(microphone: microphone, system: system)
 	}
@@ -793,7 +929,13 @@ let service = RecorderService()
 service.start(configJSON: CommandLine.arguments[1])
 
 DispatchQueue.global(qos: .utility).async {
-	while let input = readLine(strippingNewline: true)?.lowercased() {
+	while let input = readLine(strippingNewline: true) {
+		if input.hasPrefix("sound ") { service.playSound(String(input.dropFirst(6))); continue }
+		if input.hasPrefix("drawing ") {
+			let parts = input.split(separator: " ")
+			if parts.count == 3, let id = UInt32(parts[1]) { service.setDrawing(id, board: parts[2] == "board") }
+			continue
+		}
 		if input.hasPrefix("audio ") {
 			let parts = input.split(separator: " ")
 			if parts.count == 3, ["on", "off"].contains(parts[1]), ["on", "off"].contains(parts[2]) {

@@ -95,3 +95,7 @@ Board, iPad, Capture settings and Zoom toggle their menus. Click once to open, t
 After recording, open **Scene → Background → Studio backgrounds**. Choose Blueprint, Contour, Graphite, or Paper. Each sets an editable frame margin, corner radius, and shadow around the screen recording. Blueprint and Contour include an optional **Motion** toggle for a quiet eight-second loop. Backgrounds remain behind screen footage and the separate camera layer in playback and export; they add no work to live capture. All four designs are original, bundled offline, and may be used in commercial recordings without attribution. Existing custom image/video backgrounds remain available below the short menu.
 
 The webcam cropper previews the recorded camera at the current playhead and respects **Mirror webcam**. Crop the recorded frame, not the current live camera image; this keeps the preview consistent with the exported take.
+
+## Live production controls
+
+See [Live recording controls](live-production.md) for window focus and capture glow, whiteboards in window recordings, the shared soundboard, timed narration voices, virtual-microphone streaming and uploaded memes. The [October 15 validation record](live-production-validation.md) distinguishes completed recording checks from the remaining Keychain and physical audio-device tests.

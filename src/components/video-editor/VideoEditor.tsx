@@ -1,12 +1,4 @@
-import { captionPresetSettings } from "./captionPresets";
-import { useVoiceExport } from "../voice/useVoiceExport";
-import { VoiceExportControls } from "../voice/VoiceExportControls";
-import { unwrapVoice } from "@/types/voice";
-import { cameraOverlayAt } from "../../lib/cameraLayout";
-import { LayersPanel } from "./LayersPanel";
-import { VoicePanel } from "../voice/VoicePanel";
 import {
-	Stack,
 	BookmarkSimple,
 	Check,
 	CaretDown as ChevronDown,
@@ -16,7 +8,6 @@ import {
 	DownloadSimple as Download,
 	FolderOpen,
 	Gear,
-	Waveform,
 	Pause,
 	Camera as PhCameraRegular,
 	Play,
@@ -27,12 +18,14 @@ import {
 	SkipBack,
 	SkipForward,
 	Sparkle,
+	Stack,
 	ArrowCounterClockwise as Undo2,
 	UserCircle as User,
 	SpeakerLow as Volume1,
 	SpeakerHigh as Volume2,
 	SpeakerX as VolumeX,
 	MagicWand as WandSparkles,
+	Waveform,
 	X,
 	MagnifyingGlassPlus as ZoomIn,
 } from "@phosphor-icons/react";
@@ -88,12 +81,18 @@ import {
 } from "@/lib/exporter/exportSavePolicy";
 import { matchesShortcut } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
+import { unwrapVoice } from "@/types/voice";
 import {
 	ASPECT_RATIOS,
 	type AspectRatio,
 	getAspectRatioLabel,
 	getAspectRatioValue,
 } from "@/utils/aspectRatioUtils";
+import { cameraOverlayAt } from "../../lib/cameraLayout";
+import { useVoiceExport } from "../voice/useVoiceExport";
+import { VoiceExportControls } from "../voice/VoiceExportControls";
+import { VoicePanel } from "../voice/VoicePanel";
+import { captionPresetSettings } from "./captionPresets";
 import { planClipSpeedChange } from "./clipSpeedChange";
 import { ExtensionIcon } from "./ExtensionIcon";
 import {
@@ -105,6 +104,7 @@ import {
 import { resolveSavingExportProgress } from "./exportProgressState";
 import { resolveExportStartSettings } from "./exportStartSettings";
 import { resolveExportStatusModel } from "./exportStatusModel";
+import { LayersPanel } from "./LayersPanel";
 import { resolveMp4ExportRouting } from "./mp4ExportRouting";
 import { resolveMp4ExportSettings } from "./mp4ExportSettings";
 import { useNvidiaCudaExportOptIn } from "./useNvidiaCudaExportOptIn";
@@ -6633,7 +6633,15 @@ export default function VideoEditor() {
 								}}
 							/>
 						) : activeEffectSection === "voice" ? (
-							<VoicePanel embedded videoPath={currentSourcePath} />
+							<VoicePanel
+								embedded
+								videoPath={currentSourcePath}
+								onSeek={(ms) =>
+									handleSeek(mapSourceTimeToTimelineTime(ms) / 1000, {
+										pause: true,
+									})
+								}
+							/>
 						) : activeEffectSection === "extensions" ? (
 							<ExtensionManager />
 						) : (
@@ -7190,6 +7198,7 @@ export default function VideoEditor() {
 						selectedAnnotationId={selectedAnnotationId}
 						onSelectAnnotation={handleSelectAnnotation}
 						showSourceAudioTrack={clipRegions.some((c) => c.showSourceAudio)}
+						sourceVoiceCues={voiceExport.recording?.voiceCues}
 						sourceAudioResourceVersion={sourceAudioFallbackRefreshKey}
 						sourceAudioTrackSettings={audio.activeSourceAudioTrackSettings}
 						getSourceAudioTrackSettingsForClip={

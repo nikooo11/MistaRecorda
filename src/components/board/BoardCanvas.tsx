@@ -1,35 +1,37 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 import {
-	Excalidraw,
-	restoreElements,
-	convertToExcalidrawElements,
 	CaptureUpdateAction,
+	convertToExcalidrawElements,
+	Excalidraw,
 	FONT_FAMILY,
+	restoreElements,
 } from "@excalidraw/excalidraw";
 import type {
-	ExcalidrawImperativeAPI,
-	BinaryFiles,
 	AppState,
-	LibraryItems,
 	BinaryFileData,
+	BinaryFiles,
+	ExcalidrawImperativeAPI,
+	LibraryItems,
 } from "@excalidraw/excalidraw/types";
-import type { BoardAPI, BoardState, BoardElement, BoardScene } from "../../types/board";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
+import type { BoardAPI, BoardElement, BoardScene, BoardState } from "../../types/board";
+import type { MemeAsset } from "../../types/memes";
+import { MemeLayer, MemeLibrary } from "./Memes";
 import "@excalidraw/excalidraw/index.css";
 import "./board.css";
-import { mergeScenePatch, newSceneFiles, sceneSignature, type ScenePatch } from "./sceneSync";
+import { MicrophoneIcon, SparkleIcon } from "@phosphor-icons/react";
+import { BoardLaser } from "./BoardLaser";
+import { clearCanvas } from "./clearCanvas";
+import { FigureAssistant } from "./FigureAssistant";
 import {
-	objectId,
 	duplicateObjects,
 	groupObjects,
 	hitObject,
+	objectId,
 	selectedObjects,
 } from "./objectEditing";
 import { Soundboard } from "./Soundboard";
-import { FigureAssistant } from "./FigureAssistant";
-import { SparkleIcon, MicrophoneIcon } from "@phosphor-icons/react";
-import { BoardLaser } from "./BoardLaser";
-import { clearCanvas } from "./clearCanvas";
+import { mergeScenePatch, newSceneFiles, type ScenePatch, sceneSignature } from "./sceneSync";
 import {
 	fittedTabletView,
 	readTabletView,
@@ -37,6 +39,7 @@ import {
 	tabletViewport,
 	withoutTextDraft,
 } from "./tabletInteraction";
+
 (window as Window & { EXCALIDRAW_ASSET_PATH?: string }).EXCALIDRAW_ASSET_PATH = "/excalidraw/";
 export function BoardCanvas({
 	transport,
@@ -66,6 +69,10 @@ export function BoardCanvas({
 	const [assets, setAssets] = useState(false);
 	const [ai, setAi] = useState(false);
 	const [sounds, setSounds] = useState(false);
+	const [memes, setMemes] = useState(false);
+	const [pendingMeme, setPendingMeme] = useState<MemeAsset>();
+	const [memePoint, setMemePoint] = useState({ x: 100, y: 100 });
+	const [memeView, setMemeView] = useState({ x: 0, y: 0, zoom: 1 });
 	const [selected, setSelected] = useState<Record<string, boolean>>({});
 	const [multiSelect, setMultiSelect] = useState(false);
 	const [clipboard, setClipboard] = useState<{
@@ -310,6 +317,24 @@ export function BoardCanvas({
 		},
 		[],
 	);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Placement is intentionally canceled when switching surfaces.
+	useEffect(() => {
+		setPendingMeme(undefined);
+	}, [state.mode]);
+	useEffect(
+		() =>
+			transport.on<MemeAsset>("memePlacement", (asset) => {
+				if (!clean) setPendingMeme(asset);
+			}),
+		[transport, clean],
+	);
+	const memeCoordinates = (clientX: number, clientY: number) => {
+		const view = api!.getAppState();
+		return {
+			x: (clientX - view.offsetLeft) / view.zoom.value - view.scrollX,
+			y: (clientY - view.offsetTop) / view.zoom.value - view.scrollY,
+		};
+	};
 	async function chooseMode() {
 		await flush();
 		const next = await transport.request<BoardState>("mode", {
@@ -508,6 +533,27 @@ export function BoardCanvas({
 			ref={stage}
 			data-board-ready={clean && api ? "true" : undefined}
 			onPointerDownCapture={(event) => {
+				if (pendingMeme && api && event.target instanceof HTMLCanvasElement) {
+					event.preventDefault();
+					event.stopPropagation();
+					const point = memeCoordinates(event.clientX, event.clientY);
+					void flush()
+						.then(() =>
+							transport.request("placeMeme", {
+								assetId: pendingMeme.id,
+								mode: modeRef.current,
+								...point,
+								width: Math.min(360, current.current.width * 0.3),
+							}),
+						)
+						.then(() => {
+							setPendingMeme(undefined);
+							if (!tablet && modeRef.current === "screen")
+								return transport.request("hideEditor");
+						})
+						.catch((e) => setError(String(e)));
+					return;
+				}
 				if (api && paper.current && event.target instanceof HTMLCanvasElement) {
 					const rect = paper.current.getBoundingClientRect();
 					const view = api.getAppState();
@@ -565,6 +611,7 @@ export function BoardCanvas({
 				}
 			}}
 			onPointerMoveCapture={(event) => {
+				if (pendingMeme && api) setMemePoint(memeCoordinates(event.clientX, event.clientY));
 				if (
 					clean ||
 					!drawing ||
@@ -588,7 +635,11 @@ export function BoardCanvas({
 			onWheelCapture={() => {
 				interacted.current = true;
 			}}
-			onKeyDownCapture={() => {
+			onKeyDownCapture={(event) => {
+				if (pendingMeme && event.key === "Escape") {
+					event.stopPropagation();
+					setPendingMeme(undefined);
+				}
 				interacted.current = true;
 			}}
 			className={`board-stage ${showMaterial ? "has-whiteboard" : ""} ${clean ? "board-clean" : ""} ${tablet ? "board-tablet" : ""}`}
@@ -675,6 +726,13 @@ export function BoardCanvas({
 						},
 					}}
 					onChange={(elements, view, files) => {
+						setMemeView((old) =>
+							old.x === view.scrollX &&
+							old.y === view.scrollY &&
+							old.zoom === view.zoom.value
+								? old
+								: { x: view.scrollX, y: view.scrollY, zoom: view.zoom.value },
+						);
 						setSelected((old) =>
 							JSON.stringify(old) === JSON.stringify(view.selectedElementIds)
 								? old
@@ -773,6 +831,41 @@ export function BoardCanvas({
 					}}
 				/>
 			</div>
+			<div
+				className={`meme-paper ${boardClosing ? "board-putting-away" : !tablet && cleanMode === "board" ? "board-deployed" : ""}`}
+				style={{
+					visibility: clean && state.output === "screen" ? "hidden" : "visible",
+					left: fit.left,
+					top: fit.top,
+					width: state.width * fit.scale,
+					height: state.height * fit.scale,
+				}}
+			>
+				<MemeLayer
+					state={state}
+					mode={boardClosing ? "board" : cleanMode}
+					view={memeView}
+					clean={clean || !drawing}
+					transport={transport}
+				/>
+				{pendingMeme && (
+					<img
+						className="meme-ghost"
+						src={pendingMeme.dataURL}
+						alt="Meme placement preview"
+						style={{
+							left: (memePoint.x + memeView.x) * memeView.zoom,
+							top: (memePoint.y + memeView.y) * memeView.zoom,
+							width: Math.min(360, state.width * 0.3) * memeView.zoom,
+						}}
+					/>
+				)}
+			</div>
+			{pendingMeme && (
+				<button className="meme-cancel" onClick={() => setPendingMeme(undefined)}>
+					Tap to place · Cancel
+				</button>
+			)}
 			{clean && <BoardLaser transport={transport} state={state} />}
 			{!clean && drawing && (
 				<div className="board-object-tools" aria-label="Object editing">
@@ -865,6 +958,16 @@ export function BoardCanvas({
 					</button>
 					<button onClick={() => setAssets(!assets)}>Standby images</button>
 					<button
+						aria-expanded={memes}
+						onClick={() => {
+							setMemes(!memes);
+							setSounds(false);
+							setAi(false);
+						}}
+					>
+						Memes
+					</button>
+					<button
 						aria-expanded={ai}
 						onClick={() => {
 							setAi(!ai);
@@ -922,6 +1025,14 @@ export function BoardCanvas({
 						</button>
 					)}
 				</div>
+			)}
+			{!clean && memes && (
+				<MemeLibrary
+					transport={transport}
+					state={state}
+					onChoose={setPendingMeme}
+					onClose={() => setMemes(false)}
+				/>
 			)}
 			{!clean && ai && <FigureAssistant transport={transport} onClose={() => setAi(false)} />}
 			{!clean && sounds && (

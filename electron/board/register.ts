@@ -1,35 +1,41 @@
-import { shouldHidePanel, showCapturePanel } from "../panelToggle";
-import { ensureDrawingSurfaceReady, captureWindowId } from "./captureReady";
-import { requireScreenRecordingAccess } from "../screenCaptureAccess";
-import { EdgeBoardTrigger } from "./edgeTrigger";
-import { z } from "zod";
+import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 import {
 	app,
 	BrowserWindow,
-	ipcMain,
-	screen,
-	globalShortcut,
 	desktopCapturer,
+	globalShortcut,
 	type IpcMainInvokeEvent,
-	safeStorage,
+	ipcMain,
 	nativeImage,
+	safeStorage,
+	screen,
 } from "electron";
-import path from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import fs from "node:fs/promises";
-import { CompanionPreview } from "./preview";
+import { z } from "zod";
+import type { BoardInfo, BoardMode, BoardStatus } from "../../src/types/board";
 import { FigureService } from "../figures/service";
 import { FigureSettings } from "../figures/settings";
 import { publicURL } from "../figures/sources";
-import { pathToFileURL } from "node:url";
-import { randomUUID } from "node:crypto";
-import { boardSoundList, boardSoundPreview, fireSound } from "../studio/register";
+import { nativeCaptureProcess, selectedSource } from "../ipc/state";
+import { shouldHidePanel, showCapturePanel } from "../panelToggle";
 import { getPackagedRendererBaseUrl } from "../rendererServer";
-import { BoardStore, makeElement, validateScene } from "./store";
-import { CompanionServer } from "./server";
+import { requireScreenRecordingAccess } from "../screenCaptureAccess";
+import { recorderCommand } from "../studio/nativeCommand";
+import { boardSoundList, boardSoundPreview, fireSound } from "../studio/register";
+import { stopStream, streamInfo } from "../studio/streamAudio";
+import { recordingVoiceList, selectRecordingVoice } from "../studio/voiceCues";
+import { captureWindowId, ensureDrawingSurfaceReady } from "./captureReady";
+import { EdgeBoardTrigger } from "./edgeTrigger";
+import { gifSize } from "./gifSize";
 import { DrawingMcpServer } from "./mcp";
-import type { BoardInfo, BoardStatus, BoardMode } from "../../src/types/board";
+import { clearMemes, memeSchema, placeMeme, validateMemes } from "./memes";
+import { CompanionPreview } from "./preview";
+import { CompanionServer } from "./server";
+import { BoardStore, makeElement, validateScene } from "./store";
 export const BOARD_CONTROL_TITLES = [
 	"MistaRecorda Board Editor",
 	"MistaRecorda Presenter",
@@ -54,6 +60,40 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined;
 const edgeTrigger = new EdgeBoardTrigger();
 let closing = false;
 let status: BoardStatus = { recording: false, paused: false, elapsed: 0, webcam: false };
+let drawingSync = Promise.resolve();
+function syncDrawingCapture() {
+	if (
+		process.platform !== "darwin" ||
+		!nativeCaptureProcess ||
+		!selectedSource?.id?.startsWith("window:") ||
+		!surface ||
+		surface.isDestroyed()
+	)
+		return;
+	const id = captureWindowId(surface.getMediaSourceId());
+	if (!id) return;
+	const captureProcess = nativeCaptureProcess;
+	const mode = store.state.mode;
+	drawingSync = drawingSync
+		.catch(() => undefined)
+		.then(async () => {
+			// A board first opened during a take may still be loading/painting.
+			// Do not let ScreenCaptureKit snapshot its provisional window geometry.
+			await prepareBoardCapture();
+			if (nativeCaptureProcess !== captureProcess) return;
+			return recorderCommand(`drawing ${id} ${mode}`, "DRAWING_READY", "DRAWING_FAILED");
+		});
+	void drawingSync.catch((e) =>
+		send("error", `Could not include the whiteboard in the recording: ${e.message}`),
+	);
+}
+function canEnableDrawingDuringCapture() {
+	return (
+		process.platform === "darwin" &&
+		!!nativeCaptureProcess &&
+		selectedSource?.id?.startsWith("window:")
+	);
+}
 const windows = () =>
 	[panel, editor, surface, hint, stream].filter(
 		(w): w is BrowserWindow => !!w && !w.isDestroyed(),
@@ -137,7 +177,8 @@ function makeWindow(
 	});
 	win.on("page-title-updated", (e) => e.preventDefault());
 	win.webContents.on("did-finish-load", () => win.setTitle(title));
-	win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+	// Keep the app-wide navigation policy so trusted setup links open externally.
+	// The drawing window itself must never navigate away from its canvas.
 	win.webContents.on("will-navigate", (e) => e.preventDefault());
 	win.on("close", (e) => {
 		if (!closing) {
@@ -317,7 +358,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			publish(actor);
 			return info();
 		case "annotate":
-			if (status.recording && !store.state.enabled)
+			if (status.recording && !store.state.enabled && !canEnableDrawingDuringCapture())
 				throw Error("Enable drawing on the Mac before starting this recording.");
 			await prepare();
 			if (!store.state.enabled) store.state.mode = "screen";
@@ -326,15 +367,17 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			store.state.revision++;
 			applyVisibility();
 			publish(actor);
+			syncDrawingCapture();
 			return store.state;
 		case "edit":
-			if (status.recording && !store.state.enabled)
+			if (status.recording && !store.state.enabled && !canEnableDrawingDuringCapture())
 				throw Error("Enable drawing before starting a recording");
 			await prepare();
 			store.state.enabled = true;
 			applyVisibility();
 			editor?.show();
 			publish(actor);
+			syncDrawingCapture();
 			return true;
 		case "compact":
 			panel?.setSize(440, input ? 190 : Math.min(660, bounds().height - 70));
@@ -367,12 +410,12 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			await prepare();
 			await action(
 				"mode",
-				{ mode: store.state.mode === "board" ? "screen" : "board" },
+				{ mode: store.state.enabled && store.state.mode === "board" ? "screen" : "board" },
 				actor,
 			);
 			return info();
 		case "mode": {
-			if (status.recording && !store.state.enabled)
+			if (status.recording && !store.state.enabled && !canEnableDrawingDuringCapture())
 				throw Error("Enable drawing before starting a recording");
 			await prepare();
 			const previousMode = store.state.mode;
@@ -391,6 +434,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			store.state.revision++;
 			applyVisibility();
 			publish(actor);
+			syncDrawingCapture();
 			return store.state;
 		}
 		case "output":
@@ -431,6 +475,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		}
 		case "clear": {
 			if (data.confirmed !== true) throw Error("Confirm clearing this scene");
+			clearMemes(store.state, store.state.mode);
 			store.state.scenes[store.state.mode] = {
 				...store.state.scenes[store.state.mode],
 				elements: [],
@@ -549,6 +594,72 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		}
 		case "soundboard":
 			return boardSoundList();
+		case "streamInfo":
+			return streamInfo();
+		case "streamStop":
+			return stopStream();
+		case "recordingVoices":
+			return recordingVoiceList(input === true);
+		case "selectRecordingVoice":
+			return selectRecordingVoice(z.string().max(100).parse(input));
+		case "armMeme": {
+			const id = z.string().uuid().parse(input);
+			const asset = store.state.memes?.find((m) => m.id === id);
+			if (!asset) throw Error("Meme not found.");
+			await action("edit", undefined, actor);
+			panel?.hide();
+			send("memePlacement", asset);
+			return true;
+		}
+		case "saveMeme": {
+			const meme = memeSchema.parse(input);
+			const size = meme.dataURL.startsWith("data:image/gif;")
+				? gifSize(Buffer.from(meme.dataURL.split(",")[1], "base64"))
+				: nativeImage.createFromDataURL(meme.dataURL).getSize();
+			if (!size.width || !size.height) throw Error("Choose a valid image or GIF.");
+			const next = {
+				...store.state,
+				memes: [
+					...(store.state.memes ?? []).filter((m) => m.id !== meme.id),
+					{ ...meme, width: size.width, height: size.height },
+				],
+			};
+			Object.assign(store.state, validateMemes(next));
+			store.state.revision++;
+			publish(actor);
+			return store.state;
+		}
+		case "deleteMeme": {
+			const id = z.string().uuid().parse(input);
+			store.state.memes = (store.state.memes ?? []).filter((m) => m.id !== id);
+			for (const mode of ["screen", "board"] as const)
+				if (store.state.placedMemes)
+					store.state.placedMemes[mode] = store.state.placedMemes[mode].filter(
+						(m) => m.assetId !== id,
+					);
+			store.state.revision++;
+			publish(actor);
+			return store.state;
+		}
+		case "placeMeme": {
+			if (!store.state.enabled) throw Error("Enable drawing before placing a meme.");
+			const sound = placeMeme(store.state, input);
+			store.state.revision++;
+			publish(actor);
+			if (sound)
+				await fireSound(sound).catch((e) =>
+					send("error", `Meme placed, but its sound could not play: ${String(e)}`),
+				);
+			return store.state;
+		}
+		case "removeMeme": {
+			const id = z.string().uuid().parse(input);
+			const item = store.state.placedMemes?.[store.state.mode].find((m) => m.id === id);
+			if (item) item.removedAt = Date.now();
+			store.state.revision++;
+			publish(actor);
+			return store.state;
+		}
 		case "laser": {
 			const point = z
 				.object({
@@ -561,7 +672,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			return true;
 		}
 		case "playSound":
-			fireSound(z.string().uuid().parse(input));
+			await fireSound(z.string().uuid().parse(input));
 			return boardSoundList();
 		case "previewSound":
 			return boardSoundPreview(z.string().uuid().parse(input));
@@ -848,6 +959,7 @@ export function boardCaptureExclusions() {
 	return {
 		ownerPID: process.pid,
 		cleanSurfaceTitle: store?.state.enabled ? "MistaRecorda Drawing Surface" : undefined,
+		drawingMode: store?.state.mode,
 		cleanSurfaceWindowId:
 			store?.state.enabled && surface && !surface.isDestroyed()
 				? captureWindowId(surface.getMediaSourceId())
@@ -864,6 +976,7 @@ export function assertBoardCaptureSource(source: { sourceType?: string; display_
 		);
 	if (
 		store?.state.enabled &&
+		!(process.platform === "darwin" && source.sourceType === "window") &&
 		(source.sourceType === "window" || source.display_id !== String(displayId))
 	)
 		throw Error(
@@ -1011,7 +1124,12 @@ function updateEscape() {
 	const active =
 		store.state.enabled &&
 		(store.state.mode === "board" ||
-			store.state.scenes.screen.elements.some((e) => !e.isDeleted));
+			store.state.scenes.screen.elements.some((e) => !e.isDeleted) ||
+			store.state.placedMemes?.screen.some(
+				(m) =>
+					!m.removedAt &&
+					(m.stayUntilClicked || m.placedAt + m.durationSeconds * 1000 > Date.now()),
+			));
 	if (active && !escapeReady)
 		escapeReady = globalShortcut.register("Escape", () => {
 			if (Date.now() - lastEscape < 600) return;

@@ -1,6 +1,6 @@
-import type { VoiceAPI, VoiceProgress } from "../src/types/voice";
-import type { RecordingZoomAPI } from "../src/types/recordingZoom";
 import { contextBridge, ipcRenderer } from "electron";
+import type { RecordingZoomAPI } from "../src/types/recordingZoom";
+import type { VoiceAPI, VoiceProgress } from "../src/types/voice";
 import type { RecordingSessionData } from "./ipc/types";
 
 type NativeVideoExportWriteResult = { success: boolean; error?: string };
@@ -178,6 +178,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		},
 	} satisfies BoardAPI,
 	studio: {
+		onAudioCommand: (
+			callback: (command: { id: string; method: string; input?: unknown }) => void,
+		) => {
+			const listener = (
+				_: Electron.IpcRendererEvent,
+				command: { id: string; method: string; input?: unknown },
+			) => callback(command);
+			ipcRenderer.on("studio:audio", listener);
+			return () => ipcRenderer.removeListener("studio:audio", listener);
+		},
 		request: (method: string, input?: unknown) =>
 			ipcRenderer.invoke("studio:request", method, input),
 		getSounds: (path: string) => ipcRenderer.invoke("studio:request", "soundsForVideo", path),

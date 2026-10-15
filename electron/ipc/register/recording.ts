@@ -1,11 +1,3 @@
-import { prepareStudioCapture, startStudioTake, stopStudioTake } from "../../studio/register";
-import { requireScreenRecordingAccess } from "../../screenCaptureAccess";
-import {
-	boardCaptureExclusions,
-	assertBoardCaptureSource,
-	prepareBoardCapture,
-} from "../../board/register";
-import { prepareRecordingAudio, readAudioMetadata } from "../recording/library";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { execFile, spawn } from "node:child_process";
 import fs from "node:fs/promises";
@@ -20,27 +12,22 @@ import {
 	shell,
 	systemPreferences,
 } from "electron";
+import {
+	assertBoardCaptureSource,
+	boardCaptureExclusions,
+	prepareBoardCapture,
+} from "../../board/register";
 import { showCursor } from "../../cursorHider";
-import { getMonitorHandles } from "../monitorResolver";
+import { requireScreenRecordingAccess } from "../../screenCaptureAccess";
+import { prepareStudioCapture, startStudioTake, stopStudioTake } from "../../studio/register";
 import { ALLOW_RECORDLY_WINDOW_CAPTURE } from "../constants";
 import { startWindowBoundsCapture, stopWindowBoundsCapture } from "../cursor/bounds";
 import { startInteractionCapture, stopInteractionCapture } from "../cursor/interaction";
+import { startNativeCursorMonitor, stopNativeCursorMonitor } from "../cursor/monitor";
 import {
 	getCursorCaptureElapsedMs,
 	getRecordingBoundsInDips,
 	getRecordingCursorInDips,
-} from "../cursor/telemetry";
-import {
-	ZOOM_OVERLAY_TITLE,
-	prepareZoomOutline,
-	confirmMacZoomExclusion,
-	loadZoomSettings,
-	startZoomCapture,
-	stopZoomCapture,
-	closeHeldZoom,
-} from "../zoom/capture";
-import { startNativeCursorMonitor, stopNativeCursorMonitor } from "../cursor/monitor";
-import {
 	normalizeCursorTelemetrySamples,
 	pauseCursorCaptureAtBoundary,
 	persistPendingCursorTelemetry,
@@ -53,6 +40,7 @@ import {
 	writeCursorTelemetry,
 } from "../cursor/telemetry";
 import { getFfmpegBinaryPath } from "../ffmpeg/binary";
+import { getMonitorHandles } from "../monitorResolver";
 import {
 	ensureNativeCaptureHelperBinary,
 	ensureSwiftHelperBinary,
@@ -82,6 +70,7 @@ import {
 	waitForFfmpegCaptureStart,
 	waitForFfmpegCaptureStop,
 } from "../recording/ffmpeg";
+import { prepareRecordingAudio, readAudioMetadata } from "../recording/library";
 import {
 	attachNativeCaptureLifecycle,
 	finalizeStoredVideo,
@@ -171,6 +160,15 @@ import {
 	parseWindowId,
 } from "../utils";
 import { resolveWindowsCaptureTarget } from "../windowsCaptureSelection";
+import {
+	closeHeldZoom,
+	confirmMacZoomExclusion,
+	loadZoomSettings,
+	prepareZoomOutline,
+	startZoomCapture,
+	stopZoomCapture,
+	ZOOM_OVERLAY_TITLE,
+} from "../zoom/capture";
 
 const execFileAsync = promisify(execFile);
 
@@ -752,6 +750,7 @@ export function registerRecordingHandlers(
 					presenterWindowTitles: boardCaptureExclusions().titles,
 					cleanSurfaceTitle: boardCaptureExclusions().cleanSurfaceTitle,
 					cleanSurfaceWindowId: boardCaptureExclusions().cleanSurfaceWindowId,
+					drawingMode: boardCaptureExclusions().drawingMode,
 					outputPath,
 					capturesSystemAudio,
 					capturesMicrophone,

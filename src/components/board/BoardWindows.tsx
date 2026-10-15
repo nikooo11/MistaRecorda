@@ -1,27 +1,28 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-	PencilSimpleIcon,
-	DeviceTabletIcon,
-	StackIcon,
-	GearSixIcon,
-	XIcon,
 	ArrowLeftIcon,
+	ArrowsOutSimpleIcon,
+	DeviceTabletIcon,
+	GearSixIcon,
+	PauseIcon,
+	PencilSimpleIcon,
+	PlayIcon,
 	QrCodeIcon,
 	RecordIcon,
-	PauseIcon,
-	PlayIcon,
+	SparkleIcon,
+	StackIcon,
 	WebcamIcon,
-	ArrowsOutSimpleIcon,
+	XIcon,
 } from "@phosphor-icons/react";
 import QRCode from "qrcode";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { BoardInfo, BoardStatus } from "../../types/board";
 import { BoardCanvas } from "./BoardCanvas";
 import { BoardStream } from "./BoardStream";
 import { FigureAssistant, FigureSettingsPanel } from "./FigureAssistant";
 import { FigureMicrophone } from "./FigureMicrophone";
-import { SparkleIcon } from "@phosphor-icons/react";
+import { MemeLibrary } from "./Memes";
 import { Soundboard } from "./Soundboard";
 import { desktopBoard } from "./transport";
-import type { BoardInfo, BoardStatus } from "../../types/board";
 import "./board.css";
 
 export function BoardWindow({ kind }: { kind: string }) {
@@ -34,6 +35,7 @@ export function BoardWindow({ kind }: { kind: string }) {
 	const [scenes, setScenes] = useState<string[]>([]);
 	const [compact, setCompact] = useState(false);
 	const [ai, setAi] = useState(false);
+	const [memes, setMemes] = useState(false);
 	const [sounds, setSounds] = useState(false);
 	const [tab, setTab] = useState<"draw" | "ipad" | "scenes" | "settings">("draw");
 	const [notice, setNotice] = useState("");
@@ -131,6 +133,14 @@ export function BoardWindow({ kind }: { kind: string }) {
 	return (
 		<main className={`board-panel ${compact ? "board-compact" : ""}`}>
 			{ai && <FigureAssistant transport={transport} onClose={() => setAi(false)} />}
+			{memes && (
+				<MemeLibrary
+					transport={transport}
+					state={info.state}
+					onChoose={(asset) => void run("armMeme", asset.id)}
+					onClose={() => setMemes(false)}
+				/>
+			)}
 			{sounds && <Soundboard transport={transport} onClose={() => setSounds(false)} />}
 			<header className="board-panel-heading">
 				<div>
@@ -146,6 +156,16 @@ export function BoardWindow({ kind }: { kind: string }) {
 				</button>
 			</header>
 			<div className="board-status" data-recording={info.status.recording}>
+				<button
+					aria-expanded={memes}
+					onClick={() => {
+						setMemes(!memes);
+						setSounds(false);
+						setAi(false);
+					}}
+				>
+					Memes
+				</button>
 				<button
 					aria-expanded={ai}
 					onClick={() => {

@@ -628,3 +628,100 @@
 	flex-basis: 100%;
 	color: #f7c96a;
 }
+
+.sound-recording-option {
+	border: 1px solid #464951;
+	padding: 10px;
+	margin: 10px 0;
+	border-radius: 4px;
+}
+.sound-recording-option label {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-weight: 600;
+}
+.sound-recording-option small {
+	display: block;
+	margin-top: 5px;
+	color: #b1b5bd;
+}
+.capture-studio .sound-caution {
+	color: #e6bc70;
+	font-size: 11px;
+	margin: 8px 0 0;
+}
+.sound-search {
+	width: 100%;
+	margin-bottom: 8px;
+}
+.sound-list {
+	max-height: 55vh;
+	overflow-y: auto;
+}
+.sound-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px;
+	border: 1px solid #3c4048;
+	border-left: 5px solid;
+	margin-bottom: 5px;
+	border-radius: 3px;
+	flex-wrap: wrap;
+}
+.sound-details {
+	flex: 1 1 140px;
+	min-width: 100px;
+}
+.sound-details input {
+	width: 100%;
+}
+.sound-details small {
+	display: block;
+	color: #a9afb9;
+	font-size: 10px;
+}
+.sound-row input[type="color"] {
+	width: 30px;
+	height: 30px;
+	padding: 2px;
+}
+.sound-row .shortcut-input {
+	width: 110px;
+}
+.sound-row .sound-level {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 10px;
+}
+.sound-row .sound-level input {
+	width: 55px;
+}
+
+.stream-settings label {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	margin: 12px 0;
+}
+.stream-settings select {
+	flex: 1;
+	min-width: 100px;
+	padding: 6px;
+	background: #303138;
+	border: 1px solid #555;
+}
+.stream-settings p,
+.stream-settings li {
+	font-size: 12px;
+	line-height: 1.5;
+}
+.stream-settings a {
+	color: #9ec9e0;
+}
+.stream-settings output {
+	display: block;
+	color: #ffd28a;
+}

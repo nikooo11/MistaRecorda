@@ -2,10 +2,12 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { validateVoiceCues } from "../../studio/validateVoiceCues";
 import { getFfmpegBinaryPath, getFfprobeBinaryPath } from "../ffmpeg/binary";
 
 const exec = promisify(execFile);
 export interface RecordingAudioMetadata {
+	voiceCues?: import("../../../src/lib/voiceCues").VoiceCue[];
 	version: 1;
 	videoPath: string;
 	micPath: string | null;
@@ -62,6 +64,7 @@ export async function readAudioMetadata(videoPath: string): Promise<RecordingAud
 			)
 		)
 			return null;
+		if (data.voiceCues !== undefined) data.voiceCues = validateVoiceCues(data.voiceCues);
 		return data;
 	} catch {
 		return null;

@@ -1,10 +1,11 @@
-import { createServer, type Server } from "node:http";
-import fs from "node:fs/promises";
-import path from "node:path";
-import { networkInterfaces } from "node:os";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { WebSocketServer, WebSocket } from "ws";
+import fs from "node:fs/promises";
+import { createServer, type Server } from "node:http";
+import { networkInterfaces } from "node:os";
+import path from "node:path";
+import { WebSocket, WebSocketServer } from "ws";
 import type { BoardDevice } from "../../src/types/board";
+
 const equal = (a: string, b: string) =>
 	Buffer.byteLength(a) === Buffer.byteLength(b) &&
 	timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -213,6 +214,14 @@ export class CompanionServer {
 								"captureStill",
 								"laser",
 								"soundboard",
+								"recordingVoices",
+								"selectRecordingVoice",
+								"streamInfo",
+								"streamStop",
+								"saveMeme",
+								"deleteMeme",
+								"placeMeme",
+								"removeMeme",
 								"playSound",
 								"previewSound",
 								"scene",

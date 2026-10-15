@@ -1,27 +1,30 @@
-import { VoiceCostEstimate } from "./VoiceCostEstimate";
+import { CaretDownIcon, DeviceTabletIcon, KeyIcon, WaveformIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
-import { WaveformIcon, KeyIcon, CaretDownIcon, DeviceTabletIcon } from "@phosphor-icons/react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { VoiceBrowser } from "./VoiceBrowser";
-import { useVoiceRecording } from "./useVoiceRecording";
-import { fallbackVoiceModels, modelLabel } from "./voiceModels";
 import { useScopedT } from "@/contexts/I18nContext";
 import {
 	defaultVoiceSettings,
 	unwrapVoice,
-	type VoiceSettings,
 	type VoiceInfo,
 	type VoiceModel,
+	type VoiceSettings,
 } from "@/types/voice";
 import type { VoicePreset } from "@/types/voicePreset";
+import { useVoiceRecording } from "./useVoiceRecording";
+import { VoiceBrowser } from "./VoiceBrowser";
+import { VoiceCostEstimate } from "./VoiceCostEstimate";
+import { VoiceCueEditor } from "./VoiceCueEditor";
+import { fallbackVoiceModels, modelLabel } from "./voiceModels";
 import "./voice.css";
 
 export function VoicePanel({
 	embedded = false,
 	videoPath = null,
+	onSeek,
 }: {
 	embedded?: boolean;
 	videoPath?: string | null;
+	onSeek?: (timeMs: number) => void;
 } = {}) {
 	const t = useScopedT("settings");
 	const request = window.electronAPI.voice.request;
@@ -166,6 +169,7 @@ export function VoicePanel({
 			className={`voice-studio voice-compact ${embedded ? "voice-studio-embedded" : ""}`}
 			aria-label="Voice / ElevenLabs"
 		>
+			<VoiceCueEditor recording={recording} disabled={processing} onSeek={onSeek} />
 			<header className="voice-header">
 				<WaveformIcon size={19} />
 				<h1>Voice / ElevenLabs</h1>

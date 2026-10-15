@@ -1,27 +1,27 @@
-import { ownsShortcutCapture } from "./shortcutCapture";
+import { execFile } from "node:child_process";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
+import { app, BrowserWindow, desktopCapturer, dialog, globalShortcut, ipcMain } from "electron";
+import { z } from "zod";
 import {
 	defaultEnvironmentAudio,
-	environmentAudioUnavailable,
 	type EnvironmentAudio,
+	environmentAudioUnavailable,
 } from "../../src/components/studio/environmentAudio";
-import { isZoomSettingsWindow } from "../ipc/zoom/register";
-import { z } from "zod";
-import { showCapturePanel } from "../panelToggle";
-import { CaptureCamera } from "./camera";
 import { normalizeShortcut, recorderShortcuts } from "../../src/components/studio/shortcuts";
 import {
 	isSelectedSource,
 	sourceSwitchUnavailable,
 } from "../../src/components/studio/sourceSwitching";
-import { setCaptureCanvasAspect } from "./geometry";
-import fs from "node:fs/promises";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { app, BrowserWindow, desktopCapturer, dialog, globalShortcut, ipcMain } from "electron";
-import { getPackagedRendererBaseUrl } from "../rendererServer";
-import { getFfmpegBinaryPath, getFfprobeBinaryPath } from "../ipc/ffmpeg/binary";
+import type { AudioRegion } from "../../src/components/video-editor/types";
+import type { StudioInfo, StudioSettings, StudioSource } from "../../src/types/studio";
+import {
+	assertBoardCaptureSource,
+	isDrawingSurfaceWindow,
+	sendRecordingControl,
+} from "../board/register";
 import {
 	getNativeMacWindowSources,
 	resolveMacWindowBounds,
@@ -32,7 +32,11 @@ import {
 	getRecordingBoundsInDips,
 	isCursorCapturePaused,
 } from "../ipc/cursor/telemetry";
-import { closeHeldZoom, zoomStatus } from "../ipc/zoom/capture";
+import { getFfmpegBinaryPath, getFfprobeBinaryPath } from "../ipc/ffmpeg/binary";
+import {
+	rememberApprovedLocalReadPath,
+	resolveApprovedLocalMediaPath,
+} from "../ipc/project/manager";
 import {
 	isCursorCaptureActive,
 	nativeCaptureProcess,
@@ -42,25 +46,40 @@ import {
 	setSelectedSource,
 	setSelectedWindowBounds,
 } from "../ipc/state";
-import {
-	resolveApprovedLocalMediaPath,
-	rememberApprovedLocalReadPath,
-} from "../ipc/project/manager";
-import {
-	assertBoardCaptureSource,
-	isDrawingSurfaceWindow,
-	sendRecordingControl,
-} from "../board/register";
+import { closeHeldZoom, zoomStatus } from "../ipc/zoom/capture";
+import { isZoomSettingsWindow } from "../ipc/zoom/register";
+import { showCapturePanel } from "../panelToggle";
+import { getPackagedRendererBaseUrl } from "../rendererServer";
 import { requireScreenRecordingAccess } from "../screenCaptureAccess";
-import type { AudioRegion } from "../../src/components/video-editor/types";
-import type { StudioSettings, StudioInfo, StudioSource } from "../../src/types/studio";
+import { bakeSounds } from "./bakeSounds";
+import { CaptureCamera } from "./camera";
+import { focusRecordingWindow } from "./focusWindow";
+import { setCaptureCanvasAspect } from "./geometry";
 import {
+	cameraLayoutSchema,
 	SoundTake,
-	studioSettingsSchema,
 	shortcutSchema,
 	sourceSchema,
-	cameraLayoutSchema,
+	studioSettingsSchema,
 } from "./model";
+import { recorderCommand } from "./nativeCommand";
+import { ownsShortcutCapture } from "./shortcutCapture";
+import {
+	audioEngineReply,
+	isStreaming,
+	startStream,
+	stopStream,
+	streamDevices,
+	streamInfo,
+	streamSound,
+} from "./streamAudio";
+import {
+	persistVoiceCues,
+	recordingVoiceList,
+	selectRecordingVoice,
+	startVoiceCues,
+} from "./voiceCues";
+
 const exec = promisify(execFile);
 let settings: StudioSettings = studioSettingsSchema.parse({ glow: true, windows: [], sounds: [] });
 let cameraSaveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -88,6 +107,8 @@ let audioState: EnvironmentAudio = { ...defaultEnvironmentAudio };
 let capturedAudio: EnvironmentAudio = { ...defaultEnvironmentAudio };
 let audioRecording = false;
 let take = new SoundTake();
+let includeSounds = true;
+let persistedTake: Promise<void> | undefined;
 let savedPath: string | null = null;
 let panel: BrowserWindow | undefined;
 let shortcutCaptureOwner: Electron.WebContents | undefined;
@@ -101,6 +122,7 @@ function endShortcutCapture() {
 	globalShortcut.setSuspended(false);
 }
 let glow: BrowserWindow | undefined;
+let glowPulse = false;
 let glowTimer: ReturnType<typeof setInterval> | undefined;
 const bindings = new Set<string>();
 const root = () => path.join(app.getPath("userData"), "studio");
@@ -133,11 +155,27 @@ async function save() {
 	await fs.rename(tmp, path.join(root(), "settings.json"));
 	publish();
 }
-export function fireSound(id: string) {
+export async function fireSound(id: string) {
 	const sound = settings.sounds.find((s) => s.id === id);
 	if (!sound) throw Error("Sound not found.");
-	if (!isCursorCaptureActive)
-		throw Error("Start recording to add a sound. Use Preview to listen first.");
+	if (isStreaming()) {
+		await streamSound(path.join(root(), sound.file), sound.volume);
+		return;
+	}
+	if (!isCursorCaptureActive) {
+		if (process.platform !== "darwin") throw Error("Use Preview to listen before recording.");
+		void exec("/usr/bin/afplay", [
+			"-v",
+			String(sound.volume),
+			path.join(root(), sound.file),
+		]).catch((e) => {
+			message = e.message;
+			publish();
+		});
+		message = `Playing ${sound.name} on the Mac`;
+		publish();
+		return;
+	}
 	if (isCursorCapturePaused()) throw Error("Resume recording before adding a sound.");
 	if (
 		take.trigger(
@@ -149,15 +187,33 @@ export function fireSound(id: string) {
 			isCursorCapturePaused(),
 		)
 	) {
-		message = `${sound.name} added to your take`;
+		const region = take.regions[take.regions.length - 1];
+		if (process.platform === "darwin" && nativeCaptureProcess) {
+			const token = crypto.randomUUID();
+			try {
+				await recorderCommand(
+					`sound ${Buffer.from(JSON.stringify({ token, path: region.audioPath, volume: sound.volume })).toString("base64")}`,
+					`SOUND_PLAYING ${token}`,
+					`SOUND_FAILED ${token}`,
+				);
+			} catch (e) {
+				take.regions = take.regions.filter((r) => r !== region);
+				throw e;
+			}
+		}
+		message = `${sound.name} ${includeSounds ? "included in recording" : "added as an editable clip"}`;
 		publish();
 	}
 }
 export function boardSoundList() {
 	return {
+		streaming: isStreaming(),
 		recording: isCursorCaptureActive,
 		paused: isCursorCapturePaused(),
-		sounds: settings.sounds.map(({ file: _file, ...sound }) => sound),
+		includeSoundboardInRecording: settings.includeSoundboardInRecording !== false,
+		sounds: [...settings.sounds]
+			.sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite))
+			.map(({ file: _file, ...sound }) => sound),
 	};
 }
 export async function boardSoundPreview(id: string) {
@@ -192,12 +248,10 @@ function bindAll(next: StudioSettings) {
 		...next.sounds.map((s) => ({
 			shortcut: s.shortcut,
 			run: () => {
-				try {
-					fireSound(s.id);
-				} catch (e) {
+				void fireSound(s.id).catch((e) => {
 					message = String((e as Error).message);
 					publish();
-				}
+				});
 			},
 		})),
 	].filter((b) => b.shortcut);
@@ -259,6 +313,7 @@ async function applyScene(id: string) {
 		);
 		if (unavailable) throw Error(unavailable);
 	}
+	let focusWarning = "";
 	if (isCursorCaptureActive) {
 		// Never change the camera if the source switch fails.
 		if (scene.source.id !== selectedSource?.id) {
@@ -266,7 +321,10 @@ async function applyScene(id: string) {
 				throw Error(
 					"Stop recording to switch displays. Window scenes can switch during a window recording.",
 				);
-			await switchWindow(scene.source);
+			focusWarning = (await switchWindow(scene.source)) ?? "";
+		} else if (scene.source.sourceType === "window") {
+			// Recalling the current environment should also restore desktop focus.
+			focusWarning = (await switchWindow(scene.source)) ?? "";
 		}
 	} else if (process.platform === "darwin" && scene.source.sourceType === "window") {
 		await switchWindow(scene.source);
@@ -307,7 +365,7 @@ async function applyScene(id: string) {
 		audioState = { ...targetAudio };
 	}
 	sendRecordingControl(scene.camera ? "webcam-on" : "webcam-off");
-	message = `Scene: ${scene.name}`;
+	message = `Scene: ${scene.name}${focusWarning ? `. ${focusWarning}` : ""}`;
 	publish();
 }
 export async function switchWindow(input: StudioSource) {
@@ -315,7 +373,12 @@ export async function switchWindow(input: StudioSource) {
 	const target = sourceSchema.parse(input);
 	const unavailable = sourceSwitchUnavailable(info(), target);
 	if (unavailable) throw Error(unavailable);
-	if (isCursorCaptureActive && isSelectedSource(target, info().selectedSource)) return;
+	if (
+		isCursorCaptureActive &&
+		target.sourceType === "screen" &&
+		isSelectedSource(target, info().selectedSource)
+	)
+		return;
 	assertBoardCaptureSource(target);
 	switching = true;
 	publish();
@@ -355,7 +418,7 @@ export async function switchWindow(input: StudioSource) {
 		const next: StudioSource = { ...target, id: found.id, name: found.name };
 		const bounds = await resolveMacWindowBounds({ ...next });
 		if (!bounds) throw Error("That window is not currently available.");
-		if (isCursorCaptureActive) {
+		if (isCursorCaptureActive && next.id !== selectedSource?.id) {
 			const child = nativeCaptureProcess;
 			if (
 				!nativeScreenRecordingActive ||
@@ -400,17 +463,24 @@ export async function switchWindow(input: StudioSource) {
 			closeHeldZoom(getCursorCaptureElapsedMs());
 		}
 		setSelectedSource({ ...next });
+		glowPulse = isCursorCaptureActive;
 		await startWindowBoundsCapture();
 		setSelectedWindowBounds(bounds);
 		for (const w of BrowserWindow.getAllWindows())
 			w.webContents.send("selected-source-changed", next);
 		message = `Recording source: ${next.name}`;
+		// Activate only after the recorder confirms the new source. Use the fresh
+		// native ID, never the app name (which could raise another Chrome window).
+		const focusWarning = isCursorCaptureActive ? await focusRecordingWindow(next.id) : "";
+		if (focusWarning) message += `. ${focusWarning}`;
+		return focusWarning;
 	} finally {
 		switching = false;
 		publish();
 	}
 }
 export function startStudioTake() {
+	startVoiceCues();
 	camera.start();
 	setCaptureCanvasAspect(
 		process.platform === "darwin" &&
@@ -421,9 +491,12 @@ export function startStudioTake() {
 			: null,
 	);
 	take = new SoundTake();
+	includeSounds = settings.includeSoundboardInRecording !== false;
+	persistedTake = undefined;
 	savedPath = null;
 	message = "";
 	clearInterval(glowTimer);
+	glowPulse = true;
 	let lastBounds = "";
 	glowTimer = setInterval(() => {
 		if (
@@ -450,6 +523,16 @@ export function startStudioTake() {
 			lastBounds = key;
 		}
 		if (!glow.isVisible()) glow.showInactive();
+		if (glowPulse) {
+			glowPulse = false;
+			void glow.webContents
+				.executeJavaScript(
+					"document.querySelector('div').animate([{boxShadow:'0 0 10px 4px #8ae6caaa',borderColor:'#c7ffeb'},{boxShadow:'0 0 4px 2px #70d1b033',borderColor:'#9ce4ce88'}],{duration:800,easing:'ease-out'})",
+				)
+				.catch(() => {
+					/* A closing glow window must not interrupt capture. */
+				});
+		}
 	}, 100);
 	publish();
 }
@@ -460,6 +543,12 @@ export function stopStudioTake() {
 	publish();
 }
 export async function persistStudioTake(videoPath: string) {
+	if (persistedTake) return persistedTake;
+	persistedTake = persistSounds(videoPath);
+	return persistedTake;
+}
+async function persistSounds(videoPath: string) {
+	await persistVoiceCues(videoPath);
 	if (!take.regions.length || (savedPath && savedPath !== videoPath)) return;
 	savedPath = videoPath;
 	// Keep sounds beside the recording so moving the original imports cannot break a project.
@@ -475,8 +564,19 @@ export async function persistStudioTake(videoPath: string) {
 		audioPath: path.basename(files.get(r.audioPath)!),
 	}));
 	await fs.writeFile(`${videoPath}.sounds.json`, JSON.stringify({ version: 1, regions }));
+	if (includeSounds) {
+		try {
+			await bakeSounds(videoPath, take.regions);
+		} catch (error) {
+			// Keep the copied clips available if final mixing fails. Never discard sound cues.
+			message = "Sound mixing failed. Your sounds were kept as editable clips in the editor.";
+			console.error(message, error);
+			publish();
+		}
+	}
 }
 export async function prepareStudioCapture() {
+	if (isStreaming()) await stopStream();
 	if (!glow || glow.isDestroyed()) {
 		glow = new BrowserWindow({
 			title: "MistaRecorda Capture Glow",
@@ -591,7 +691,15 @@ export function registerStudio() {
 			publish();
 			return info();
 		}
+		if (method.startsWith("audioEngine")) return audioEngineReply(e.sender, method, input);
+		if (method === "streamInfo") return streamInfo();
+		if (method === "streamDevices") return streamDevices();
+		if (method === "streamStart") return startStream(input);
+		if (method === "streamStop") return stopStream();
 		if (method === "info") return info();
+		if (method === "recordingVoices") return recordingVoiceList(input === true);
+		if (method === "selectRecordingVoice")
+			return selectRecordingVoice(z.string().max(100).parse(input));
 		if (method === "audioStatus") {
 			const next = z
 				.object({ recording: z.boolean(), microphone: z.boolean(), system: z.boolean() })
@@ -653,14 +761,19 @@ export function registerStudio() {
 			return info();
 		}
 		if (method === "fireSound") {
-			fireSound(String(input));
+			await fireSound(String(input));
 			return info();
 		}
 		if (method === "renameSource") {
 			const source = sourceSchema.parse(input?.source);
 			const name = z.string().trim().max(80).parse(input?.name);
-			const aliases = (settings.sourceAliases ?? []).filter((entry) => !isSelectedSource(entry.source, source));
-			settings = studioSettingsSchema.parse({ ...settings, sourceAliases: name ? [...aliases, { source, name }] : aliases });
+			const aliases = (settings.sourceAliases ?? []).filter(
+				(entry) => !isSelectedSource(entry.source, source),
+			);
+			settings = studioSettingsSchema.parse({
+				...settings,
+				sourceAliases: name ? [...aliases, { source, name }] : aliases,
+			});
 			await save();
 			return info();
 		}
@@ -721,6 +834,11 @@ export function registerStudio() {
 			await save();
 			return info();
 		}
+		if (method === "includeSoundboardInRecording") {
+			settings.includeSoundboardInRecording = z.boolean().parse(input);
+			await save();
+			return info();
+		}
 		if (method === "cameraShortcut" || method === "saveScene" || method === "removeScene") {
 			const next = studioSettingsSchema.parse({
 				...settings,
@@ -763,7 +881,7 @@ export function registerStudio() {
 			return info();
 		}
 		if (method === "importSound") {
-			if (settings.sounds.length >= 24) throw Error("You can keep up to 24 sound effects.");
+			if (settings.sounds.length >= 200) throw Error("You can keep up to 200 sounds.");
 			const result = await dialog.showOpenDialog({
 				title: "Import sound effect",
 				properties: ["openFile"],
@@ -821,6 +939,8 @@ export function registerStudio() {
 				durationMs,
 				shortcut: "",
 				volume: 1,
+				favorite: false,
+				color: "#466784",
 			});
 			await save();
 			return info();
@@ -837,7 +957,14 @@ export function registerStudio() {
 				...settings,
 				sounds: settings.sounds.map((s) =>
 					s.id === input.id
-						? { ...s, name: input.name, shortcut: input.shortcut, volume: input.volume }
+						? {
+								...s,
+								name: input.name,
+								shortcut: input.shortcut,
+								volume: input.volume,
+								favorite: input.favorite ?? s.favorite,
+								color: input.color ?? s.color,
+							}
 						: s,
 				),
 			});
