@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import {
 	Excalidraw,
@@ -29,6 +29,7 @@ import { Soundboard } from "./Soundboard";
 import { FigureAssistant } from "./FigureAssistant";
 import { SparkleIcon, MicrophoneIcon } from "@phosphor-icons/react";
 import { BoardLaser } from "./BoardLaser";
+import { clearCanvas } from "./clearCanvas";
 import {
 	fittedTabletView,
 	readTabletView,
@@ -55,6 +56,7 @@ export function BoardCanvas({
 	drawing?: boolean;
 }) {
 	const stage = useRef<HTMLDivElement>(null);
+	const paper = useRef<HTMLDivElement>(null);
 	const clientTag = useRef(objectId());
 	const resetGeneration = useRef(0);
 	const [fit, setFit] = useState({ scale: 1, left: 0, top: 0 });
@@ -121,6 +123,12 @@ export function BoardCanvas({
 			? "board"
 			: state.mode;
 	const showMaterial = (cleanMode === "board" || boardClosing) && !(tablet && streamed);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: These layout values determine the cached DOM origin refreshed by the imperative API.
+	useLayoutEffect(() => {
+		// Excalidraw caches its DOM origin. Refit/rotation can move the paper
+		// without resizing it, so refresh after React has positioned it.
+		api?.refresh();
+	}, [api, fit.left, fit.top, fit.scale, state.width, state.height]);
 
 	useEffect(() => () => clearTimeout(closeTimer.current), []);
 	async function flush(): Promise<void> {
@@ -215,10 +223,13 @@ export function BoardCanvas({
 				tablet ? localView.current : fittedTabletView(),
 			);
 			const signature = sceneSignature(scene);
+			const actual = api.getAppState();
 			if (
 				signature === last.current &&
 				mode === modeRef.current &&
-				Math.abs(api.getAppState().zoom.value - viewport.zoom) < 0.0001
+				Math.abs(actual.zoom.value - viewport.zoom) < 0.0001 &&
+				Math.abs(actual.scrollX - viewport.scrollX) < 0.0001 &&
+				Math.abs(actual.scrollY - viewport.scrollY) < 0.0001
 			)
 				return;
 			if (!clean && (saving.current || pending.current) && mode === modeRef.current) return;
@@ -277,11 +288,7 @@ export function BoardCanvas({
 			setDraft(null);
 			last.current = "";
 			applying.current = true;
-			if (api) {
-				const activeTool = api.getAppState().activeTool;
-				api.resetScene();
-				api.updateScene({ appState: { activeTool } });
-			}
+			if (api) clearCanvas(api);
 			// A clear supersedes in-flight edits; their older replies are ignored by revision.
 			const wasSaving = saving.current;
 			saving.current = false;
@@ -501,6 +508,15 @@ export function BoardCanvas({
 			ref={stage}
 			data-board-ready={clean && api ? "true" : undefined}
 			onPointerDownCapture={(event) => {
+				if (api && paper.current && event.target instanceof HTMLCanvasElement) {
+					const rect = paper.current.getBoundingClientRect();
+					const view = api.getAppState();
+					if (
+						Math.abs(view.offsetLeft - rect.left) > 0.5 ||
+						Math.abs(view.offsetTop - rect.top) > 0.5
+					)
+						flushSync(() => api.refresh());
+				}
 				interacted.current = true;
 				if (multiSelect && api && event.target instanceof HTMLCanvasElement) {
 					event.preventDefault();
@@ -614,6 +630,7 @@ export function BoardCanvas({
 				</div>
 			)}
 			<div
+				ref={paper}
 				className={`board-paper ${boardClosing ? "board-putting-away" : !tablet && cleanMode === "board" ? "board-deployed" : ""} ${tablet && (streamed || !state.enabled || state.output === "screen") ? "board-streamed-ink" : ""}`}
 				style={{
 					width: state.width * fit.scale,
@@ -887,11 +904,7 @@ export function BoardCanvas({
 								setDraft(null);
 								interacted.current = false;
 								applying.current = true;
-								if (api) {
-									const activeTool = api.getAppState().activeTool;
-									api.resetScene();
-									api.updateScene({ appState: { activeTool } });
-								}
+								if (api) clearCanvas(api);
 								void transport
 									.request<BoardState>("clear", { confirmed: true })
 									.then((next) => apply(next))

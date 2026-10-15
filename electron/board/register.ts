@@ -163,10 +163,18 @@ async function prepare() {
 	store.state.height = b.height;
 	surface = makeWindow("MistaRecorda Drawing Surface", "board-surface", {
 		...b,
+		// Frameless canvases must use the full display origin. Otherwise macOS
+		// pushes them below the menu bar while the iPad preview starts at y=0.
+		enableLargerThanScreen: true,
 		focusable: false,
 	});
+	surface.setBounds(b);
 	surface.setIgnoreMouseEvents(true);
-	editor = makeWindow(BOARD_CONTROL_TITLES[0], "board-editor", { ...b });
+	editor = makeWindow(BOARD_CONTROL_TITLES[0], "board-editor", {
+		...b,
+		enableLargerThanScreen: true,
+	});
+	editor.setBounds(b);
 	panel = makeWindow(BOARD_CONTROL_TITLES[1], "board-panel", {
 		width: 440,
 		height: Math.min(660, b.height - 70),

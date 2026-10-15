@@ -39,4 +39,30 @@ describe("tablet screen annotations", () => {
 		expect(withoutTextDraft([ink, draft], [ink, text], "text")).toEqual([ink, text]);
 		expect(withoutTextDraft([ink, draft], [ink, text])).toEqual([ink, draft]);
 	});
+	it.each([
+		0.59, 1, 1.83, 3.2,
+	])("keeps both axes anchored to full-display pixels at zoom %s", (zoom) => {
+		const scene = {
+			...emptyBoardState().scenes.screen,
+			zoom: 0.9,
+			scrollX: 425,
+			scrollY: -1008,
+		};
+		const local = { zoom, x: -260, y: 130 };
+		const scale = 0.59;
+		const viewport = tabletViewport(scene, scale, local);
+		for (const [screenX, screenY] of [
+			[10, 10],
+			[800, 500],
+			[1450, 920],
+		]) {
+			// The same display pixel in the transformed video and in the ink canvas.
+			const pointerX = (screenX + local.x) * scale * zoom;
+			const pointerY = (screenY + local.y) * scale * zoom;
+			const x = pointerX / viewport.zoom - viewport.scrollX;
+			const y = pointerY / viewport.zoom - viewport.scrollY;
+			expect((x + scene.scrollX) * scene.zoom).toBeCloseTo(screenX);
+			expect((y + scene.scrollY) * scene.zoom).toBeCloseTo(screenY);
+		}
+	});
 });

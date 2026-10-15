@@ -207,6 +207,10 @@ interface Window {
 		studio: import("../src/types/studio").StudioAPI;
 		board: import("../src/types/board").BoardAPI;
 		recordingZoom: import("../src/types/recordingZoom").RecordingZoomAPI;
+		hudOverlaySetInteractiveRegions: (
+			regions: import("../src/components/launch/hudMousePassthrough").HudInteractiveBounds[],
+			captured: boolean,
+		) => void;
 		hudOverlaySetIgnoreMouse: (ignore: boolean) => void;
 		hudOverlaySetSourceSelectionActive: (active: boolean) => void;
 		hudOverlayDrag: (phase: "start" | "move" | "end", screenX: number, screenY: number) => void;

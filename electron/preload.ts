@@ -231,6 +231,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
 			return () => ipcRenderer.removeListener("voice:progress", listener);
 		},
 	} satisfies VoiceAPI,
+	hudOverlaySetInteractiveRegions: (
+		regions: import("../src/components/launch/hudMousePassthrough").HudInteractiveBounds[],
+		captured: boolean,
+	) => {
+		ipcRenderer.send("hud-overlay-interactive-regions", regions, captured);
+	},
 	hudOverlaySetIgnoreMouse: (ignore: boolean) => {
 		ipcRenderer.send("hud-overlay-set-ignore-mouse", ignore);
 	},

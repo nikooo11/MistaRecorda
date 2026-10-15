@@ -8,7 +8,9 @@ html[data-window-type^="board-"] #root {
 	position: relative;
 	width: 100%;
 	height: 100%;
-	overflow: hidden;
+	/* Zoomed preview pixels must not create a scrollable container. Browser
+	   focus/scrollIntoView can otherwise move the ink's cached DOM origin. */
+	overflow: clip;
 	background: transparent;
 	color: #172526;
 	font: 14px system-ui;
@@ -43,7 +45,7 @@ html[data-window-type^="board-"] #root {
 	box-shadow: 0 3px 20px #0002;
 	white-space: nowrap;
 }
-.board-stage button,
+.board-stage :where(.board-actions, .board-assets, .tablet-text-draft, .board-object-tools, .board-tray) button,
 .board-panel button,
 .board-import {
 	font: inherit;
@@ -54,7 +56,7 @@ html[data-window-type^="board-"] #root {
 	color: #173b32;
 	cursor: pointer;
 }
-.board-stage button:hover,
+.board-stage :where(.board-actions, .board-assets, .tablet-text-draft, .board-object-tools, .board-tray) button:hover,
 .board-panel button:hover {
 	background: #dcfce7;
 }
@@ -206,17 +208,6 @@ html[data-window-type^="board-"] #root {
 	top: 10px;
 }
 
-@keyframes deploy-board {
-	from {
-		transform: translateX(-100%);
-	}
-	to {
-		transform: translateX(0);
-	}
-}
-.board-deployed {
-	animation: deploy-board 220ms ease-out;
-}
 @media (prefers-reduced-motion: reduce) {
 	.board-deployed {
 		animation: none;
@@ -782,8 +773,9 @@ html[data-window-type^="board-"] #root {
 	box-shadow: 0 2px 3px #0003;
 }
 .board-deployed {
-	animation: board-swing-in 0.48s cubic-bezier(0.16, 1, 0.3, 1) both;
-	transform-origin: left center;
+	/* Move only the decorative board. Translating the interactive canvas lets
+	   Excalidraw cache an animated origin and offsets subsequent pointer input. */
+	animation: board-ink-in 0.48s ease-out both;
 }
 .physical-board.is-closing {
 	animation: board-swing-out 0.44s cubic-bezier(0.55, 0, 0.8, 0.3) both;
@@ -810,11 +802,9 @@ html[data-window-type^="board-"] #root {
 }
 @keyframes board-ink-in {
 	from {
-		transform: translateX(-104%);
 		opacity: 0;
 	}
 	to {
-		transform: translateX(0);
 		opacity: 1;
 	}
 }
@@ -856,8 +846,7 @@ html[data-window-type^="board-"] #root {
 }
 
 .board-paper.board-putting-away {
-	animation: board-swing-out 0.44s cubic-bezier(0.55, 0, 0.8, 0.3) both;
-	transform-origin: left center;
+	animation: board-ink-in 0.44s ease-in reverse both;
 	pointer-events: none;
 }
 .has-whiteboard .excalidraw__canvas {

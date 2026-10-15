@@ -141,8 +141,6 @@ function LaunchWindowContent() {
 		showRecordingWebcamPreview,
 		webcamPreviewOffset,
 		recordingWebcamPreviewContainerRef,
-		isWebcamPreviewDraggingRef,
-		webcamPreviewDragStartRef,
 		handleWebcamPreviewPointerDown,
 		handleWebcamPreviewPointerMove,
 		handleWebcamPreviewPointerUp,
@@ -156,6 +154,7 @@ function LaunchWindowContent() {
 		hudOverlayMousePassthroughSupported,
 	});
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Reassert the camera after the recording window changes.
 	useEffect(() => {
 		void window.electronAPI.studio
 			.request("cameraStatus", {
@@ -179,7 +178,6 @@ function LaunchWindowContent() {
 		recordingHudOffset,
 		isHudDragging,
 		hudBarTransformRef,
-		isHudDraggingRef,
 		handleHudBarPointerDown,
 		handleHudBarPointerMove,
 		handleHudBarPointerUp,
@@ -192,9 +190,7 @@ function LaunchWindowContent() {
 	const { handleHudMouseEnter, handleHudMouseLeave, beginInteractiveHudAction } =
 		useLaunchHudInteractionState({
 			openId,
-			isHudDraggingRef,
-			isWebcamPreviewDraggingRef,
-			webcamPreviewDragStartRef,
+			mousePassthroughSupported: hudOverlayMousePassthroughSupported,
 		});
 
 	useEffect(() => {
@@ -545,7 +541,7 @@ function LaunchWindowContent() {
 					className="flex items-center overflow-visible flex-col-reverse pointer-events-none"
 				>
 					<div
-						className="flex flex-col items-center pointer-events-auto p-2"
+						className="flex flex-col items-center pointer-events-none p-2"
 						onMouseEnter={handleHudMouseEnter}
 						onMouseLeave={handleHudMouseLeave}
 					>
@@ -557,9 +553,10 @@ function LaunchWindowContent() {
 						>
 							<motion.div
 								ref={hudBarRef}
+								data-hud-interactive
 								layout={!showRecordingWebcamPreview && !isHudDragging}
 								transition={hudStateTransition}
-								className={`${styles.bar} launch-theme mb-2`}
+								className={`${styles.bar} launch-theme mb-2 pointer-events-auto`}
 							>
 								<div
 									// Linux compositors and non-passthrough Windows fallback windows

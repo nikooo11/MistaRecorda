@@ -37,3 +37,17 @@ export function shouldRestoreHudMousePassthroughAfterDrag(
 		clientY > bounds.bottom
 	);
 }
+
+/** Hit-test each visible island separately, leaving gaps and padding click-through. */
+export function shouldIgnoreHudMouse(
+	regions: readonly HudInteractiveBounds[],
+	point: { x: number; y: number },
+	captured = false,
+	sourceSelectionActive = false,
+): boolean {
+	if (sourceSelectionActive) return true;
+	if (captured) return false;
+	return !regions.some(
+		(r) => point.x >= r.left && point.x < r.right && point.y >= r.top && point.y < r.bottom,
+	);
+}

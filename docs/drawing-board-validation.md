@@ -1,5 +1,14 @@
 # Drawing board validation
 
+## Coordinate, palette and recorder hit-area fixes — 2026-10-14
+
+- **1,181 tests across 139 files** passed, plus TypeScript, scoped lint, production Vite build, Electron CJS smoke and strict/deep signature verification. The installed app retains the persistent local signing identity.
+- Reproduced a Mac-only pointer regression in the real BoardCanvas harness: an input at client x=500 produced display x=1562.8 because the canvas cached its position during the board opening animation. The same input produces x=500.0 after separating the decorative animation from the interactive canvas and refreshing its DOM origin.
+- At 185% zoom, drawing, Clear, another stroke and Fit screen preserve the target alignment, selected red, stroke width and zoom. The stage no longer acquires browser scroll offsets during zoom. Swatches retain their actual colors rather than inheriting the menu's hover background.
+- Native recording check: a companion stroke in a magnified preview mapped to display coordinates x=720.0, y=546.801. In the 3024×1964 captured MP4, the red stroke begins at x≈1440 and its center is y=1093.5 (expected 1093.602). After Clear, the same image region contains no red pixels. The 65-second take opened successfully in the editor. This verifies full-display alignment through native capture, beyond the browser-only coordinate tests.
+- Recorder hit testing now uses separate visible rectangles for the toolbar and open menus. Transparent padding and gaps pass clicks through; dragging retains capture until release. A native 185-second screen recording completed while a Chrome input immediately above the bar and a button beside it remained usable. Typing beside an open recorder menu also worked, and the menu could still be closed afterward.
+- Restored the pre-test drawing state and microphone setting, and moved only the two temporary QA recordings into the ignored QA folder. No privacy permissions were reset. Physical iPad Safari/Pencil and Windows hit testing remain device acceptance checks; the companion test used a local browser. Export was not repeated for these input/overlay changes.
+
 ## Presenter objects, figures and preview update — 2026-10-14
 
 - **1,171 tests across 138 files** passed, plus TypeScript, scoped lint, production Vite build and Electron main CJS smoke. Both arm64 and x64 clean-preview helpers compiled. The arm64 app passed persistent-signature and strict/deep package verification.

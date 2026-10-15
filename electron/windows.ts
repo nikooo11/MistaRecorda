@@ -4,6 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, ipcMain } from "electron";
+import {
+	shouldIgnoreHudMouse,
+	type HudInteractiveBounds,
+} from "../src/components/launch/hudMousePassthrough";
 import { USER_DATA_PATH } from "./appPaths";
 import {
 	getHudOverlayWindowBounds,
@@ -33,6 +37,9 @@ let hudOverlayIgnoringMouse = true;
 let hudOverlaySourceSelectionActive = false;
 let hudOverlayMouseReassertTimer: NodeJS.Timeout | null = null;
 let hudOverlayRecordingActive = false;
+let hudInteractiveRegions: HudInteractiveBounds[] | null = null;
+let hudPointerCaptured = false;
+let hudAppliedIgnore: boolean | null = null;
 let hudOverlayWebcamPreviewVisible = false;
 let countdownWindow: BrowserWindow | null = null;
 let updateToastWindow: BrowserWindow | null = null;
@@ -201,7 +208,7 @@ function getHudOverlayBounds() {
 	});
 	return getHudOverlayWindowBounds(
 		workArea,
-		isHudOverlayMousePassthroughSupported() && !hudOverlayRecordingActive,
+		isHudOverlayMousePassthroughSupported(),
 		fallbackExpanded,
 	);
 }
@@ -286,44 +293,54 @@ function setHudOverlayFallbackExpanded(expanded: boolean) {
 }
 
 function setHudOverlayMousePassthrough(ignore: boolean) {
-	hudOverlayIgnoringMouse =
-		hudOverlaySourceSelectionActive && !hudOverlayRecordingActive
-			? true
-			: hudOverlayRecordingActive
-				? false
-				: ignore;
-
+	if (!hudOverlayWindow || hudOverlayWindow.isDestroyed()) return;
+	const supported = isHudOverlayMousePassthroughSupported();
+	if (supported && hudInteractiveRegions !== null) {
+		const cursor = getScreen().getCursorScreenPoint();
+		const bounds = hudOverlayWindow.getContentBounds();
+		const zoom = hudOverlayWindow.webContents.getZoomFactor();
+		ignore = shouldIgnoreHudMouse(
+			hudInteractiveRegions,
+			{ x: (cursor.x - bounds.x) / zoom, y: (cursor.y - bounds.y) / zoom },
+			hudPointerCaptured,
+			hudOverlaySourceSelectionActive,
+		);
+	} else if (hudOverlaySourceSelectionActive) {
+		ignore = true;
+	}
+	hudOverlayIgnoringMouse = ignore;
 	if (hudOverlayMouseReassertTimer) {
 		clearTimeout(hudOverlayMouseReassertTimer);
 		hudOverlayMouseReassertTimer = null;
 	}
-
-	if (!hudOverlayWindow || hudOverlayWindow.isDestroyed()) {
-		return;
-	}
-
-	if (hudOverlayRecordingActive) {
-		hudOverlayFallbackExpanded = false;
-		applyHudOverlayBounds();
+	if (!supported) {
+		if (process.platform !== "linux") setHudOverlayFallbackExpanded(!ignore);
 		hudOverlayWindow.setIgnoreMouseEvents(false);
 		return;
 	}
-
-	if (!isHudOverlayMousePassthroughSupported()) {
-		if (process.platform !== "linux") {
-			setHudOverlayFallbackExpanded(!ignore);
-		}
-		hudOverlayWindow.setIgnoreMouseEvents(false);
-		return;
-	}
-
-	if (ignore) {
-		hudOverlayWindow.setIgnoreMouseEvents(true, { forward: true });
-		return;
-	}
-
-	hudOverlayWindow.setIgnoreMouseEvents(false);
+	// Recording uses the same visible hit regions as idle. Never turn the entire
+	// transparent window into a mouse blocker, including while a menu is open.
+	if (hudAppliedIgnore === ignore) return;
+	hudAppliedIgnore = ignore;
+	hudOverlayWindow.setIgnoreMouseEvents(ignore, { forward: true });
 }
+
+ipcMain.on("hud-overlay-interactive-regions", (event, regions: unknown, captured: unknown) => {
+	if (event.sender !== hudOverlayWindow?.webContents || !Array.isArray(regions)) return;
+	hudInteractiveRegions = regions
+		.slice(0, 64)
+		.filter(
+			(r): r is HudInteractiveBounds =>
+				r &&
+				[r.left, r.top, r.right, r.bottom].every(
+					(n) => typeof n === "number" && Number.isFinite(n),
+				) &&
+				r.right > r.left &&
+				r.bottom > r.top,
+		);
+	hudPointerCaptured = captured === true;
+	if (isHudOverlayMousePassthroughSupported()) setHudOverlayMousePassthrough(true);
+});
 
 ipcMain.on("hud-overlay-set-ignore-mouse", (_event, ignore: boolean) => {
 	setHudOverlayMousePassthrough(Boolean(ignore));
@@ -332,9 +349,9 @@ ipcMain.on("hud-overlay-set-ignore-mouse", (_event, ignore: boolean) => {
 ipcMain.on("hud-overlay-set-source-selection-active", (_event, active: boolean) => {
 	hudOverlaySourceSelectionActive = Boolean(active);
 	if (hudOverlaySourceSelectionActive) {
+		hudPointerCaptured = false;
 		hudOverlayFallbackExpanded = false;
 		applyHudOverlayBounds();
-		return;
 	}
 
 	setHudOverlayMousePassthrough(hudOverlayIgnoringMouse);
@@ -451,6 +468,9 @@ ipcMain.handle("set-hud-overlay-capture-protection", (_event, enabled: boolean) 
 });
 
 export function createHudOverlayWindow(): BrowserWindow {
+	hudInteractiveRegions = null;
+	hudPointerCaptured = false;
+	hudAppliedIgnore = null;
 	loadHudOverlayCaptureProtectionSetting();
 	hudOverlayFallbackExpanded = false;
 	hudOverlayWebcamPreviewVisible = false;
@@ -489,6 +509,7 @@ export function createHudOverlayWindow(): BrowserWindow {
 		win.moveTop();
 		if (process.platform === "win32" && isHudOverlayMousePassthroughSupported()) {
 			win.setIgnoreMouseEvents(false);
+			hudAppliedIgnore = null;
 			setTimeout(() => {
 				if (!win.isDestroyed()) {
 					setHudOverlayMousePassthrough(hudOverlayIgnoringMouse);
@@ -502,13 +523,9 @@ export function createHudOverlayWindow(): BrowserWindow {
 	}
 
 	if (isHudOverlayMousePassthroughSupported()) {
-		if (hudOverlayRecordingActive) {
-			hudOverlayIgnoringMouse = false;
-			win.setIgnoreMouseEvents(false);
-		} else {
-			hudOverlayIgnoringMouse = true;
-			win.setIgnoreMouseEvents(true, { forward: true });
-		}
+		hudOverlayIgnoringMouse = true;
+		hudAppliedIgnore = true;
+		win.setIgnoreMouseEvents(true, { forward: true });
 	}
 
 	// On Windows 11+, focus changes (e.g. showing a native notification) can break
@@ -521,6 +538,7 @@ export function createHudOverlayWindow(): BrowserWindow {
 		win.on("focus", () => {
 			if (!win.isDestroyed()) {
 				win.setIgnoreMouseEvents(false);
+				hudAppliedIgnore = null;
 				setTimeout(() => {
 					if (!win.isDestroyed()) {
 						setHudOverlayMousePassthrough(hudOverlayIgnoringMouse);
@@ -557,6 +575,21 @@ export function createHudOverlayWindow(): BrowserWindow {
 	ipcMain.on("hud-overlay-renderer-ready", handleHudRendererReady);
 
 	hudOverlayWindow = win;
+	// Native cursor polling also recovers when Chromium misses a mouseleave or
+	// stops forwarding moves. No renderer round-trip is needed for a hit test.
+	const hitTestTimer = isHudOverlayMousePassthroughSupported()
+		? setInterval(() => {
+				if (!win.isDestroyed() && win.isVisible()) setHudOverlayMousePassthrough(true);
+			}, 16)
+		: null;
+	win.on("blur", () => {
+		hudPointerCaptured = false;
+	});
+	win.webContents.on("render-process-gone", () => {
+		hudInteractiveRegions = [];
+		hudPointerCaptured = false;
+		setHudOverlayMousePassthrough(true);
+	});
 
 	// On Linux the HUD is dragged by the OS via -webkit-app-region (Wayland
 	// forbids client-side positioning). Mirror moved bounds into drag state.
@@ -594,6 +627,7 @@ export function createHudOverlayWindow(): BrowserWindow {
 	screen.on("display-metrics-changed", handleDisplayMetricsChanged);
 
 	win.on("closed", () => {
+		if (hitTestTimer) clearInterval(hitTestTimer);
 		ipcMain.removeListener("hud-overlay-renderer-ready", handleHudRendererReady);
 		screen.removeListener("display-removed", handleDisplayRemoved);
 		screen.removeListener("display-metrics-changed", handleDisplayMetricsChanged);
@@ -637,14 +671,10 @@ export function reassertHudOverlayMousePassthrough(): void {
 		return;
 	}
 
-	if (hudOverlayRecordingActive) {
-		hud.setIgnoreMouseEvents(false);
-		return;
-	}
-
 	// Toggle off then back on so the native WS_EX_TRANSPARENT flag is fully
 	// re-initialised rather than merely re-asserted in a potentially broken state.
 	hud.setIgnoreMouseEvents(false);
+	hudAppliedIgnore = null;
 	if (hudOverlayMouseReassertTimer) {
 		clearTimeout(hudOverlayMouseReassertTimer);
 	}
@@ -660,7 +690,7 @@ export function setHudOverlayRecordingActive(recording: boolean): void {
 	hudOverlayRecordingActive = Boolean(recording);
 	hudOverlayFallbackExpanded = false;
 	applyHudOverlayBounds();
-	setHudOverlayMousePassthrough(!hudOverlayRecordingActive);
+	setHudOverlayMousePassthrough(true);
 }
 
 export function createUpdateToastWindow(): BrowserWindow {
