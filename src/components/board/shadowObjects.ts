@@ -10,7 +10,7 @@ export interface PresentationMeta {
 	reference?: ObjectReference;
 }
 export const SHADOW_HELP =
-	"Shadow objects stay at 50% opacity on the iPad only. They are hidden from the computer and recording until you choose Show on screen.";
+	"Shadow objects stay at 50% opacity on the iPad only. They are hidden from the computer and recording until you choose Show on screen. Grouped objects are shown or hidden together.";
 export function presentationMeta(element: BoardElement): PresentationMeta | undefined {
 	return (element?.customData as { presentation?: PresentationMeta } | undefined)?.presentation;
 }
@@ -43,6 +43,50 @@ export function setShadow(
 			} satisfies PresentationMeta,
 		},
 	};
+}
+/** A visibility change targets the entire group, even when one member is selected. */
+export function shadowSelectionIds(
+	elements: readonly BoardElement[],
+	selectedIds: readonly string[],
+) {
+	const live = elements.filter((e) => !e.isDeleted);
+	const byId = new Map(live.map((e) => [e.id, e]));
+	const groups = new Map<string, string[]>();
+	const children = new Map<string, string[]>();
+	const groupIds = (e: BoardElement): string[] =>
+		Array.isArray(e.groupIds)
+			? e.groupIds.filter((id): id is string => typeof id === "string")
+			: [];
+	for (const e of live) {
+		for (const group of groupIds(e)) {
+			if (!groups.has(group)) groups.set(group, []);
+			groups.get(group)!.push(e.id);
+		}
+		for (const parent of [e.containerId, e.frameId])
+			if (typeof parent === "string") {
+				if (!children.has(parent)) children.set(parent, []);
+				children.get(parent)!.push(e.id);
+			}
+	}
+	const ids = new Set<string>();
+	const visitedGroups = new Set<string>();
+	const queue = [...selectedIds];
+	for (let i = 0; i < queue.length; i++) {
+		const id = queue[i],
+			element = byId.get(id);
+		if (!element || ids.has(id)) continue;
+		ids.add(id);
+		// A bound label belongs to its container, but selecting a frame child does
+		// not by itself select the whole frame. Selecting the frame includes its children.
+		if (typeof element.containerId === "string") queue.push(element.containerId);
+		queue.push(...(children.get(id) ?? []));
+		for (const group of groupIds(element)) {
+			if (visitedGroups.has(group)) continue;
+			visitedGroups.add(group);
+			queue.push(...(groups.get(group) ?? []));
+		}
+	}
+	return ids;
 }
 export function shadowIds(elements: readonly BoardElement[]) {
 	const ids = new Set(elements.filter(isShadow).map((e) => e.id));

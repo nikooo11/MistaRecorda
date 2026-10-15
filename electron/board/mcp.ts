@@ -160,7 +160,7 @@ export class DrawingMcpServer {
 			);
 			tool(
 				"board_shadow",
-				"Hide or reveal selected objects. Reveal only when requested. Read board_get revision first.",
+				"Hide or reveal selected objects and every member of their groups together. Reveal only when requested. Read board_get revision first.",
 				{
 					mode: z.enum(["screen", "board"]),
 					ids: z.array(z.string()).min(1).max(200),

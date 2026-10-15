@@ -125,6 +125,33 @@ export function BoardCanvas({
 	const committing = useRef(false);
 	const [publishingText, setPublishingText] = useState(false);
 	draftRef.current = draft;
+	useEffect(() => {
+		if (!draft?.id || !stage.current) return;
+		// Excalidraw's inline editor owns focus even after editingTextElement is
+		// cleared. It can mount after our draft, so observe its editor container
+		// and finish its blur/submit lifecycle before handing focus to the draft.
+		let frame = 0;
+		const handoff = () => {
+			cancelAnimationFrame(frame);
+			frame = requestAnimationFrame(() => {
+				const inline =
+					stage.current?.querySelector<HTMLTextAreaElement>(".excalidraw-wysiwyg");
+				if (inline) {
+					inline.focus();
+					inline.blur();
+				}
+				textInput.current?.focus();
+			});
+		};
+		const observer = new MutationObserver(handoff);
+		const editor = stage.current.querySelector(".excalidraw-textEditorContainer");
+		if (editor) observer.observe(editor, { childList: true });
+		handoff();
+		return () => {
+			observer.disconnect();
+			cancelAnimationFrame(frame);
+		};
+	}, [draft?.id]);
 	const closing = useRef(false);
 	const closeTimer = useRef<ReturnType<typeof setTimeout>>();
 	const current = useRef(initial);
@@ -607,6 +634,9 @@ export function BoardCanvas({
 				setDraft(null);
 				return;
 			}
+			const original = current.current.scenes[draft.mode].elements.find(
+				(item) => item.id === draft.id,
+			);
 			const elements = convertToExcalidrawElements([
 				{
 					type: "text",
@@ -625,9 +655,6 @@ export function BoardCanvas({
 						(element) => element.id !== draft.id,
 					),
 					...elements.map((e) => {
-						const original = current.current.scenes[draft.mode].elements.find(
-							(item) => item.id === draft.id,
-						);
 						return setShadow(
 							{
 								...e,
@@ -636,10 +663,17 @@ export function BoardCanvas({
 											id: original.id,
 											version: original.version + 1,
 											customData: original.customData,
+											groupIds: original.groupIds,
+											containerId: original.containerId,
+											frameId: original.frameId,
+											boundElements: original.boundElements,
+											angle: original.angle,
+											opacity: original.opacity,
+											index: original.index,
 										}
 									: {}),
 							} as BoardElement,
-							draft.shadow,
+							original ? isShadow(original) : draft.shadow,
 						);
 					}),
 				] as BoardElement[],
@@ -661,7 +695,6 @@ export function BoardCanvas({
 				scene,
 				revision: current.current.revision,
 			});
-			setDraft(null);
 			last.current = "";
 			apply(
 				mergeScenePatch(current.current, {
@@ -670,6 +703,19 @@ export function BoardCanvas({
 					revision: reply.revision,
 				}),
 			);
+			// Use the same group-aware command as the gear button. Keep the existing
+			// visibility until the edit is saved, then reveal/hide the whole group.
+			if (original && isShadow(original) !== draft.shadow) {
+				const next = await transport.request<BoardState>("setObjectShadow", {
+					mode: draft.mode,
+					ids: [original.id],
+					shadow: draft.shadow,
+					revision: reply.revision,
+				});
+				last.current = "";
+				apply(next);
+			}
+			setDraft(null);
 		} catch (error) {
 			last.current = "";
 			apply(current.current);

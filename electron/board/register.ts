@@ -41,6 +41,7 @@ import {
 	presentationMeta,
 	preserveShadows,
 	setShadow,
+	shadowSelectionIds,
 } from "../../src/components/board/shadowObjects";
 import { stopStream, streamInfo } from "../studio/streamAudio";
 import { recordingVoiceList, selectRecordingVoice } from "../studio/voiceCues";
@@ -608,19 +609,8 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			if (request.revision !== store.state.revision)
 				throw Error("The scene changed. Select the object and try again.");
 			const scene = store.state.scenes[request.mode];
-			const ids = new Set(request.ids);
-			let added = true;
-			while (added) {
-				added = false;
-				for (const e of scene.elements)
-					if (
-						!ids.has(e.id) &&
-						(ids.has(String(e.containerId)) || ids.has(String(e.frameId)))
-					) {
-						ids.add(e.id);
-						added = true;
-					}
-			}
+			const ids = shadowSelectionIds(scene.elements, request.ids);
+			const changedAt = Date.now();
 			const refs = [
 				...new Map(
 					scene.elements
@@ -635,7 +625,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				{
 					...scene,
 					elements: scene.elements.map((e) =>
-						ids.has(e.id) ? setShadow(e, request.shadow, request.enter) : e,
+						ids.has(e.id) ? setShadow(e, request.shadow, request.enter, changedAt) : e,
 					),
 				},
 				request.revision,
