@@ -39,7 +39,8 @@ export function ChartPresenter({
 	onReveal: () => Promise<void>;
 	onClose: () => void;
 }) {
-	const chart: ChartDocument | undefined = charts.charts.find((c) => c.id === chartId) ?? charts.charts[0];
+	const chart: ChartDocument | undefined =
+		charts.charts.find((c) => c.id === chartId) ?? charts.charts[0];
 	const [error, setError] = useState("");
 	const lastSeek = useRef(0);
 	const pendingSeek = useRef<ReturnType<typeof setTimeout>>();
@@ -80,10 +81,20 @@ export function ChartPresenter({
 		const r = input.getBoundingClientRect();
 		// Native range thumbs inset by about half their width at each end.
 		const inset = Math.min(10, r.width / 4);
-		const t = Math.max(0, Math.min(1, (clientX - r.left - inset) / Math.max(1, r.width - inset * 2)));
+		const t = Math.max(
+			0,
+			Math.min(1, (clientX - r.left - inset) / Math.max(1, r.width - inset * 2)),
+		);
 		seek(Math.round(t * steps * 100) / 100);
 	};
-	const unit = chart.data.kind === "pie" ? "slice" : chart.reveal.order === "series" && chart.data.series.length > 1 ? "series" : chart.data.kind === "card" ? "statistic" : "point";
+	const unit =
+		chart.data.kind === "pie"
+			? "slice"
+			: chart.reveal.order === "series" && chart.data.series.length > 1
+				? "series"
+				: chart.data.kind === "card"
+					? "statistic"
+					: "point";
 	const speed = chart.reveal.msPerStep;
 	return (
 		<aside
@@ -100,14 +111,23 @@ export function ChartPresenter({
 				if (e.key === " ") {
 					e.preventDefault();
 					void send({ action: playing ? "pause" : "play" });
-				} else if (e.key === "ArrowRight" && !(e.target instanceof HTMLInputElement)) void send({ action: "next" });
-				else if (e.key === "ArrowLeft" && !(e.target instanceof HTMLInputElement)) void send({ action: "previous" });
+				} else if (e.key === "ArrowRight" && !(e.target instanceof HTMLInputElement))
+					void send({ action: "next" });
+				else if (e.key === "ArrowLeft" && !(e.target instanceof HTMLInputElement))
+					void send({ action: "previous" });
 			}}
 		>
 			<header>
 				{anchor ? (
 					<p className="chart-present-status" aria-live="polite">
-						{Math.floor(reveal + 1e-6)}/{steps} · {playing ? "Playing" : reveal >= steps ? "All shown" : reveal <= 0 ? "Title & axes" : "Paused"}
+						{Math.floor(reveal + 1e-6)}/{steps} ·{" "}
+						{playing
+							? "Playing"
+							: reveal >= steps
+								? "All shown"
+								: reveal <= 0
+									? "Title & axes"
+									: "Paused"}
 					</p>
 				) : (
 					<strong>Present chart</strong>
@@ -117,7 +137,11 @@ export function ChartPresenter({
 				</button>
 			</header>
 			{!anchor && charts.charts.length > 1 && (
-				<select aria-label="Chart to present" value={chart.id} onChange={(e) => onChoose(e.target.value)}>
+				<select
+					aria-label="Chart to present"
+					value={chart.id}
+					onChange={(e) => onChoose(e.target.value)}
+				>
 					{charts.charts.map((c) => (
 						<option key={c.id} value={c.id}>
 							{c.name}
@@ -125,10 +149,19 @@ export function ChartPresenter({
 					))}
 				</select>
 			)}
-			{!anchor && <p className="chart-present-status" aria-live="polite">
-				{chart.name} · {Math.floor(reveal + 1e-6)} of {steps} {unit}
-				{steps === 1 ? "" : "s"} · {playing ? "Playing" : reveal >= steps ? "All shown" : reveal <= 0 ? "Title & axes only" : "Paused"}
-			</p>}
+			{!anchor && (
+				<p className="chart-present-status" aria-live="polite">
+					{chart.name} · {Math.floor(reveal + 1e-6)} of {steps} {unit}
+					{steps === 1 ? "" : "s"} ·{" "}
+					{playing
+						? "Playing"
+						: reveal >= steps
+							? "All shown"
+							: reveal <= 0
+								? "Title & axes only"
+								: "Paused"}
+				</p>
+			)}
 			{placement !== "visible" && (
 				<p className="chart-present-hint">
 					{placement === "none"
@@ -137,7 +170,9 @@ export function ChartPresenter({
 					{placement === "shadow" && (
 						<button
 							disabled={chart.status !== "reviewed"}
-							title={chart.status === "reviewed" ? "" : "Confirm the chart's data first."}
+							title={
+								chart.status === "reviewed" ? "" : "Confirm the chart's data first."
+							}
 							onClick={() => void onReveal().catch((e) => setError(String(e)))}
 						>
 							<EyeIcon size={14} /> Show on screen
@@ -157,7 +192,11 @@ export function ChartPresenter({
 				// Value clamping (e.g. switching to a chart with fewer steps) must never seek.
 				onChange={(e) => {
 					const value = Number(e.target.value);
-					if (document.activeElement === e.currentTarget && Math.abs(value - reveal) > 0.004) seek(value);
+					if (
+						document.activeElement === e.currentTarget &&
+						Math.abs(value - reveal) > 0.004
+					)
+						seek(value);
 				}}
 				// A pen or finger that lands on the slider always scrubs, even in Draw mode;
 				// capture keeps the whole stroke here so it never draws on the canvas.
@@ -173,44 +212,82 @@ export function ChartPresenter({
 					scrubFrom(e.currentTarget, e.clientX);
 				}}
 				onPointerUp={(e) => {
-					if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+					if (e.currentTarget.hasPointerCapture(e.pointerId))
+						e.currentTarget.releasePointerCapture(e.pointerId);
 				}}
 			/>
 			<div className="chart-transport">
-				<button aria-label="Rewind to title and axes" title="Rewind" onClick={() => void send({ action: "reset" })}>
+				<button
+					aria-label="Rewind to title and axes"
+					title="Rewind"
+					onClick={() => void send({ action: "reset" })}
+				>
 					<SkipBackIcon size={18} />
 				</button>
-				<button aria-label={`Previous ${unit}`} title="Previous step" onClick={() => void send({ action: "previous" })}>
+				<button
+					aria-label={`Previous ${unit}`}
+					title="Previous step"
+					onClick={() => void send({ action: "previous" })}
+				>
 					<CaretLeftIcon size={18} />
 				</button>
-				<button className="primary" aria-label={playing ? "Pause" : "Play"} onClick={() => void send({ action: playing ? "pause" : "play" })}>
-					{playing ? <PauseIcon size={20} weight="fill" /> : <PlayIcon size={20} weight="fill" />}
+				<button
+					className="primary"
+					aria-label={playing ? "Pause" : "Play"}
+					onClick={() => void send({ action: playing ? "pause" : "play" })}
+				>
+					{playing ? (
+						<PauseIcon size={20} weight="fill" />
+					) : (
+						<PlayIcon size={20} weight="fill" />
+					)}
 				</button>
-				<button aria-label={`Next ${unit}`} title="Next step" onClick={() => void send({ action: "next" })}>
+				<button
+					aria-label={`Next ${unit}`}
+					title="Next step"
+					onClick={() => void send({ action: "next" })}
+				>
 					<CaretRightIcon size={18} />
 				</button>
-				<button aria-label="Show all" title="Show all" onClick={() => void send({ action: "showAll" })}>
+				<button
+					aria-label="Show all"
+					title="Show all"
+					onClick={() => void send({ action: "showAll" })}
+				>
 					<FastForwardIcon size={18} />
 				</button>
 			</div>
-			{!anchor && <label className="chart-speed">
-				Play speed
-				<select
-					value={speed}
-					onChange={(e) =>
-						void transport
-							.request("chartUpdate", { id: chart.id, baseRevision: chart.revision, reveal: { ...chart.reveal, msPerStep: Number(e.target.value) } })
-							.catch((err) => setError(String(err)))
-					}
-				>
-					{[...new Set([400, 800, 1200, 2000, 3000, 5000, speed])].sort((a, b) => a - b).map((ms) => (
-						<option key={ms} value={ms}>
-							{(ms / 1000).toFixed(1)} s per {unit}
-						</option>
-					))}
-				</select>
-			</label>}
-			{!anchor && <small>Next reveals one {unit}. Drag the slider back to hide data again. You can draw over the chart at any time. These controls never appear in the recording.</small>}
+			{!anchor && (
+				<label className="chart-speed">
+					Play speed
+					<select
+						value={speed}
+						onChange={(e) =>
+							void transport
+								.request("chartUpdate", {
+									id: chart.id,
+									baseRevision: chart.revision,
+									reveal: { ...chart.reveal, msPerStep: Number(e.target.value) },
+								})
+								.catch((err) => setError(String(err)))
+						}
+					>
+						{[...new Set([400, 800, 1200, 2000, 3000, 5000, speed])]
+							.sort((a, b) => a - b)
+							.map((ms) => (
+								<option key={ms} value={ms}>
+									{(ms / 1000).toFixed(1)} s per {unit}
+								</option>
+							))}
+					</select>
+				</label>
+			)}
+			{!anchor && (
+				<small>
+					Next reveals one {unit}. Drag the slider back to hide data again. You can draw
+					over the chart at any time. These controls never appear in the recording.
+				</small>
+			)}
 			{error && <output role="alert">{error}</output>}
 		</aside>
 	);

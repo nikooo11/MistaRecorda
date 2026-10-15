@@ -224,7 +224,8 @@ export function chartIssues(data: ChartData): ChartIssue[] {
 	const error = (message: string) => issues.push({ level: "error", message });
 	const warn = (message: string) => issues.push({ level: "warning", message });
 	const parsed = chartDataSchema.safeParse(data);
-	if (!parsed.success) return parsed.error.issues.map((i) => ({ level: "error", message: i.message }));
+	if (!parsed.success)
+		return parsed.error.issues.map((i) => ({ level: "error", message: i.message }));
 	const all = values(data);
 	const present = all.filter((v) => v.value !== null);
 	if (!present.length) error("Enter at least one value.");
@@ -264,7 +265,8 @@ export function chartIssues(data: ChartData): ChartIssue[] {
 			error("Log scale applies to line and bar charts only.");
 		if (present.some((v) => (v.value as number) <= 0))
 			error("A log scale cannot show zero or negative values.");
-		if (data.kind === "bar") warn("Bars on a log scale do not start at zero; it is disclosed on the chart.");
+		if (data.kind === "bar")
+			warn("Bars on a log scale do not start at zero; it is disclosed on the chart.");
 	}
 	if (data.xType === "date" && data.categories.some((c) => parseDateLabel(c) === null))
 		error("Date labels must look like 2024, 2024-Q1, 2024-03 or 2024-03-31.");
@@ -276,7 +278,9 @@ export function chartIssues(data: ChartData): ChartIssue[] {
 		data.yAxis.min !== null &&
 		data.yAxis.min > 0
 	)
-		warn(`The bar axis starts at ${formatNumber(data.yAxis.min, data)}; this is disclosed on the chart.`);
+		warn(
+			`The bar axis starts at ${formatNumber(data.yAxis.min, data)}; this is disclosed on the chart.`,
+		);
 	if (data.yAxis.min !== null && data.yAxis.max !== null && data.yAxis.min >= data.yAxis.max)
 		error("The axis minimum must be below the maximum.");
 	const outside = present.filter(
@@ -335,7 +339,13 @@ export function formatNumber(value: number, data: ChartData, compact = false) {
 	const abs = Math.abs(value);
 	if (compact && abs >= 1e4) {
 		const [div, s] =
-			abs >= 1e12 ? [1e12, "T"] : abs >= 1e9 ? [1e9, "B"] : abs >= 1e6 ? [1e6, "M"] : [1e3, "K"];
+			abs >= 1e12
+				? [1e12, "T"]
+				: abs >= 1e9
+					? [1e9, "B"]
+					: abs >= 1e6
+						? [1e6, "M"]
+						: [1e3, "K"];
 		return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value / div)}${s}`;
 	}
 	const decimals = autoDecimals(data);
@@ -387,10 +397,18 @@ export function setValue(
 export function addCategory(data: ChartData, at = data.categories.length): ChartData {
 	return {
 		...data,
-		categories: [...data.categories.slice(0, at), `Label ${data.categories.length + 1}`, ...data.categories.slice(at)],
+		categories: [
+			...data.categories.slice(0, at),
+			`Label ${data.categories.length + 1}`,
+			...data.categories.slice(at),
+		],
 		series: data.series.map((s) => ({
 			...s,
-			values: [...s.values.slice(0, at), { value: null, confidence: "manual" as const }, ...s.values.slice(at)],
+			values: [
+				...s.values.slice(0, at),
+				{ value: null, confidence: "manual" as const },
+				...s.values.slice(at),
+			],
 		})),
 	};
 }
@@ -438,7 +456,11 @@ export function pushHistory<T>(h: History<T>, next: T, limit = 100): History<T> 
 }
 export function undo<T>(h: History<T>): History<T> {
 	if (!h.past.length) return h;
-	return { past: h.past.slice(0, -1), present: h.past[h.past.length - 1], future: [h.present, ...h.future] };
+	return {
+		past: h.past.slice(0, -1),
+		present: h.past[h.past.length - 1],
+		future: [h.present, ...h.future],
+	};
 }
 export function redo<T>(h: History<T>): History<T> {
 	if (!h.future.length) return h;
@@ -462,7 +484,13 @@ export function chartElementProps(chartId: string) {
 		customData: { chart: { chartId } satisfies ChartElementMeta },
 	};
 }
-const CARRIER_STYLE = { strokeColor: "transparent", backgroundColor: "#ffffff01", fillStyle: "solid", strokeWidth: 1, roughness: 0 } as const;
+const CARRIER_STYLE = {
+	strokeColor: "transparent",
+	backgroundColor: "#ffffff01",
+	fillStyle: "solid",
+	strokeWidth: 1,
+	roughness: 0,
+} as const;
 /** Style controls must never turn the invisible carrier into a box covering the chart. */
 export function carrierNeedsReset(e: BoardElement) {
 	return !!chartMeta(e) && Object.entries(CARRIER_STYLE).some(([k, v]) => e[k] !== v);

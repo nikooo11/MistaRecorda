@@ -24,7 +24,9 @@ const ChartSvg = memo(function ChartSvg({
 		<div
 			className="chart-svg"
 			// The renderer escapes every label; this markup never contains controls.
-			dangerouslySetInnerHTML={{ __html: renderChartSvg(chart, { width, height, reveal, idPrefix: id }) }}
+			dangerouslySetInnerHTML={{
+				__html: renderChartSvg(chart, { width, height, reveal, idPrefix: id }),
+			}}
 		/>
 	);
 });
@@ -80,7 +82,10 @@ export function ChartLayer({
 				// the whole chart before presenting. The audience reveal starts when shown.
 				const reveal = shadow
 					? steps
-					: renderedReveal(revealAt(charts.playback[chart.id], now, steps), chart.reveal.animate);
+					: renderedReveal(
+							revealAt(charts.playback[chart.id], now, steps),
+							chart.reveal.animate,
+						);
 				const id = `c${e.id.replace(/[^A-Za-z0-9]/g, "").slice(0, 16)}`;
 				return (
 					<div
@@ -94,7 +99,13 @@ export function ChartLayer({
 						{tablet && !shadow && reveal < steps && (
 							// Private look-ahead of the data still to come; only the iPad renders it.
 							<div className="chart-ghost">
-								<ChartSvg chart={chart} width={w} height={h} reveal={steps} id={`${id}g`} />
+								<ChartSvg
+									chart={chart}
+									width={w}
+									height={h}
+									reveal={steps}
+									id={`${id}g`}
+								/>
 							</div>
 						)}
 					</div>

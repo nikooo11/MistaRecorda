@@ -30,7 +30,14 @@ export function useCharts(transport: BoardAPI) {
 				let playback = info.playback;
 				for (const p of Object.values(old.playback))
 					if (info.playback[p.chartId]) playback = acceptPlayback(playback, p);
-				return { charts: info.charts, playback, job: info.job, hasKey: info.hasKey, offset: info.serverNow - Date.now(), loaded: true };
+				return {
+					charts: info.charts,
+					playback,
+					job: info.job,
+					hasKey: info.hasKey,
+					offset: info.serverNow - Date.now(),
+					loaded: true,
+				};
 			});
 		};
 		const refresh = () =>
@@ -40,11 +47,18 @@ export function useCharts(transport: BoardAPI) {
 				.catch(() => undefined);
 		refresh();
 		const offCharts = transport.on<ChartInfo>("charts", accept);
-		const offPlayback = transport.on<ChartPlayback & { serverNow: number }>("chartPlayback", (p) => {
-			if (!live) return;
-			const { serverNow, ...playback } = p;
-			setState((old) => ({ ...old, offset: serverNow - Date.now(), playback: acceptPlayback(old.playback, playback) }));
-		});
+		const offPlayback = transport.on<ChartPlayback & { serverNow: number }>(
+			"chartPlayback",
+			(p) => {
+				if (!live) return;
+				const { serverNow, ...playback } = p;
+				setState((old) => ({
+					...old,
+					offset: serverNow - Date.now(),
+					playback: acceptPlayback(old.playback, playback),
+				}));
+			},
+		);
 		const offConnected = transport.on("connected", refresh);
 		return () => {
 			live = false;
@@ -60,8 +74,13 @@ export function useChartClock(state: ChartsState) {
 	const [now, setNow] = useState(() => Date.now() + state.offset);
 	const frame = useRef(0);
 	const active = state.charts.some((c) =>
-		isPlaying(state.playback[c.id], Date.now() + state.offset, revealSteps(c.data, c.reveal.order)),
+		isPlaying(
+			state.playback[c.id],
+			Date.now() + state.offset,
+			revealSteps(c.data, c.reveal.order),
+		),
 	);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: New playback events restart the frame loop.
 	useEffect(() => {
 		setNow(Date.now() + state.offset);
 		if (!active) return;

@@ -1,6 +1,10 @@
 import { z } from "zod";
 import type { BoardElement } from "../../src/types/board";
-import { chartElementProps, chartMeta, defaultChartSize } from "../../src/components/board/charts/chartModel";
+import {
+	chartElementProps,
+	chartMeta,
+	defaultChartSize,
+} from "../../src/components/board/charts/chartModel";
 import { isShadow, setShadow } from "../../src/components/board/shadowObjects";
 import type { BoardStore } from "../board/store";
 import { makeElement } from "../board/store";
@@ -19,15 +23,26 @@ export const CHART_METHODS = [
 ] as const;
 
 /** Showing a chart publicly is deliberate: drafts and invalid data stay private. */
-export function assertChartReveal(charts: ChartStore, before: readonly BoardElement[], after: readonly BoardElement[]) {
-	const visible = new Set(before.filter((e) => !e.isDeleted && chartMeta(e) && !isShadow(e)).map((e) => e.id));
+export function assertChartReveal(
+	charts: ChartStore,
+	before: readonly BoardElement[],
+	after: readonly BoardElement[],
+) {
+	const visible = new Set(
+		before.filter((e) => !e.isDeleted && chartMeta(e) && !isShadow(e)).map((e) => e.id),
+	);
 	for (const e of after) {
 		const meta = chartMeta(e);
-		if (meta && !e.isDeleted && !isShadow(e) && !visible.has(e.id)) charts.assertShowable(meta.chartId);
+		if (meta && !e.isDeleted && !isShadow(e) && !visible.has(e.id))
+			charts.assertShowable(meta.chartId);
 	}
 }
 /** Revealing shadow objects must not reveal a draft chart in the same group. */
-export function assertChartIdsShowable(charts: ChartStore, elements: readonly BoardElement[], ids: ReadonlySet<string>) {
+export function assertChartIdsShowable(
+	charts: ChartStore,
+	elements: readonly BoardElement[],
+	ids: ReadonlySet<string>,
+) {
 	for (const e of elements) {
 		const meta = chartMeta(e);
 		if (meta && ids.has(e.id) && !e.isDeleted) charts.assertShowable(meta.chartId);
@@ -35,9 +50,16 @@ export function assertChartIdsShowable(charts: ChartStore, elements: readonly Bo
 }
 
 /** Revealing a chart starts the audience reveal from the title and axes. */
-export function restartRevealedCharts(charts: ChartStore, elements: readonly BoardElement[], ids: ReadonlySet<string>) {
+export function restartRevealedCharts(
+	charts: ChartStore,
+	elements: readonly BoardElement[],
+	ids: ReadonlySet<string>,
+) {
 	const chartIds = new Set(
-		elements.filter((e) => ids.has(e.id) && !e.isDeleted && isShadow(e)).map((e) => chartMeta(e)?.chartId).filter((id): id is string => !!id),
+		elements
+			.filter((e) => ids.has(e.id) && !e.isDeleted && isShadow(e))
+			.map((e) => chartMeta(e)?.chartId)
+			.filter((id): id is string => !!id),
 	);
 	for (const id of chartIds) charts.command({ id, command: { action: "reset" } });
 }
@@ -46,7 +68,13 @@ export async function chartAction(
 	method: string,
 	input: unknown,
 	actor: string,
-	ctx: { charts: ChartStore; board: BoardStore; publish: (actor: string) => void; hasKey: () => Promise<boolean>; validImage?: (dataURL: string) => boolean },
+	ctx: {
+		charts: ChartStore;
+		board: BoardStore;
+		publish: (actor: string) => void;
+		hasKey: () => Promise<boolean>;
+		validImage?: (dataURL: string) => boolean;
+	},
 ) {
 	const { charts, board } = ctx;
 	switch (method) {
@@ -68,9 +96,14 @@ export async function chartAction(
 		}
 		case "chartAnalyze": {
 			if (!(await ctx.hasKey()))
-				throw Error("Add your OpenAI API key in Drawing → Setup → AI figures on the Mac, or enter the values manually.");
-			const dataURL = z.object({ dataURL: z.string().max(16 * 1024 * 1024) }).parse(input).dataURL;
-			if (ctx.validImage && !ctx.validImage(dataURL)) throw Error("Choose a valid PNG, JPEG or WebP image.");
+				throw Error(
+					"Add your OpenAI API key in Drawing → Setup → AI figures on the Mac, or enter the values manually.",
+				);
+			const dataURL = z
+				.object({ dataURL: z.string().max(16 * 1024 * 1024) })
+				.parse(input).dataURL;
+			if (ctx.validImage && !ctx.validImage(dataURL))
+				throw Error("Choose a valid PNG, JPEG or WebP image.");
 			return charts.analyze(input).job;
 		}
 		case "chartCancel":
@@ -97,13 +130,23 @@ export async function chartAction(
 			const size = defaultChartSize(chart.data, request.width ?? board.state.width * 0.45);
 			const element = setShadow(
 				{
-					...makeElement({ type: "rectangle", x: request.x, y: request.y, width: size.width, height: request.height ?? size.height }),
+					...makeElement({
+						type: "rectangle",
+						x: request.x,
+						y: request.y,
+						width: size.width,
+						height: request.height ?? size.height,
+					}),
 					...chartElementProps(chart.id),
 				},
 				request.shadow,
 				"none",
 			);
-			board.updateScene(mode, { ...scene, elements: [...scene.elements, element] }, board.state.revision);
+			board.updateScene(
+				mode,
+				{ ...scene, elements: [...scene.elements, element] },
+				board.state.revision,
+			);
 			ctx.publish(actor);
 			return { state: board.state, elementId: element.id };
 		}

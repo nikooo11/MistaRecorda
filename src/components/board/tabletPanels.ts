@@ -97,7 +97,10 @@ export function useTabletPanels(stage: RefObject<HTMLDivElement>, enabled: boole
 									? { x: bounds.right - 156, y: bounds.bottom - 44 }
 									: name === "AI Chart"
 										? // Between the left (memes, notes) and right (sounds, AI) docks.
-											{ x: bounds.left + Math.max(66, bounds.width / 2 - 200), y: bounds.top + 54 }
+											bounds.width >= 1000
+											? { x: bounds.left + Math.max(66, bounds.width / 2 - 200), y: bounds.top + 54 }
+											: // Portrait: under the soundboard in the right column.
+												{ x: bounds.right - 366, y: bounds.top + 310 }
 										: name === "Present chart"
 											? { x: bounds.left + 66, y: bounds.bottom - 300 }
 											: {

@@ -13,7 +13,11 @@ import {
 	newChartDocument,
 	revealSteps,
 } from "../../src/components/board/charts/chartModel";
-import { applyPlayback, initialPlayback, type PlaybackCommand } from "../../src/components/board/charts/chartPlayback";
+import {
+	applyPlayback,
+	initialPlayback,
+	type PlaybackCommand,
+} from "../../src/components/board/charts/chartPlayback";
 import { CHART_MODEL, extractChart, extractionError } from "./extract";
 
 export const chartBundleSchema = z.object({
@@ -93,16 +97,25 @@ export class ChartStore {
 			throw e;
 		});
 		if (!raw) return;
-		const list = z.object({ version: z.literal(1), charts: z.array(z.unknown()) }).parse(JSON.parse(raw));
+		const list = z
+			.object({ version: z.literal(1), charts: z.array(z.unknown()) })
+			.parse(JSON.parse(raw));
 		// One damaged chart never prevents the rest of the presenter's charts from loading.
 		this.charts = list.charts.flatMap((c) => {
 			const parsed = chartDocumentSchema.safeParse(c);
-			if (!parsed.success) console.error("[charts] Skipping invalid chart", parsed.error.issues[0]);
+			if (!parsed.success)
+				console.error("[charts] Skipping invalid chart", parsed.error.issues[0]);
 			return parsed.success ? [parsed.data as ChartDocument] : [];
 		});
 	}
 	async info(): Promise<ChartInfo> {
-		return { charts: this.charts, playback: this.playback, job: this.job, hasKey: await this.hasKey().catch(() => false), serverNow: this.now() };
+		return {
+			charts: this.charts,
+			playback: this.playback,
+			job: this.job,
+			hasKey: await this.hasKey().catch(() => false),
+			serverNow: this.now(),
+		};
 	}
 	get(id: string) {
 		const chart = this.charts.find((c) => c.id === id);
@@ -117,7 +130,10 @@ export class ChartStore {
 		const operation = this.writes
 			.catch(() => undefined)
 			.then(async () => {
-				if (next.length > CHART_LIMITS.charts) throw Error(`Up to ${CHART_LIMITS.charts} charts can be saved. Remove an unused chart first.`);
+				if (next.length > CHART_LIMITS.charts)
+					throw Error(
+						`Up to ${CHART_LIMITS.charts} charts can be saved. Remove an unused chart first.`,
+					);
 				await fs.mkdir(path.join(this.dir, "sources"), { recursive: true });
 				for (const [id, dataURL] of Object.entries(images)) {
 					if (dataURL === null) await fs.rm(this.sourcePath(id), { force: true });
@@ -128,7 +144,9 @@ export class ChartStore {
 					}
 				}
 				const tmp = path.join(this.dir, `${randomUUID()}.tmp`);
-				await fs.writeFile(tmp, JSON.stringify({ version: 1, charts: next }), { mode: 0o600 });
+				await fs.writeFile(tmp, JSON.stringify({ version: 1, charts: next }), {
+					mode: 0o600,
+				});
 				await fs.rename(tmp, path.join(this.dir, "charts.json"));
 				this.charts = next;
 			});
@@ -143,19 +161,29 @@ export class ChartStore {
 		const request = createSchema.parse(input);
 		// Agent data is kept as the original for comparison. Every new chart starts as a
 		// private draft; the presenter confirms it in review.
-		const doc = newChartDocument(randomUUID(), request.data, actor === "codex" ? "mcp" : "manual", this.now());
+		const doc = newChartDocument(
+			randomUUID(),
+			request.data,
+			actor === "codex" ? "mcp" : "manual",
+			this.now(),
+		);
 		doc.status = "draft";
 		if (request.name) doc.name = request.name;
 		Object.assign(doc.source, request.source ?? {}, { hasImage: !!request.sourceImage });
 		chartDocumentSchema.parse(doc);
-		await this.commit([...this.charts, doc], request.sourceImage ? { [doc.id]: request.sourceImage } : {});
+		await this.commit(
+			[...this.charts, doc],
+			request.sourceImage ? { [doc.id]: request.sourceImage } : {},
+		);
 		return doc;
 	}
 	async update(input: unknown, actor: string) {
 		const request = patchSchema.parse(input);
 		const old = this.get(request.id);
 		if (request.baseRevision !== old.revision)
-			throw Error("This chart changed on another device. Reopen it to see the latest version before saving.");
+			throw Error(
+				"This chart changed on another device. Reopen it to see the latest version before saving.",
+			);
 		const next: ChartDocument = structuredClone(old);
 		if (request.name) next.name = request.name;
 		if (request.data) next.data = request.data;
@@ -181,14 +209,21 @@ export class ChartStore {
 		const p = this.playback[next.id];
 		if (p) {
 			const steps = revealSteps(next.data, next.reveal.order);
-			if (p.position > steps || p.target > steps) this.command({ id: next.id, command: { action: "seek", position: Math.min(p.target, steps) } });
+			if (p.position > steps || p.target > steps)
+				this.command({
+					id: next.id,
+					command: { action: "seek", position: Math.min(p.target, steps) },
+				});
 		}
 		return next;
 	}
 	async remove(id: string) {
 		this.get(id);
 		delete this.playback[id];
-		await this.commit(this.charts.filter((c) => c.id !== id), { [id]: null });
+		await this.commit(
+			this.charts.filter((c) => c.id !== id),
+			{ [id]: null },
+		);
 		return true;
 	}
 	command(input: unknown) {
@@ -197,7 +232,14 @@ export class ChartStore {
 		const now = this.now();
 		const steps = revealSteps(chart.data, chart.reveal.order);
 		const old = this.playback[chart.id] ?? initialPlayback(chart.id, now);
-		const next = applyPlayback(old, request.command as PlaybackCommand, steps, chart.reveal.msPerStep, now, chart.reveal.animate);
+		const next = applyPlayback(
+			old,
+			request.command as PlaybackCommand,
+			steps,
+			chart.reveal.msPerStep,
+			now,
+			chart.reveal.animate,
+		);
 		this.playback[chart.id] = next;
 		this.events.playback({ ...next, serverNow: now });
 		return next;
@@ -206,18 +248,21 @@ export class ChartStore {
 	pauseAll() {
 		for (const id of Object.keys(this.playback)) {
 			const p = this.playback[id];
-			if (p.position !== p.target && this.charts.some((c) => c.id === id)) this.command({ id, command: { action: "pause" } });
+			if (p.position !== p.target && this.charts.some((c) => c.id === id))
+				this.command({ id, command: { action: "pause" } });
 		}
 	}
 	/** Reveal is explicit: an AI draft must be confirmed before it can be shown. */
 	assertShowable(id: string) {
 		const chart = this.get(id);
-		if (chart.status !== "reviewed") throw Error(`Review and confirm “${chart.name}” before showing it on screen.`);
+		if (chart.status !== "reviewed")
+			throw Error(`Review and confirm “${chart.name}” before showing it on screen.`);
 		const errors = blockingIssues(chart.data);
 		if (errors.length) throw Error(`“${chart.name}” cannot be shown yet: ${errors[0].message}`);
 	}
 	analyze(input: unknown) {
-		if (this.job.phase === "analyzing") throw Error("Finish or cancel the current chart analysis first.");
+		if (this.job.phase === "analyzing")
+			throw Error("Finish or cancel the current chart analysis first.");
 		const request = analyzeSchema.parse(input);
 		const token = ++this.generation;
 		const controller = new AbortController();
@@ -228,20 +273,43 @@ export class ChartStore {
 		const done = (async () => {
 			try {
 				const client = await this.openai();
-				const draft = await extractChart(client, { dataURL: request.dataURL, context: request.context }, controller.signal);
+				const draft = await extractChart(
+					client,
+					{ dataURL: request.dataURL, context: request.context },
+					controller.signal,
+				);
 				if (token !== this.generation) return;
 				const doc = newChartDocument(randomUUID(), draft.data, "ai", this.now());
 				doc.name = (draft.data.title || "Chart from screenshot").slice(0, 80);
 				// Presenter-entered source details win, but blank fields never erase what the AI read.
-				const typed = Object.fromEntries(Object.entries(request.source).filter(([, v]) => typeof v === "string" && v.trim()));
-				Object.assign(doc.source, draft.source, typed, { model: CHART_MODEL, hasImage: true, warnings: draft.warnings });
+				const typed = Object.fromEntries(
+					Object.entries(request.source).filter(
+						([, v]) => typeof v === "string" && v.trim(),
+					),
+				);
+				Object.assign(doc.source, draft.source, typed, {
+					model: CHART_MODEL,
+					hasImage: true,
+					warnings: draft.warnings,
+				});
 				chartDocumentSchema.parse(doc);
 				await this.commit([...this.charts, doc], { [doc.id]: request.dataURL });
 				if (token !== this.generation) return;
-				this.job = { phase: "ready", jobId: request.jobId, started: this.job.started, error: "", chartId: doc.id };
+				this.job = {
+					phase: "ready",
+					jobId: request.jobId,
+					started: this.job.started,
+					error: "",
+					chartId: doc.id,
+				};
 			} catch (e) {
 				if (token !== this.generation) return;
-				this.job = { phase: "error", jobId: request.jobId, started: this.job.started, error: extractionError(e, controller.signal.aborted) };
+				this.job = {
+					phase: "error",
+					jobId: request.jobId,
+					started: this.job.started,
+					error: extractionError(e, controller.signal.aborted),
+				};
 			} finally {
 				clearTimeout(timeout);
 				if (token === this.generation) this.emit();
@@ -270,7 +338,9 @@ export class ChartStore {
 	async replace(bundle: ChartBundle) {
 		const valid = chartBundleSchema.parse(bundle);
 		const previous = await this.exportBundle();
-		const images: Record<string, string | null> = Object.fromEntries(previous.charts.map((c) => [c.id, null]));
+		const images: Record<string, string | null> = Object.fromEntries(
+			previous.charts.map((c) => [c.id, null]),
+		);
 		for (const c of valid.charts) {
 			c.source.hasImage = !!valid.sources[c.id];
 			if (valid.sources[c.id]) images[c.id] = valid.sources[c.id];

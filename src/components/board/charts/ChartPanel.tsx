@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { ChartLineUpIcon, XIcon, MonitorIcon, ImageIcon, UploadSimpleIcon, PencilSimpleIcon, PlayIcon, TrashIcon } from "@phosphor-icons/react";
+import {
+	ChartLineUpIcon,
+	XIcon,
+	MonitorIcon,
+	ImageIcon,
+	UploadSimpleIcon,
+	PencilSimpleIcon,
+	PlayIcon,
+	TrashIcon,
+} from "@phosphor-icons/react";
 import type { BoardAPI, BoardState } from "../../../types/board";
 import type { ChartDocument, ChartKind } from "../../../types/charts";
 import { emptyChartData, isEditedFromSource } from "./chartModel";
@@ -61,11 +70,19 @@ export function ChartPanel({
 	onPresent: (chart: ChartDocument) => void;
 	onClose: () => void;
 }) {
-	const [view, setView] = useState<"list" | "import" | "crop" | "edit">(initialImport ? "crop" : initialEditId ? "edit" : "list");
+	const [view, setView] = useState<"list" | "import" | "crop" | "edit">(
+		initialImport ? "crop" : initialEditId ? "edit" : "list",
+	);
 	const [editId, setEditId] = useState(initialEditId);
 	const [image, setImage] = useState<ChartImport | undefined>(initialImport);
 	const [crop, setCrop] = useState<Crop | null>(null);
-	const [meta, setMeta] = useState({ url: "", publisher: "", published: "", dateRange: "", context: "" });
+	const [meta, setMeta] = useState({
+		url: "",
+		publisher: "",
+		published: "",
+		dateRange: "",
+		context: "",
+	});
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [jobId, setJobId] = useState("");
@@ -75,7 +92,12 @@ export function ChartPanel({
 		if (initialImport) {
 			setImage(initialImport);
 			setView("crop");
-			setMeta((m) => ({ ...m, url: initialImport.source?.url ?? "", publisher: initialImport.source?.publisher ?? "", context: initialImport.title ?? "" }));
+			setMeta((m) => ({
+				...m,
+				url: initialImport.source?.url ?? "",
+				publisher: initialImport.source?.publisher ?? "",
+				context: initialImport.title ?? "",
+			}));
 		}
 	}, [initialImport]);
 	useEffect(() => {
@@ -114,9 +136,19 @@ export function ChartPanel({
 		}
 	};
 	const editing = charts.charts.find((c) => c.id === editId);
-	const source = () => ({ url: meta.url.trim(), publisher: meta.publisher.trim(), published: meta.published.trim(), dateRange: meta.dateRange.trim() });
+	const source = () => ({
+		url: meta.url.trim(),
+		publisher: meta.publisher.trim(),
+		published: meta.published.trim(),
+		dateRange: meta.dateRange.trim(),
+	});
 	return (
-		<aside className={`board-tray chart-panel ${view === "edit" || view === "crop" ? "is-wide" : ""}`} role="dialog" aria-label="AI Chart" onKeyDown={(e) => e.stopPropagation()}>
+		<aside
+			className={`board-tray chart-panel ${view === "edit" || view === "crop" ? "is-wide" : ""}`}
+			role="dialog"
+			aria-label="AI Chart"
+			onKeyDown={(e) => e.stopPropagation()}
+		>
 			<header>
 				<strong>
 					<ChartLineUpIcon size={17} /> AI Chart
@@ -153,20 +185,40 @@ export function ChartPanel({
 										{` · ${c.data.kind}`}
 									</small>
 									<span className="chart-card-actions">
-										<button title="Tap the canvas to place. Charts start as a shadow (iPad only)." onClick={() => onPlace(c)}>
+										<button
+											title="Tap the canvas to place. Charts start as a shadow (iPad only)."
+											onClick={() => onPlace(c)}
+										>
 											Place
 										</button>
-										<button aria-label={`Present ${c.name}`} onClick={() => onPresent(c)}>
+										<button
+											aria-label={`Present ${c.name}`}
+											onClick={() => onPresent(c)}
+										>
 											<PlayIcon size={14} /> Present
 										</button>
-										<button aria-label={`Edit ${c.name}`} onClick={() => { setEditId(c.id); setView("edit"); }}>
+										<button
+											aria-label={`Edit ${c.name}`}
+											onClick={() => {
+												setEditId(c.id);
+												setView("edit");
+											}}
+										>
 											<PencilSimpleIcon size={14} /> Edit
 										</button>
 										<button
 											aria-label={`Delete ${c.name}`}
 											onClick={() =>
-												confirm(`Delete “${c.name}”? Placed copies will show as unavailable.`) &&
-												void run(async () => void (await transport.request("chartRemove", c.id)))
+												confirm(
+													`Delete “${c.name}”? Placed copies will show as unavailable.`,
+												) &&
+												void run(
+													async () =>
+														void (await transport.request(
+															"chartRemove",
+															c.id,
+														)),
+												)
 											}
 										>
 											<TrashIcon size={14} />
@@ -176,12 +228,20 @@ export function ChartPanel({
 							</article>
 						))}
 					</div>
-					{!charts.charts.length && <p>No charts yet. Capture a chart from a webpage, pick a standby image, upload a screenshot, or type the numbers.</p>}
+					{!charts.charts.length && (
+						<p>
+							No charts yet. Capture a chart from a webpage, pick a standby image,
+							upload a screenshot, or type the numbers.
+						</p>
+					)}
 				</>
 			)}
 			{view === "import" && (
 				<div className="chart-import">
-					<p>Choose the chart or statistic. You will crop it next. Nothing is uploaded until you tap Analyze.</p>
+					<p>
+						Choose the chart or statistic. You will crop it next. Nothing is uploaded
+						until you tap Analyze.
+					</p>
 					<button
 						disabled={busy}
 						onClick={() =>
@@ -205,8 +265,14 @@ export function ChartPanel({
 								e.target.value = "";
 								if (!file) return;
 								void run(async () => {
-									if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) throw Error("Choose a PNG, JPEG or WebP screenshot.");
-									if (file.size > 12 * 1024 * 1024) throw Error("Choose an image under 12 MB.");
+									if (
+										!["image/png", "image/jpeg", "image/webp"].includes(
+											file.type,
+										)
+									)
+										throw Error("Choose a PNG, JPEG or WebP screenshot.");
+									if (file.size > 12 * 1024 * 1024)
+										throw Error("Choose an image under 12 MB.");
 									setImage({ dataURL: await readFile(file), name: file.name });
 									setCrop(null);
 									setView("crop");
@@ -237,7 +303,11 @@ export function ChartPanel({
 						</details>
 					)}
 					<div className="chart-manual">
-						<select aria-label="Chart type for manual entry" value={manualKind} onChange={(e) => setManualKind(e.target.value as ChartKind)}>
+						<select
+							aria-label="Chart type for manual entry"
+							value={manualKind}
+							onChange={(e) => setManualKind(e.target.value as ChartKind)}
+						>
 							<option value="line">Line</option>
 							<option value="bar">Bar</option>
 							<option value="pie">Pie / donut</option>
@@ -247,7 +317,13 @@ export function ChartPanel({
 							disabled={busy}
 							onClick={() =>
 								void run(async () => {
-									const doc = await transport.request<ChartDocument>("chartCreate", { data: { ...emptyChartData(manualKind), title: "" }, name: "New chart" });
+									const doc = await transport.request<ChartDocument>(
+										"chartCreate",
+										{
+											data: { ...emptyChartData(manualKind), title: "" },
+											name: "New chart",
+										},
+									);
 									setEditId(doc.id);
 									setView("edit");
 								})
@@ -260,52 +336,100 @@ export function ChartPanel({
 			)}
 			{view === "crop" && image && (
 				<div className="chart-crop">
-					<p>Drag across the chart to crop it. Include its title, axes, legend and source line, but only one chart.</p>
+					<p>
+						Drag across the chart to crop it. Include its title, axes, legend and source
+						line, but only one chart.
+					</p>
 					<CropBox dataURL={image.dataURL} crop={crop} onCrop={setCrop} />
 					<div className="chart-fields">
 						<label>
 							Source link (optional)
-							<input value={meta.url} inputMode="url" placeholder="https://…" onChange={(e) => setMeta({ ...meta, url: e.target.value })} />
+							<input
+								value={meta.url}
+								inputMode="url"
+								placeholder="https://…"
+								onChange={(e) => setMeta({ ...meta, url: e.target.value })}
+							/>
 						</label>
 						<div className="chart-inline">
 							<label>
 								Publisher
-								<input value={meta.publisher} maxLength={120} onChange={(e) => setMeta({ ...meta, publisher: e.target.value })} />
+								<input
+									value={meta.publisher}
+									maxLength={120}
+									onChange={(e) =>
+										setMeta({ ...meta, publisher: e.target.value })
+									}
+								/>
 							</label>
 							<label>
 								Published
-								<input value={meta.published} maxLength={60} onChange={(e) => setMeta({ ...meta, published: e.target.value })} />
+								<input
+									value={meta.published}
+									maxLength={60}
+									onChange={(e) =>
+										setMeta({ ...meta, published: e.target.value })
+									}
+								/>
 							</label>
 							<label>
 								Date range
-								<input value={meta.dateRange} maxLength={120} onChange={(e) => setMeta({ ...meta, dateRange: e.target.value })} />
+								<input
+									value={meta.dateRange}
+									maxLength={120}
+									onChange={(e) =>
+										setMeta({ ...meta, dateRange: e.target.value })
+									}
+								/>
 							</label>
 						</div>
 						<label>
 							What does it show? (optional hint for the AI)
-							<input value={meta.context} maxLength={600} placeholder="e.g. US unemployment rate, percent" onChange={(e) => setMeta({ ...meta, context: e.target.value })} />
+							<input
+								value={meta.context}
+								maxLength={600}
+								placeholder="e.g. US unemployment rate, percent"
+								onChange={(e) => setMeta({ ...meta, context: e.target.value })}
+							/>
 						</label>
 					</div>
 					{analyzing ? (
 						<div className="chart-analyzing" role="status">
 							Reading the chart… {Math.round((Date.now() - job.started) / 1000)}s
-							<button onClick={() => void transport.request("chartCancel").then(() => setJobId(""))}>Cancel</button>
+							<button
+								onClick={() =>
+									void transport.request("chartCancel").then(() => setJobId(""))
+								}
+							>
+								Cancel
+							</button>
 						</div>
 					) : (
 						<div className="chart-crop-actions">
 							<button
 								className="primary"
 								disabled={busy || !charts.hasKey}
-								title={charts.hasKey ? "" : "Add an OpenAI API key on the Mac in Drawing → Setup → AI figures."}
+								title={
+									charts.hasKey
+										? ""
+										: "Add an OpenAI API key on the Mac in Drawing → Setup → AI figures."
+								}
 								onClick={() =>
 									void run(async () => {
 										const dataURL = await cropImage(image.dataURL, crop);
 										const id = `chart-${presenterId().slice(0, 8)}`;
 										setJobId(id);
-										await transport.request("chartAnalyze", { jobId: id, dataURL, context: meta.context, source: source() }).catch((e) => {
-											setJobId("");
-											throw e;
-										});
+										await transport
+											.request("chartAnalyze", {
+												jobId: id,
+												dataURL,
+												context: meta.context,
+												source: source(),
+											})
+											.catch((e) => {
+												setJobId("");
+												throw e;
+											});
 									})
 								}
 							>
@@ -316,12 +440,22 @@ export function ChartPanel({
 								onClick={() =>
 									void run(async () => {
 										const sourceImage = await cropImage(image.dataURL, crop);
-										const doc = await transport.request<ChartDocument>("chartCreate", {
-											data: { ...emptyChartData(manualKind), title: image.title ?? "" },
-											name: (image.title || image.name || "New chart").slice(0, 80),
-											source: source(),
-											sourceImage,
-										});
+										const doc = await transport.request<ChartDocument>(
+											"chartCreate",
+											{
+												data: {
+													...emptyChartData(manualKind),
+													title: image.title ?? "",
+												},
+												name: (
+													image.title ||
+													image.name ||
+													"New chart"
+												).slice(0, 80),
+												source: source(),
+												sourceImage,
+											},
+										);
 										setEditId(doc.id);
 										setView("edit");
 									})
@@ -339,7 +473,13 @@ export function ChartPanel({
 				</div>
 			)}
 			{view === "edit" && editing && (
-				<ChartEditor key={editing.id} transport={transport} chart={editing} onClose={() => setView("list")} onPlace={onPlace} />
+				<ChartEditor
+					key={editing.id}
+					transport={transport}
+					chart={editing}
+					onClose={() => setView("list")}
+					onPlace={onPlace}
+				/>
 			)}
 			{view === "edit" && !editing && charts.loaded && <p>This chart was removed.</p>}
 			{error && (
@@ -351,7 +491,15 @@ export function ChartPanel({
 	);
 }
 
-function CropBox({ dataURL, crop, onCrop }: { dataURL: string; crop: Crop | null; onCrop: (c: Crop | null) => void }) {
+function CropBox({
+	dataURL,
+	crop,
+	onCrop,
+}: {
+	dataURL: string;
+	crop: Crop | null;
+	onCrop: (c: Crop | null) => void;
+}) {
 	const img = useRef<HTMLImageElement>(null);
 	const start = useRef<{ x: number; y: number; id: number } | null>(null);
 	const [live, setLive] = useState<Crop | null>(null);
@@ -359,41 +507,60 @@ function CropBox({ dataURL, crop, onCrop }: { dataURL: string; crop: Crop | null
 		const r = img.current!.getBoundingClientRect();
 		const sx = img.current!.naturalWidth / r.width,
 			sy = img.current!.naturalHeight / r.height;
-		return { x: Math.max(0, Math.min(img.current!.naturalWidth, (clientX - r.left) * sx)), y: Math.max(0, Math.min(img.current!.naturalHeight, (clientY - r.top) * sy)) };
+		return {
+			x: Math.max(0, Math.min(img.current!.naturalWidth, (clientX - r.left) * sx)),
+			y: Math.max(0, Math.min(img.current!.naturalHeight, (clientY - r.top) * sy)),
+		};
 	};
 	const shown = live ?? crop;
 	const pct = (c: Crop) => {
 		const W = img.current?.naturalWidth || 1,
 			H = img.current?.naturalHeight || 1;
-		return { left: `${(c.x / W) * 100}%`, top: `${(c.y / H) * 100}%`, width: `${(c.w / W) * 100}%`, height: `${(c.h / H) * 100}%` };
+		return {
+			left: `${(c.x / W) * 100}%`,
+			top: `${(c.y / H) * 100}%`,
+			width: `${(c.w / W) * 100}%`,
+			height: `${(c.h / H) * 100}%`,
+		};
 	};
 	return (
 		<div className="chart-cropbox">
 			<div className="chart-cropbox-stage">
-			{/* The wrapper is exactly the image's size, so pointer coordinates map 1:1 (no letterboxing). */}
-			<div
-				className="chart-cropbox-image"
-				onPointerDown={(e) => {
-					e.preventDefault();
-					e.currentTarget.setPointerCapture(e.pointerId);
-					const p = toImage(e.clientX, e.clientY);
-					start.current = { ...p, id: e.pointerId };
-					setLive({ ...p, w: 0, h: 0 });
-				}}
-				onPointerMove={(e) => {
-					if (!start.current || start.current.id !== e.pointerId) return;
-					const p = toImage(e.clientX, e.clientY);
-					setLive({ x: Math.min(p.x, start.current.x), y: Math.min(p.y, start.current.y), w: Math.abs(p.x - start.current.x), h: Math.abs(p.y - start.current.y) });
-				}}
-				onPointerUp={() => {
-					start.current = null;
-					if (live && live.w > 12 && live.h > 12) onCrop({ x: Math.round(live.x), y: Math.round(live.y), w: Math.round(live.w), h: Math.round(live.h) });
-					setLive(null);
-				}}
-			>
-				<img ref={img} src={dataURL} alt="Screenshot to crop" draggable={false} />
-				{shown && <span className="chart-crop-rect" style={pct(shown)} />}
-			</div>
+				{/* The wrapper is exactly the image's size, so pointer coordinates map 1:1 (no letterboxing). */}
+				<div
+					className="chart-cropbox-image"
+					onPointerDown={(e) => {
+						e.preventDefault();
+						e.currentTarget.setPointerCapture(e.pointerId);
+						const p = toImage(e.clientX, e.clientY);
+						start.current = { ...p, id: e.pointerId };
+						setLive({ ...p, w: 0, h: 0 });
+					}}
+					onPointerMove={(e) => {
+						if (!start.current || start.current.id !== e.pointerId) return;
+						const p = toImage(e.clientX, e.clientY);
+						setLive({
+							x: Math.min(p.x, start.current.x),
+							y: Math.min(p.y, start.current.y),
+							w: Math.abs(p.x - start.current.x),
+							h: Math.abs(p.y - start.current.y),
+						});
+					}}
+					onPointerUp={() => {
+						start.current = null;
+						if (live && live.w > 12 && live.h > 12)
+							onCrop({
+								x: Math.round(live.x),
+								y: Math.round(live.y),
+								w: Math.round(live.w),
+								h: Math.round(live.h),
+							});
+						setLive(null);
+					}}
+				>
+					<img ref={img} src={dataURL} alt="Screenshot to crop" draggable={false} />
+					{shown && <span className="chart-crop-rect" style={pct(shown)} />}
+				</div>
 			</div>
 			<small>
 				{crop ? `Cropped to ${crop.w} × ${crop.h} px.` : "Whole image selected."}{" "}

@@ -18,11 +18,25 @@ import {
 	snapValue,
 	undo,
 } from "./chartModel";
-import { acceptPlayback, applyPlayback, initialPlayback, isPlaying, revealAt, renderedReveal } from "./chartPlayback";
+import {
+	acceptPlayback,
+	applyPlayback,
+	initialPlayback,
+	isPlaying,
+	revealAt,
+	renderedReveal,
+} from "./chartPlayback";
 import { chartLayout, renderChartSvg } from "./chartRender";
 
-const v = (value: number | null, confidence: "printed" | "estimated" | "unreadable" | "manual" = "printed") => ({ value, confidence });
-function data(kind: ChartData["kind"], values: Array<number | null>, extra: Partial<ChartData> = {}): ChartData {
+const v = (
+	value: number | null,
+	confidence: "printed" | "estimated" | "unreadable" | "manual" = "printed",
+) => ({ value, confidence });
+function data(
+	kind: ChartData["kind"],
+	values: Array<number | null>,
+	extra: Partial<ChartData> = {},
+): ChartData {
 	const base = emptyChartData(kind);
 	const categories = values.map((_, i) => `C${i + 1}`);
 	return {
@@ -33,7 +47,10 @@ function data(kind: ChartData["kind"], values: Array<number | null>, extra: Part
 		...extra,
 	};
 }
-const doc = (d: ChartData): ChartDocument => ({ ...newChartDocument("00000000-0000-4000-8000-000000000001", d, "ai", 0), status: "reviewed" });
+const doc = (d: ChartData): ChartDocument => ({
+	...newChartDocument("00000000-0000-4000-8000-000000000001", d, "ai", 0),
+	status: "reviewed",
+});
 const svg = (d: ChartData, reveal = Number.POSITIVE_INFINITY, w = 640, h = 400) =>
 	renderChartSvg(doc(d), { width: w, height: h, reveal, idPrefix: "t" });
 
@@ -41,16 +58,23 @@ describe("statistical validation", () => {
 	test("missing values stay null and are never treated as zero", () => {
 		const d = data("bar", [5, null, 7]);
 		expect(blockingIssues(d)).toEqual([]);
-		expect(chartIssues(d).map((i) => i.message)).toContain("Missing values are shown as gaps, not zero.");
+		expect(chartIssues(d).map((i) => i.message)).toContain(
+			"Missing values are shown as gaps, not zero.",
+		);
 		const out = svg(d);
 		expect(out).toContain("n/a");
 		// Two bars (and no zero-height bar for the gap).
-		expect(out.match(/<rect x="[^"]+" y="[^"]+" width="[^"]+" height="[^"]+" fill="#0072B2"/g)?.length).toBe(2);
+		expect(
+			out.match(/<rect x="[^"]+" y="[^"]+" width="[^"]+" height="[^"]+" fill="#0072B2"/g)
+				?.length,
+		).toBe(2);
 		expect(formatValue(v(null), d)).toBe("n/a");
 	});
 	test("pie totals must be explicit and consistent", () => {
 		expect(blockingIssues(data("pie", [40, null])).length).toBeGreaterThan(0);
-		expect(blockingIssues(data("pie", [40, -2])).some((i) => /negative/.test(i.message))).toBe(true);
+		expect(blockingIssues(data("pie", [40, -2])).some((i) => /negative/.test(i.message))).toBe(
+			true,
+		);
 		const over = data("pie", [60, 50], { pieTotal: { mode: "fixed", value: 100 } });
 		expect(blockingIssues(over)[0].message).toMatch(/more than the stated whole/);
 		const missingTotal = data("pie", [60, 30], { pieTotal: { mode: "fixed", value: null } });
@@ -65,14 +89,26 @@ describe("statistical validation", () => {
 		expect(blockingIssues(multi)[0].message).toMatch(/one series/);
 	});
 	test("log scale and truncated bar axes are disclosed, invalid ranges blocked", () => {
-		expect(blockingIssues(data("line", [0, 10], { yAxis: { label: "", scale: "log", min: null, max: null, sourceScaleNote: "" } }))[0].message).toMatch(/log scale/i);
-		const log = data("line", [1, 10, 1000], { yAxis: { label: "", scale: "log", min: null, max: null, sourceScaleNote: "" } });
+		expect(
+			blockingIssues(
+				data("line", [0, 10], {
+					yAxis: { label: "", scale: "log", min: null, max: null, sourceScaleNote: "" },
+				}),
+			)[0].message,
+		).toMatch(/log scale/i);
+		const log = data("line", [1, 10, 1000], {
+			yAxis: { label: "", scale: "log", min: null, max: null, sourceScaleNote: "" },
+		});
 		expect(blockingIssues(log)).toEqual([]);
 		expect(svg(log)).toContain("Log scale");
-		const truncated = data("bar", [50, 60], { yAxis: { label: "", scale: "linear", min: 40, max: null, sourceScaleNote: "" } });
+		const truncated = data("bar", [50, 60], {
+			yAxis: { label: "", scale: "linear", min: 40, max: null, sourceScaleNote: "" },
+		});
 		expect(blockingIssues(truncated)).toEqual([]);
 		expect(svg(truncated)).toContain("Axis starts at 40");
-		const hidden = data("bar", [10, 60], { yAxis: { label: "", scale: "linear", min: 40, max: null, sourceScaleNote: "" } });
+		const hidden = data("bar", [10, 60], {
+			yAxis: { label: "", scale: "linear", min: 40, max: null, sourceScaleNote: "" },
+		});
 		expect(blockingIssues(hidden)[0].message).toMatch(/outside the axis range/);
 	});
 	test("bars default to a zero baseline and handle negative values", () => {
@@ -97,14 +133,20 @@ describe("statistical validation", () => {
 		expect(parseDateLabel("2024-02-30")).toBeNull();
 		const d = data("line", [1, 2, 3], { xType: "date", categories: ["2000", "2001", "2010"] });
 		const L = chartLayout(doc(d), 800, 400);
-		const gap1 = L.categoryPx(1) - L.categoryPx(0), gap2 = L.categoryPx(2) - L.categoryPx(1);
+		const gap1 = L.categoryPx(1) - L.categoryPx(0),
+			gap2 = L.categoryPx(2) - L.categoryPx(1);
 		expect(gap2 / gap1).toBeCloseTo(9, 0);
-		expect(blockingIssues({ ...d, categories: ["2000", "soon", "2010"] })[0].message).toMatch(/Date labels/);
+		expect(blockingIssues({ ...d, categories: ["2000", "soon", "2010"] })[0].message).toMatch(
+			/Date labels/,
+		);
 	});
 	test("untrusted labels are escaped and long labels truncated", () => {
 		const d = data("bar", [1, 2]);
 		d.title = `<script>alert(1)</script>"onload="x`;
-		d.categories = ["A very long category label that will not fit under a narrow bar at all", "B"];
+		d.categories = [
+			"A very long category label that will not fit under a narrow bar at all",
+			"B",
+		];
 		const out = svg(d, Number.POSITIVE_INFINITY, 320, 220);
 		expect(out).not.toContain("<script>");
 		expect(out).toContain("&lt;script&gt;");
@@ -148,7 +190,12 @@ describe("editing", () => {
 		h = redo(h);
 		expect(h.present.series[0].values[0].value).toBe(5);
 		expect(svg(h.present)).not.toContain("Edited from source");
-		expect(renderChartSvg({ ...original, data: h.present }, { width: 600, height: 400, reveal: 99, idPrefix: "x" })).toContain("Edited from source");
+		expect(
+			renderChartSvg(
+				{ ...original, data: h.present },
+				{ width: 600, height: 400, reveal: 99, idPrefix: "x" },
+			),
+		).toContain("Edited from source");
 	});
 });
 
@@ -164,7 +211,9 @@ describe("reveal", () => {
 		expect(one.match(/fill="#0072B2"/g)?.length).toBe(1);
 		expect(svg(d, 1)).toBe(one);
 		// Axis range is stable while revealing.
-		expect(empty.match(/<line[^>]+stroke="#e2e6eb"/g)).toEqual(svg(d, 3).match(/<line[^>]+stroke="#e2e6eb"/g));
+		expect(empty.match(/<line[^>]+stroke="#e2e6eb"/g)).toEqual(
+			svg(d, 3).match(/<line[^>]+stroke="#e2e6eb"/g),
+		);
 	});
 	test("play, pause, resume and backwards scrubbing use one logical clock", () => {
 		const steps = 5;
