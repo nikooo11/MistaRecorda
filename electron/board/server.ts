@@ -200,6 +200,15 @@ export class CompanionServer {
 						if (
 							![
 								"tabletInfo",
+								"presenterInfo",
+								"saveTalkingNotes",
+								"savePresenterLink",
+								"removePresenterLink",
+								"saveObjectPreference",
+								"openPresenterLink",
+								"importPresenterImage",
+								"updatePresenterSound",
+
 								"aiInfo",
 								"aiSearch",
 								"aiGenerate",

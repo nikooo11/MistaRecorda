@@ -1,3 +1,4 @@
+import { presenterId } from "./presenterModel";
 import { useEffect, useState } from "react";
 import type { BoardAPI, BoardState } from "../../types/board";
 import type { MemeAsset, MemeTransition, PlacedMeme } from "../../types/memes";
@@ -9,13 +10,17 @@ export function MemeLibrary({
 	state,
 	onChoose,
 	onClose,
+	initialEditId,
 }: {
 	transport: BoardAPI;
 	state: BoardState;
 	onChoose: (asset: MemeAsset) => void;
 	onClose: () => void;
+	initialEditId?: string;
 }) {
-	const [edit, setEdit] = useState<MemeAsset>();
+	const [edit, setEdit] = useState<MemeAsset | undefined>(() =>
+		state.memes?.find((m) => m.id === initialEditId),
+	);
 	const [sounds, setSounds] = useState<SoundEffect[]>([]);
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -72,7 +77,7 @@ export function MemeLibrary({
 							image.src = dataURL;
 							await image.decode();
 							await save({
-								id: crypto.randomUUID(),
+								id: presenterId(),
 								name: file.name.replace(/\.[^.]+$/, "").slice(0, 80),
 								dataURL,
 								width: image.naturalWidth,

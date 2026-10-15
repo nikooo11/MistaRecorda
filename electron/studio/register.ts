@@ -216,6 +216,25 @@ export function boardSoundList() {
 			.map(({ file: _file, ...sound }) => sound),
 	};
 }
+/** The paired tablet can edit presentation metadata, never file paths or hotkeys. */
+export async function updateBoardSound(input: unknown) {
+	const patch = z
+		.object({
+			id: z.string().uuid(),
+			name: z.string().trim().min(1).max(80),
+			volume: z.number().min(0).max(2),
+			favorite: z.boolean(),
+			color: z.string().regex(/^#[0-9a-f]{6}$/i),
+		})
+		.parse(input);
+	if (!settings.sounds.some((s) => s.id === patch.id)) throw Error("Sound not found.");
+	settings = studioSettingsSchema.parse({
+		...settings,
+		sounds: settings.sounds.map((s) => (s.id === patch.id ? { ...s, ...patch } : s)),
+	});
+	await save();
+	return boardSoundList();
+}
 export async function boardSoundPreview(id: string) {
 	if (isCursorCaptureActive)
 		throw Error("Preview is available before recording. Use Add to take while recording.");

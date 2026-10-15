@@ -1,9 +1,6 @@
-import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { promisify } from "node:util";
 import {
 	app,
 	BrowserWindow,
@@ -25,7 +22,7 @@ import { shouldHidePanel, showCapturePanel } from "../panelToggle";
 import { getPackagedRendererBaseUrl } from "../rendererServer";
 import { requireScreenRecordingAccess } from "../screenCaptureAccess";
 import { recorderCommand } from "../studio/nativeCommand";
-import { boardSoundList, boardSoundPreview, fireSound } from "../studio/register";
+import { boardSoundList, boardSoundPreview, fireSound, updateBoardSound } from "../studio/register";
 import { stopStream, streamInfo } from "../studio/streamAudio";
 import { recordingVoiceList, selectRecordingVoice } from "../studio/voiceCues";
 import { captureWindowId, ensureDrawingSurfaceReady } from "./captureReady";
@@ -33,6 +30,8 @@ import { EdgeBoardTrigger } from "./edgeTrigger";
 import { gifSize } from "./gifSize";
 import { DrawingMcpServer } from "./mcp";
 import { clearMemes, memeSchema, placeMeme, validateMemes } from "./memes";
+import { PresenterStore } from "./presenter";
+import { openChrome } from "./openChrome";
 import { CompanionPreview } from "./preview";
 import { CompanionServer } from "./server";
 import { BoardStore, makeElement, validateScene } from "./store";
@@ -43,6 +42,7 @@ export const BOARD_CONTROL_TITLES = [
 	"MistaRecorda Board Stream",
 ];
 let store: BoardStore;
+let presenter: PresenterStore;
 let figures: FigureService;
 let preview: CompanionPreview;
 let escapeReady = false;
@@ -535,31 +535,52 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 					})
 					.parse(input),
 			);
-		case "aiOpen": {
-			const url = publicURL(figures.result(z.string().parse(input)).url).href;
-			if (process.platform === "darwin")
-				await promisify(execFile)("open", ["-a", "Google Chrome", url]);
-			else if (process.platform === "win32") {
-				const candidates = [
-					process.env.PROGRAMFILES,
-					process.env["PROGRAMFILES(X86)"],
-					process.env.LOCALAPPDATA,
-				]
-					.filter(Boolean)
-					.map((root) =>
-						path.join(root!, "Google", "Chrome", "Application", "chrome.exe"),
-					);
-				const executable = (
-					await Promise.all(
-						candidates.map(async (file) =>
-							(await fs.stat(file).catch(() => null))?.isFile() ? file : null,
-						),
-					)
-				).find(Boolean);
-				if (!executable) throw Error("Google Chrome is not installed.");
-				await promisify(execFile)(executable, [url]);
-			} else await promisify(execFile)("google-chrome", [url]);
+		case "aiOpen":
+			await openChrome(publicURL(figures.result(z.string().parse(input)).url).href);
 			return true;
+		case "presenterInfo":
+			return presenter.state;
+		case "saveTalkingNotes":
+		case "savePresenterLink":
+		case "removePresenterLink":
+		case "saveObjectPreference": {
+			const next = await presenter.update(method, input);
+			// Notes and object settings never enter the recorded scene or bump its revision.
+			companion.broadcast("presenterChanged", next);
+			return next;
+		}
+		case "openPresenterLink":
+			await openChrome(presenter.link(input));
+			if (store.state.enabled && store.state.mode === "board")
+				await action("mode", { mode: "screen" }, actor);
+			return true;
+		case "updatePresenterSound":
+			return updateBoardSound(input);
+		case "importPresenterImage": {
+			const data = z
+				.object({
+					name: z.string().trim().min(1).max(80),
+					dataURL: z
+						.string()
+						.max(16 * 1024 * 1024)
+						.regex(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/),
+				})
+				.parse(input);
+			const image = nativeImage.createFromDataURL(data.dataURL);
+			if (image.isEmpty()) throw Error("Choose a valid PNG, JPEG or WebP image.");
+			const id = randomUUID();
+			store.state.assets = store.mergeAssets({
+				[id]: {
+					id,
+					name: data.name,
+					dataURL: data.dataURL,
+					mimeType: data.dataURL.slice(5, data.dataURL.indexOf(";")),
+					created: Date.now(),
+				},
+			});
+			store.state.revision++;
+			publish(actor);
+			return store.state;
 		}
 		case "aiImport":
 		case "aiImportGenerated": {
@@ -988,6 +1009,8 @@ export function assertBoardCaptureSource(source: { sourceType?: string; display_
 }
 export async function registerBoard() {
 	store = new BoardStore(path.join(app.getPath("userData"), "drawing-board"));
+	presenter = new PresenterStore(store.root);
+	await presenter.load().catch((e) => console.error("[presenter] Could not load notes", e));
 	figures = new FigureService(
 		new FigureSettings(path.join(app.getPath("userData"), "figures"), safeStorage),
 		(state) => {

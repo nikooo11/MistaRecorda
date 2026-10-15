@@ -217,6 +217,11 @@ export function TabletApp() {
 						initial={state}
 						tablet
 						drawing={drawing}
+						onEnableDrawing={async () => {
+							const next = await transport.request<BoardState>("annotate");
+							setState(next);
+							setDrawing(true);
+						}}
 						streamed={streamed && !cleanPreview}
 						background={
 							<>

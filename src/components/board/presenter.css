@@ -1,0 +1,340 @@
+.board-tablet {
+	touch-action: auto;
+}
+.board-tablet .board-paper {
+	touch-action: none;
+}
+.presenter-ui {
+	position: absolute;
+	inset: 0;
+	z-index: 24;
+	pointer-events: none;
+	font:
+		14px / 1.45 system-ui,
+		sans-serif;
+}
+.presenter-ui button,
+.presenter-upload {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 8px 10px;
+	min-height: 38px;
+	border: 1px solid #48515b;
+	border-radius: 5px;
+	background: #30363d;
+	color: #f0f2f5;
+	font: inherit;
+	cursor: pointer;
+}
+.presenter-ui button:hover,
+.presenter-upload:hover {
+	background: #414a55;
+}
+.presenter-ui button:focus-visible,
+.presenter-ui input:focus-visible,
+.presenter-ui textarea:focus-visible {
+	outline: 2px solid #8ebdf2;
+	outline-offset: 2px;
+}
+.presenter-ui button:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+.presenter-ui button[aria-pressed="true"] {
+	background: #415670;
+	border-color: #8aabcf;
+}
+.presenter-ui .talking-toggle {
+	position: absolute;
+	top: 148px;
+	right: 12px;
+	pointer-events: auto;
+	box-shadow: 0 2px 8px #0002;
+	font-size: 12px;
+}
+.talking-panel {
+	position: absolute;
+	top: 62px;
+	bottom: 92px;
+	right: 12px;
+	width: min(354px, calc(100% - 24px));
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	border: 1px solid #525c68;
+	border-radius: 7px;
+	background: #242930;
+	color: #f0f2f5;
+	box-shadow: 0 8px 32px #0004;
+	pointer-events: auto;
+	touch-action: pan-y;
+}
+.talking-panel > header,
+.talking-panel > nav {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 9px 12px;
+	border-bottom: 1px solid #424a55;
+	flex-shrink: 0;
+}
+.talking-panel > header {
+	justify-content: space-between;
+}
+.talking-panel > header button {
+	padding: 5px;
+	min-height: 30px;
+}
+.talking-panel > nav button {
+	flex: 1;
+}
+.talking-panel > footer {
+	padding: 10px 12px;
+	font-size: 12px;
+	border-top: 1px solid #424a55;
+	overflow-wrap: anywhere;
+}
+.talking-content {
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding: 12px;
+	min-height: 0;
+}
+.presenter-ui .presenter-help {
+	color: #aeb7c2;
+	font-size: 12px;
+	line-height: 1.5;
+	margin: 0 0 12px;
+}
+.talking-mode,
+.talking-format,
+.presenter-create {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+	margin-bottom: 10px;
+}
+.talking-mode small {
+	color: #e5c48a;
+	font-size: 11px;
+}
+.presenter-ui input,
+.presenter-ui textarea,
+.presenter-ui select {
+	box-sizing: border-box;
+	background: #191e24;
+	color: #f0f2f5;
+	border: 1px solid #535f6d;
+	border-radius: 4px;
+	font: inherit;
+	min-width: 0;
+	padding: 8px;
+}
+.presenter-ui textarea {
+	resize: vertical;
+}
+.presenter-ui .talking-editor {
+	display: block;
+	width: 100%;
+	min-height: 220px;
+	font-size: 16px;
+	line-height: 1.65;
+}
+.talking-suggestions {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding-top: 8px;
+}
+.talking-suggestions button {
+	justify-content: flex-start;
+	text-align: left;
+}
+.talking-suggestions small {
+	margin-left: auto;
+	color: #abb7c5;
+	font-size: 11px;
+}
+.talking-reading {
+	font-size: 17px;
+	line-height: 1.85;
+	overflow-wrap: anywhere;
+}
+.talking-line {
+	min-height: 0.8em;
+	margin-bottom: 9px;
+	white-space: pre-wrap;
+}
+.talking-line.is-bullet {
+	position: relative;
+	padding-left: 17px;
+}
+.talking-line.is-bullet::before {
+	content: "•";
+	position: absolute;
+	left: 0;
+	color: #96acc4;
+}
+.presenter-ui .talking-reference {
+	display: inline-flex;
+	max-width: 100%;
+	font-size: 14px;
+	min-height: 36px;
+	vertical-align: baseline;
+	padding: 3px 7px;
+	background: #303b49;
+	border-color: #596d85;
+	text-align: left;
+	touch-action: none;
+	user-select: none;
+	-webkit-touch-callout: none;
+	white-space: normal;
+}
+.talking-reference svg {
+	flex-shrink: 0;
+}
+.presenter-ui .type-image {
+	border-color: #548783;
+}
+.presenter-ui .type-meme {
+	border-color: #8d76ae;
+}
+.presenter-ui .type-sound {
+	border-color: #b68c52;
+}
+.presenter-ui .type-link {
+	border-color: #6494bc;
+}
+.presenter-ui .note-link {
+	display: inline;
+	background: transparent;
+	border: 0;
+	color: #a9d3ff;
+	text-decoration: underline;
+	padding: 0;
+	font: inherit;
+}
+.missing-reference {
+	color: #dab7a0;
+	font-size: 13px;
+}
+.talking-link-form,
+.presenter-settings {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin-bottom: 10px;
+}
+.presenter-settings label {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.presenter-settings footer {
+	display: flex;
+	gap: 8px;
+}
+.presenter-settings .presenter-check {
+	flex-direction: row;
+	align-items: center;
+}
+.presenter-settings input[type="color"] {
+	width: 65px;
+	height: 40px;
+	padding: 2px;
+}
+.presenter-upload input {
+	display: none;
+}
+.presenter-filter {
+	display: flex;
+	gap: 6px;
+	margin: 10px 0;
+}
+.presenter-filter input {
+	width: 100%;
+}
+.presenter-filter select {
+	max-width: 110px;
+}
+.presenter-object-list {
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+}
+.presenter-object {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	border-left: 3px solid;
+	border-radius: 3px;
+	background: #30363d;
+	padding: 5px;
+}
+.presenter-ui .presenter-object-use {
+	flex: 1;
+	min-width: 0;
+	justify-content: flex-start;
+	border: 0;
+	padding: 0;
+	text-align: left;
+}
+.presenter-object-use > span:last-child {
+	min-width: 0;
+}
+.presenter-object-use strong,
+.presenter-object-use small {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.presenter-object-use small {
+	color: #aeb7c2;
+	font-size: 11px;
+}
+.presenter-preview {
+	position: relative;
+	width: 64px;
+	height: 48px;
+	flex-shrink: 0;
+	display: grid;
+	place-items: center;
+	background: #191f27;
+	border: 1px solid;
+	border-radius: 3px;
+}
+.presenter-preview > img {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+.presenter-type {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	padding: 1px;
+	background: #202832e6;
+	border-radius: 3px;
+	height: 20px;
+}
+.presenter-drag-ghost {
+	position: fixed;
+	pointer-events: none;
+	z-index: 50;
+	opacity: 0.5;
+}
+.presenter-drag-label {
+	padding: 10px;
+	background: #26323f;
+	color: #fff;
+	border-radius: 5px;
+}
+@media (max-height: 650px) {
+	.talking-panel {
+		top: 8px;
+		bottom: 70px;
+	}
+}
