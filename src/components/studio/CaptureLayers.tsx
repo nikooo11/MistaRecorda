@@ -1,3 +1,4 @@
+import { HelpTarget, SettingHelp } from "../settings-guide/SettingHelp";
 import { useEffect, useState } from "react";
 import type { StudioInfo } from "../../types/studio";
 import type { CameraLayout } from "../../lib/cameraLayout";
@@ -17,10 +18,12 @@ export function CaptureLayers({
 		void run("cameraLayout", next);
 	};
 	return (
-		<>
+		<HelpTarget id="camera">
 			<div className="capture-section-heading">
 				<div>
-					<h2>Layers</h2>
+					<h2>
+						Layers <SettingHelp id="camera" />
+					</h2>
 					<p>Arrange what appears in your recording.</p>
 				</div>
 			</div>
@@ -127,6 +130,6 @@ export function CaptureLayers({
 				After recording, use the editor’s Layers panel for text, images, shapes, and camera
 				placement.
 			</p>
-		</>
+		</HelpTarget>
 	);
 }

@@ -17,7 +17,7 @@ export function showCapturePanel<
 		const kind = new URL(other.webContents.getURL() || "about:blank").searchParams.get(
 			"windowType",
 		);
-		if (["board-panel", "studio", "zoom-settings"].includes(kind ?? "")) other.hide();
+		if (["board-panel", "studio", "zoom-settings", "settings-guide"].includes(kind ?? "")) other.hide();
 	}
 	panel.show();
 	panel.focus();

@@ -65,6 +65,8 @@ import {
 } from "./model";
 import { recorderCommand } from "./nativeCommand";
 import { ownsShortcutCapture } from "./shortcutCapture";
+import { installStreamDriver, streamDriverInfo } from "./streamDriver";
+import { openSettingsGuide } from "./settingsGuide";
 import {
 	audioEngineReply,
 	isStreaming,
@@ -102,6 +104,8 @@ const camera = new CaptureCamera(
 	},
 );
 let panelTab: import("../../src/types/studio").StudioTab = "layers";
+let guideTour: StudioInfo["guideTour"];
+let guideTourToken = 0;
 let message = "";
 let switching = false;
 let audioState: EnvironmentAudio = { ...defaultEnvironmentAudio };
@@ -131,6 +135,7 @@ const info = (): StudioInfo => ({
 	settings,
 	camera: camera.status,
 	panelTab,
+	guideTour,
 	recording: isCursorCaptureActive,
 	switching,
 	canSwitch: process.platform === "darwin",
@@ -711,6 +716,10 @@ async function openPanel() {
 	}
 	panel = new BrowserWindow({
 		title: "MistaRecorda — Capture settings",
+		...(process.platform === "darwin" && {
+			titleBarStyle: "hiddenInset",
+			trafficLightPosition: { x: 14, y: 14 },
+		}),
 		width: 820,
 		height: 620,
 		minWidth: 660,
@@ -762,6 +771,32 @@ export function registerStudio() {
 		if (!trusted || e.senderFrame !== e.sender.mainFrame)
 			throw Error("Untrusted studio request");
 		await ready;
+		if (method === "openSettingsGuide") return openSettingsGuide();
+		if (method === "endSettingsHelp") {
+			if (guideTour?.token === input) guideTour = undefined;
+			publish();
+			return info();
+		}
+		if (method === "showSettingsHelp") {
+			const tour = z
+				.object({
+					id: z.enum(["capture", "stream"]),
+					start: z.number().int().min(0).max(3),
+				})
+				.parse(input);
+			guideTour = { ...tour, token: ++guideTourToken };
+			panelTab =
+				tour.id === "stream"
+					? "sounds"
+					: tour.start === 3
+						? "controls"
+						: tour.start === 2
+							? "scenes"
+							: "layers";
+			await openPanel();
+			publish();
+			return info();
+		}
 		if (method === "shortcutCapture") {
 			if (input === true) {
 				if (isCursorCaptureActive) throw Error("Stop recording before editing shortcuts.");
@@ -791,6 +826,14 @@ export function registerStudio() {
 		}
 		if (method.startsWith("audioEngine")) return audioEngineReply(e.sender, method, input);
 		if (method === "streamInfo") return streamInfo();
+		if (method === "streamDriverInfo") return streamDriverInfo();
+		if (method === "installStreamDriver") {
+			if (!ownsShortcutCapture(panel, e.sender))
+				throw Error(
+					"Open Capture settings on this computer to install the optional driver.",
+				);
+			return installStreamDriver();
+		}
 		if (method === "streamDevices") return streamDevices();
 		if (method === "streamStart") return startStream(input);
 		if (method === "streamStop") return stopStream();

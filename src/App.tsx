@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { CameraOverlay } from "./components/studio/CameraOverlay";
 import { StreamAudioEngine } from "./components/studio/StreamAudioEngine";
 import { StudioPanel } from "./components/studio/StudioPanel";
+import { SettingsGuide } from "./components/settings-guide/SettingsGuide";
 
 const BoardWindow = lazy(() =>
 	import("./components/board/BoardWindows").then((m) => ({ default: m.BoardWindow })),
@@ -70,6 +71,8 @@ export default function App() {
 	}, [windowType, t]);
 
 	switch (windowType) {
+		case "settings-guide":
+			return <SettingsGuide />;
 		case "board-panel":
 		case "board-editor":
 		case "board-surface":

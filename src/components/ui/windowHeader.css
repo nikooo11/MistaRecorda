@@ -1,0 +1,10 @@
+.window-header.window-header-mac {
+	/* Native traffic lights occupy x=14…68. Leave room for their hit targets. */
+	padding-left: 86px;
+	min-height: 42px;
+	-webkit-app-region: drag;
+	user-select: none;
+}
+.window-header-mac :is(button, a, input, select, textarea, [role="button"], [role="dialog"]) {
+	-webkit-app-region: no-drag;
+}

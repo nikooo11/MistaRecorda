@@ -161,6 +161,23 @@ jobs:
             echo "CSC_KEY_PASSWORD=$APPLE_SIGNING_CERTIFICATE_PASSWORD"
           } >> "$GITHUB_ENV"
 
+      - name: Prepare optional macOS Installer certificate
+        shell: bash
+        env:
+          INSTALLER_P12_BASE64: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_P12_BASE64 }}
+          INSTALLER_PASSWORD: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "$INSTALLER_P12_BASE64" ]; then
+            INSTALLER_PATH="$RUNNER_TEMP/apple-installer-cert.p12"
+            printf '%s' "$INSTALLER_P12_BASE64" | base64 --decode > "$INSTALLER_PATH"
+            chmod 600 "$INSTALLER_PATH"
+            {
+              echo "CSC_INSTALLER_LINK=$INSTALLER_PATH"
+              echo "CSC_INSTALLER_KEY_PASSWORD=$INSTALLER_PASSWORD"
+            } >> "$GITHUB_ENV"
+          fi
+
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
@@ -181,7 +198,22 @@ jobs:
         run: |
           npx tsc
           npx vite build
-          npx electron-builder --mac dir dmg zip --x64 --publish never
+          targets=(dir dmg zip)
+          if [ -n "${CSC_INSTALLER_LINK:-}" ]; then targets+=(pkg); fi
+          npx electron-builder --mac "${targets[@]}" --x64 --config.forceCodeSigning=true --publish never
+
+      - name: Notarize optional macOS installers
+        if: env.CSC_INSTALLER_LINK != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          for package in release/*.pkg; do
+            /usr/sbin/pkgutil --check-signature "$package"
+            xcrun notarytool submit "$package" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+            xcrun stapler staple "$package"
+            xcrun stapler validate "$package"
+            /usr/sbin/spctl --assess --type install "$package"
+          done
 
       - name: Smoke test packaged macOS x64 paths
         env:
@@ -202,6 +234,7 @@ jobs:
           name: MistaRecorda-x64
           path: |
             release/*.dmg
+            release/*.pkg
             release/*.zip
             release/*.blockmap
             release/latest-mac.yml
@@ -263,6 +296,23 @@ jobs:
             echo "CSC_KEY_PASSWORD=$APPLE_SIGNING_CERTIFICATE_PASSWORD"
           } >> "$GITHUB_ENV"
 
+      - name: Prepare optional macOS Installer certificate
+        shell: bash
+        env:
+          INSTALLER_P12_BASE64: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_P12_BASE64 }}
+          INSTALLER_PASSWORD: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "$INSTALLER_P12_BASE64" ]; then
+            INSTALLER_PATH="$RUNNER_TEMP/apple-installer-cert.p12"
+            printf '%s' "$INSTALLER_P12_BASE64" | base64 --decode > "$INSTALLER_PATH"
+            chmod 600 "$INSTALLER_PATH"
+            {
+              echo "CSC_INSTALLER_LINK=$INSTALLER_PATH"
+              echo "CSC_INSTALLER_KEY_PASSWORD=$INSTALLER_PASSWORD"
+            } >> "$GITHUB_ENV"
+          fi
+
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
@@ -283,7 +333,22 @@ jobs:
         run: |
           npx tsc
           npx vite build
-          npx electron-builder --mac dir dmg zip --arm64 --publish never
+          targets=(dir dmg zip)
+          if [ -n "${CSC_INSTALLER_LINK:-}" ]; then targets+=(pkg); fi
+          npx electron-builder --mac "${targets[@]}" --arm64 --config.forceCodeSigning=true --publish never
+
+      - name: Notarize optional macOS installers
+        if: env.CSC_INSTALLER_LINK != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          for package in release/*.pkg; do
+            /usr/sbin/pkgutil --check-signature "$package"
+            xcrun notarytool submit "$package" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+            xcrun stapler staple "$package"
+            xcrun stapler validate "$package"
+            /usr/sbin/spctl --assess --type install "$package"
+          done
 
       - name: Smoke test packaged macOS arm64 paths
         env:
@@ -304,6 +369,7 @@ jobs:
           name: MistaRecorda-arm64
           path: |
             release/*.dmg
+            release/*.pkg
             release/*.zip
             release/*.blockmap
             release/latest-mac.yml
@@ -623,9 +689,11 @@ jobs:
 
           if [ "$RELEASE_SCOPE" = "all" ]; then
             assets+=(
+              release-assets/macos-x64/*.pkg
               release-assets/macos-x64/*.dmg
               release-assets/macos-x64/*.zip
               release-assets/macos-x64/*.blockmap
+              release-assets/macos-arm64/*.pkg
               release-assets/macos-arm64/*.dmg
               release-assets/macos-arm64/*.zip
               release-assets/macos-arm64/*.blockmap

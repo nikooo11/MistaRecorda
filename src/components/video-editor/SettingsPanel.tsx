@@ -1,4 +1,5 @@
 import { CaptionStylePicker } from "./CaptionStylePicker";
+import { SettingsGuideLink } from "../settings-guide/SettingsGuideLink";
 import { StudioBackgroundPicker } from "./StudioBackgroundPicker";
 import { editCameraOverlayAt } from "../../lib/cameraLayout";
 import {
@@ -2915,6 +2916,10 @@ export function SettingsPanel({
 	const effectSectionContent = (() => {
 		const settingsSectionContent = (
 			<div className="space-y-4">
+				<section className="rounded border border-foreground/15 p-3 text-xs">
+					<SettingsGuideLink />
+					<p className="mt-2 text-muted-foreground">Choose settings for a screen recording, live stream or call. Short explanations and examples, with no automatic changes.</p>
+				</section>
 				<section className="flex flex-col gap-2">
 					<SectionLabel>{t("editor.theme.appearance", "Appearance")}</SectionLabel>
 					<div className="flex rounded-lg border border-foreground/10 bg-foreground/5 p-0.5">

@@ -1,3 +1,4 @@
+import { SettingHelp } from "../settings-guide/SettingHelp";
 import type { ReactNode } from "react";
 import { DownloadSimple as Download, FilmSlate as Film, Image } from "@phosphor-icons/react";
 import { LayoutGroup, motion } from "motion/react";
@@ -89,10 +90,22 @@ export function ExportSettingsMenu({
 		>
 			<div className="mb-2 flex items-center justify-between">
 				<span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-					{tSettings("export.title", "Export")}
+					{tSettings("export.title", "Export")} <SettingHelp id="export" />
 				</span>
 			</div>
 
+			<details className="mb-3 text-xs text-muted-foreground">
+				<summary className="cursor-pointer">Which export settings should I use?</summary>
+				<p className="mt-2">
+					For lessons and demos, start with MP4, Original size and 30 fps. This keeps text
+					clear with sound. Use a smaller size for faster sharing, or 60 fps for fast
+					motion captured at 60 fps.
+				</p>
+				<p className="mt-2">
+					Balanced encoding is the default. Fast saves export time; Quality spends more
+					time compressing. GIF is for short, silent loops.
+				</p>
+			</details>
 			<div className="mb-3 flex items-center gap-2">
 				<LayoutGroup id="header-export-format-toggle">
 					{(

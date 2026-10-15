@@ -1,3 +1,4 @@
+import { HelpTarget, SettingHelp } from "../settings-guide/SettingHelp";
 import { defaultEnvironmentAudio } from "./environmentAudio";
 import { useState } from "react";
 import type { RecordingScene, StudioInfo, StudioSource } from "../../types/studio";
@@ -21,10 +22,12 @@ export function RecordingScenes({
 	const [saving, setSaving] = useState(false);
 	const scenes = info.settings.scenes;
 	return (
-		<>
+		<HelpTarget id="environments">
 			<div className="capture-section-heading">
 				<div>
-					<h2>Environments</h2>
+					<h2>
+						Environments <SettingHelp id="environments" />
+					</h2>
 					<p>
 						Save a source, camera layout, and audio inputs. Recall with one click or
 						shortcut.
@@ -290,6 +293,6 @@ export function RecordingScenes({
 					</button>
 				</div>
 			))}
-		</>
+		</HelpTarget>
 	);
 }

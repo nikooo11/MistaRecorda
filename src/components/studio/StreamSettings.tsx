@@ -1,5 +1,7 @@
+import { HelpTarget, SettingHelp } from "../settings-guide/SettingHelp";
 import { useEffect, useState } from "react";
 import type { AudioDevice, StreamRouting, StreamStatus } from "../../types/streamAudio";
+import { StreamDriverSetup } from "./StreamDriverSetup";
 export function StreamSettings({
 	request,
 }: {
@@ -59,114 +61,158 @@ export function StreamSettings({
 				Send your microphone and soundboard to OBS, Zoom, Discord, or another app through a
 				virtual audio device.
 			</p>
+			<HelpTarget id="streamDriver">
+				<div className="setting-help-label">
+					<strong>Optional audio setup</strong>
+					<SettingHelp id="streamDriver" />
+				</div>
+				<StreamDriverSetup request={request} active={!!status?.active} />
+			</HelpTarget>
+			{status?.active && (
+				<HelpTarget id="streamRoutes">
+					<p>Stream mode is running. Stop it before changing audio routes.</p>
+					<SettingHelp id="streamRoutes" />
+				</HelpTarget>
+			)}
 			{status?.active ? (
 				<>
-					<p role="status">● Live → {status.outputLabel}</p>
-					<button disabled={busy} onClick={() => void run("streamStop")}>
-						Stop Stream mode
-					</button>
+					<HelpTarget id="streamStart">
+						<p role="status">● Live → {status.outputLabel}</p>
+						<SettingHelp id="streamStart" />
+						<button disabled={busy} onClick={() => void run("streamStop")}>
+							Stop Stream mode
+						</button>
+					</HelpTarget>
 				</>
 			) : (
 				<>
-					<button
-						disabled={busy}
-						onClick={async () => {
-							setBusy(true);
-							try {
-								setDevices(await request<AudioDevice[]>("streamDevices"));
-								setError("");
-							} catch (e) {
-								setError(String(e));
-							} finally {
-								setBusy(false);
-							}
-						}}
-					>
-						Refresh audio devices
-					</button>
-					{devices.length > 0 && (
-						<>
-							<label>
-								Microphone / live voice changer
-								<select value={input} onChange={(e) => setInput(e.target.value)}>
-									<option value="">Choose input</option>
-									{devices
-										.filter((d) => d.kind === "audioinput")
-										.map((d) => (
-											<option key={d.id} value={d.id}>
-												{d.label}
-											</option>
-										))}
-								</select>
-							</label>
-							<label>
-								Virtual output
-								<select
-									value={output}
-									onChange={(e) => {
-										setOutput(e.target.value);
-										setConfirmed(false);
-									}}
-								>
-									<option value="">Choose virtual device</option>
-									{devices
-										.filter(
-											(d) =>
-												d.kind === "audiooutput" &&
-												!["default", "communications"].includes(d.id),
-										)
-										.map((d) => (
-											<option key={d.id} value={d.id}>
-												{d.label}
-											</option>
-										))}
-								</select>
-							</label>
-							<label>
-								Sound preview / headphones
-								<select
-									value={monitor}
-									onChange={(e) => setMonitor(e.target.value)}
-								>
-									<option value="">System output</option>
-									{devices
-										.filter((d) => d.kind === "audiooutput" && d.id !== output)
-										.map((d) => (
-											<option key={d.id} value={d.id}>
-												{d.label}
-											</option>
-										))}
-								</select>
-							</label>
-							<label>
-								<input
-									type="checkbox"
-									checked={confirmed}
-									onChange={(e) => setConfirmed(e.target.checked)}
-								/>
-								The output is a virtual routing device, not speakers or headphones.
-							</label>
-							<button
-								disabled={busy || !input || !output || !confirmed}
-								onClick={() =>
-									void run("streamStart", {
-										input,
-										output,
-										monitor,
-										virtualOutputConfirmed: true,
-										inputLabel:
-											devices.find((d) => d.id === input)?.label ||
-											"Microphone",
-										outputLabel:
-											devices.find((d) => d.id === output)?.label ||
-											"Virtual output",
-									} satisfies StreamRouting)
+					<HelpTarget id="streamRoutes">
+						<div className="setting-help-label">
+							<strong>Audio routes</strong>
+							<SettingHelp id="streamRoutes" />
+						</div>
+						<button
+							disabled={busy}
+							onClick={async () => {
+								setBusy(true);
+								try {
+									setDevices(await request<AudioDevice[]>("streamDevices"));
+									setError("");
+								} catch (e) {
+									setError(String(e));
+								} finally {
+									setBusy(false);
 								}
-							>
-								Start Stream mode
-							</button>
-						</>
-					)}
+							}}
+						>
+							Refresh audio devices
+						</button>
+						{devices.length > 0 && (
+							<>
+								<div className="setting-help-field">
+									<label>
+										Microphone / live voice changer
+										<select
+											value={input}
+											onChange={(e) => setInput(e.target.value)}
+										>
+											<option value="">Choose input</option>
+											{devices
+												.filter((d) => d.kind === "audioinput")
+												.map((d) => (
+													<option key={d.id} value={d.id}>
+														{d.label}
+													</option>
+												))}
+										</select>
+									</label>
+									<SettingHelp id="streamInput" />
+								</div>
+								<div className="setting-help-field">
+									<label>
+										Virtual output
+										<select
+											value={output}
+											onChange={(e) => {
+												setOutput(e.target.value);
+												setConfirmed(false);
+											}}
+										>
+											<option value="">Choose virtual device</option>
+											{devices
+												.filter(
+													(d) =>
+														d.kind === "audiooutput" &&
+														!["default", "communications"].includes(
+															d.id,
+														),
+												)
+												.map((d) => (
+													<option key={d.id} value={d.id}>
+														{d.label}
+													</option>
+												))}
+										</select>
+									</label>
+									<SettingHelp id="streamOutput" />
+								</div>
+								<div className="setting-help-field">
+									<label>
+										Sound preview / headphones
+										<select
+											value={monitor}
+											onChange={(e) => setMonitor(e.target.value)}
+										>
+											<option value="">System output</option>
+											{devices
+												.filter(
+													(d) =>
+														d.kind === "audiooutput" && d.id !== output,
+												)
+												.map((d) => (
+													<option key={d.id} value={d.id}>
+														{d.label}
+													</option>
+												))}
+										</select>
+									</label>
+									<SettingHelp id="streamMonitor" />
+								</div>
+							</>
+						)}
+					</HelpTarget>
+					<HelpTarget id="streamStart">
+						<div className="setting-help-label">
+							<strong>Send audio</strong>
+							<SettingHelp id="streamStart" />
+						</div>
+						<label>
+							<input
+								type="checkbox"
+								checked={confirmed}
+								onChange={(e) => setConfirmed(e.target.checked)}
+							/>
+							The output is a virtual routing device, not speakers or headphones.
+						</label>
+						<button
+							disabled={busy || !input || !output || !confirmed}
+							onClick={() =>
+								void run("streamStart", {
+									input,
+									output,
+									monitor,
+									virtualOutputConfirmed: true,
+									inputLabel:
+										devices.find((d) => d.id === input)?.label || "Microphone",
+									outputLabel:
+										devices.find((d) => d.id === output)?.label ||
+										"Virtual output",
+								} satisfies StreamRouting)
+							}
+						>
+							Start Stream mode
+						</button>
+					</HelpTarget>
 				</>
 			)}
 			<p className="sound-caution">
@@ -176,7 +222,7 @@ export function StreamSettings({
 				<summary>Set up routing and live voices</summary>
 				<ol>
 					<li>
-						Install a virtual audio device such as{" "}
+						Use the optional setup above for{" "}
 						<a
 							href="https://existential.audio/blackhole/"
 							target="_blank"

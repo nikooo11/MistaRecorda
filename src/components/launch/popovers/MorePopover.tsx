@@ -18,6 +18,7 @@ import { SUPPORTED_LOCALES } from "@/i18n/config";
 import styles from "../LaunchWindow.module.css";
 import { useLaunchPopoverCoordinator } from "./LaunchPopoverCoordinator";
 import { DropdownItem, HudPopover } from "./PopoverScaffold";
+import { SettingsGuideLink } from "../../settings-guide/SettingsGuideLink";
 
 const POPOVER_ID = "more";
 
@@ -75,6 +76,7 @@ export function MorePopover({
 			trigger={trigger}
 			align="end"
 		>
+			<div className="px-3 py-2"><SettingsGuideLink /></div>
 			{supportsHudCaptureProtection && (
 				<DropdownItem
 					icon={hideHudFromCapture ? <EyeSlashIcon size={16} /> : <EyeIcon size={16} />}

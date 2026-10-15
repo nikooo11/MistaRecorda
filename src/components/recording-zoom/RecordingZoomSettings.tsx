@@ -1,4 +1,5 @@
 import { ZoomShortcutInput } from "./ZoomShortcutInput";
+import { WindowHeader } from "../ui/WindowHeader";
 import { MagnifyingGlassIcon, InfoIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { useScopedT } from "@/contexts/I18nContext";
@@ -72,7 +73,7 @@ export function RecordingZoomSettingsPanel() {
 	const scale = ZOOM_DEPTH_SCALES[settings.depth];
 	return (
 		<main className="recording-zoom-settings">
-			<header className="zoom-heading">
+			<WindowHeader className="zoom-heading">
 				<MagnifyingGlassIcon size={17} />
 				<h1>{t("recordingZoom.title")}</h1>
 				<Popover>
@@ -105,7 +106,7 @@ export function RecordingZoomSettingsPanel() {
 						<p>{t("recordingZoom.exclusion")}</p>
 					</PopoverContent>
 				</Popover>
-			</header>
+			</WindowHeader>
 			<div className="zoom-settings-body">
 				<p className="zoom-description">{t("recordingZoom.description")}</p>
 				<div className="zoom-settings-grid">

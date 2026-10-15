@@ -45,6 +45,7 @@ export interface RecordingScene {
 }
 export type StudioTab = "windows" | "sounds" | "controls" | "scenes" | "layers";
 export interface StudioInfo {
+	guideTour?: import("../components/settings-guide/settingHelpContent").SettingsTourRequest;
 	panelTab?: StudioTab;
 	settings: StudioSettings;
 	camera?: { enabled: boolean; deviceId?: string; preview: boolean; error?: string };

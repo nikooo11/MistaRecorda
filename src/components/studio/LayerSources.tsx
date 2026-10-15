@@ -1,3 +1,4 @@
+import { HelpTarget, SettingHelp } from "../settings-guide/SettingHelp";
 import { useEffect, useRef, useState } from "react";
 import { MonitorIcon, AppWindowIcon, PencilSimpleIcon } from "@phosphor-icons/react";
 import type { StudioInfo, StudioSource } from "@/types/studio";
@@ -22,133 +23,140 @@ export function LayerSources({
 		(n) => !info.settings.windows.some((w) => w.slot === n),
 	);
 	return (
-		<section className="layer-sources" aria-label="Open screens and windows">
-			<div className="capture-section-heading">
-				<div>
-					<h3>Screens & windows</h3>
-					<p>
-						Click a preview to use it. Rename a source or release keys in its shortcut
-						box to save.
-					</p>
+		<HelpTarget id="sources">
+			<section className="layer-sources" aria-label="Open screens and windows">
+				<div className="capture-section-heading">
+					<div>
+						<h3>
+							Screens & windows <SettingHelp id="sources" />
+						</h3>
+						<p>
+							Click a preview to use it. Rename a source or release keys in its
+							shortcut box to save.
+						</p>
+					</div>
+					<button type="button" disabled={busy} onClick={() => void refresh()}>
+						Refresh
+					</button>
 				</div>
-				<button type="button" disabled={busy} onClick={() => void refresh()}>
-					Refresh
-				</button>
-			</div>
-			<div className="layer-source-list">
-				{sources.map((source) => {
-					const slot = info.settings.windows.find((w) =>
-						isSelectedSource(w.source, source),
-					);
-					const label =
-						info.settings.sourceAliases?.find((entry) =>
-							isSelectedSource(entry.source, source),
-						)?.name ?? source.name;
-					const selected = isSelectedSource(source, info.selectedSource);
-					const unavailable = sourceSwitchUnavailable(info, source);
-					return (
-						<div className="layer-source-row" key={source.id}>
-							<div className="layer-source-identity">
-								<button
-									type="button"
-									className="layer-source-name"
-									aria-pressed={selected}
-									disabled={busy || info.switching || !!unavailable}
-									title={unavailable || source.name}
-									aria-label={`Use ${label}`}
-									onClick={() => void run("selectSource", source)}
-								>
-									<span className="layer-source-preview">
-										{source.thumbnail &&
-										source.thumbnail !== "data:image/png;base64," ? (
-											<img
-												src={source.thumbnail}
-												alt={`${source.name} preview`}
-											/>
-										) : (
-											<span>Preview unavailable</span>
-										)}
-									</span>
-									<span className="layer-source-description">
-										<strong>
-											<span className="layer-source-icon">
-												{source.appIcon ? (
-													<img src={source.appIcon} alt="" />
-												) : source.sourceType === "screen" ? (
-													<MonitorIcon size={20} />
-												) : (
-													<AppWindowIcon size={20} />
-												)}
-											</span>
-											{label}
-										</strong>
-										<small>
-											{selected ? "Selected · " : ""}
-											{source.sourceType === "screen"
-												? "Display"
-												: source.appName || "Application window"}
-										</small>
-									</span>
-								</button>
-								<SourceName
-									source={source}
-									label={label}
-									disabled={busy}
-									save={async (name) =>
-										saveShortcut("renameSource", { source, name })
-									}
+				<div className="layer-source-list">
+					{sources.map((source) => {
+						const slot = info.settings.windows.find((w) =>
+							isSelectedSource(w.source, source),
+						);
+						const label =
+							info.settings.sourceAliases?.find((entry) =>
+								isSelectedSource(entry.source, source),
+							)?.name ?? source.name;
+						const selected = isSelectedSource(source, info.selectedSource);
+						const unavailable = sourceSwitchUnavailable(info, source);
+						return (
+							<div className="layer-source-row" key={source.id}>
+								<div className="layer-source-identity">
+									<button
+										type="button"
+										className="layer-source-name"
+										aria-pressed={selected}
+										disabled={busy || info.switching || !!unavailable}
+										title={unavailable || source.name}
+										aria-label={`Use ${label}`}
+										onClick={() => void run("selectSource", source)}
+									>
+										<span className="layer-source-preview">
+											{source.thumbnail &&
+											source.thumbnail !== "data:image/png;base64," ? (
+												<img
+													src={source.thumbnail}
+													alt={`${source.name} preview`}
+												/>
+											) : (
+												<span>Preview unavailable</span>
+											)}
+										</span>
+										<span className="layer-source-description">
+											<strong>
+												<span className="layer-source-icon">
+													{source.appIcon ? (
+														<img src={source.appIcon} alt="" />
+													) : source.sourceType === "screen" ? (
+														<MonitorIcon size={20} />
+													) : (
+														<AppWindowIcon size={20} />
+													)}
+												</span>
+												{label}
+											</strong>
+											<small>
+												{selected ? "Selected · " : ""}
+												{source.sourceType === "screen"
+													? "Display"
+													: source.appName || "Application window"}
+											</small>
+										</span>
+									</button>
+									<SourceName
+										source={source}
+										label={label}
+										disabled={busy}
+										save={async (name) =>
+											saveShortcut("renameSource", { source, name })
+										}
+									/>
+								</div>
+								<ShortcutInput
+									label={`${label} shortcut`}
+									value={slot?.shortcut ?? ""}
+									disabled={busy || info.recording || (!slot && !nextSlot)}
+									assigned={[
+										{
+											shortcut: info.settings.cameraShortcut,
+											name: "Face camera",
+										},
+										...info.settings.windows
+											.filter((w) => w.slot !== slot?.slot)
+											.map((w) => ({
+												shortcut: w.shortcut,
+												name:
+													info.settings.sourceAliases?.find((entry) =>
+														isSelectedSource(entry.source, w.source),
+													)?.name ?? w.source.name,
+											})),
+										...info.settings.scenes.map((s) => ({
+											shortcut: s.shortcut,
+											name: s.name,
+										})),
+										...info.settings.sounds.map((s) => ({
+											shortcut: s.shortcut,
+											name: s.name,
+										})),
+									]}
+									onChange={async (shortcut) => {
+										if (!shortcut && slot)
+											await saveShortcut("removeWindow", slot.slot);
+										else if (shortcut)
+											await saveShortcut("assignWindow", {
+												slot: slot?.slot ?? nextSlot,
+												source,
+												shortcut,
+											});
+									}}
 								/>
 							</div>
-							<ShortcutInput
-								label={`${label} shortcut`}
-								value={slot?.shortcut ?? ""}
-								disabled={busy || info.recording || (!slot && !nextSlot)}
-								assigned={[
-									{ shortcut: info.settings.cameraShortcut, name: "Face camera" },
-									...info.settings.windows
-										.filter((w) => w.slot !== slot?.slot)
-										.map((w) => ({
-											shortcut: w.shortcut,
-											name:
-												info.settings.sourceAliases?.find((entry) =>
-													isSelectedSource(entry.source, w.source),
-												)?.name ?? w.source.name,
-										})),
-									...info.settings.scenes.map((s) => ({
-										shortcut: s.shortcut,
-										name: s.name,
-									})),
-									...info.settings.sounds.map((s) => ({
-										shortcut: s.shortcut,
-										name: s.name,
-									})),
-								]}
-								onChange={async (shortcut) => {
-									if (!shortcut && slot)
-										await saveShortcut("removeWindow", slot.slot);
-									else if (shortcut)
-										await saveShortcut("assignWindow", {
-											slot: slot?.slot ?? nextSlot,
-											source,
-											shortcut,
-										});
-								}}
-							/>
-						</div>
-					);
-				})}
-			</div>
-			{!sources.length && (
-				<p className="capture-note">
-					No sources found. Refresh after opening a screen or window.
+						);
+					})}
+				</div>
+				{!sources.length && (
+					<p className="capture-note">
+						No sources found. Refresh after opening a screen or window.
+					</p>
+				)}
+				<p className="shortcut-check-note">
+					Previews update with Refresh. Yellow explains known conflicts. Other apps may
+					reserve additional keys.
+					{info.recording && " Stop recording to edit shortcuts or change displays."}
 				</p>
-			)}
-			<p className="shortcut-check-note">
-				Previews update with Refresh. Yellow explains known conflicts. Other apps may
-				reserve additional keys.
-				{info.recording && " Stop recording to edit shortcuts or change displays."}
-			</p>
-		</section>
+			</section>
+		</HelpTarget>
 	);
 }
 

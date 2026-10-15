@@ -1,0 +1,143 @@
+button.setting-help-button,
+.capture-studio button.setting-help-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 20px;
+	width: 20px;
+	min-width: 20px;
+	height: 20px;
+	min-height: 20px;
+	margin-left: 7px;
+	padding: 0;
+	border: 1px solid #727c89;
+	border-radius: 50%;
+	background: transparent;
+	color: #c8d4e1;
+	font: 600 12px / 1 system-ui;
+	cursor: pointer;
+	vertical-align: middle;
+}
+button.setting-help-button:hover {
+	background: #364451;
+	color: #fff;
+}
+.setting-help-popup {
+	z-index: 200;
+	box-sizing: border-box;
+	width: 300px;
+	max-width: calc(100vw - 24px);
+	max-height: var(--radix-popover-content-available-height);
+	overflow: auto;
+	padding: 14px;
+	background: #252c34;
+	color: #eef3f8;
+	border: 1px solid #668198;
+	border-radius: 6px;
+	box-shadow: 0 6px 24px #0006;
+	font: 13px / 1.45 system-ui;
+}
+.setting-help-popup header,
+.setting-tour-callout header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+}
+.setting-help-popup header > strong {
+	font-size: 14px;
+}
+.setting-help-popup p,
+.capture-studio .setting-tour-callout p {
+	margin: 8px 0;
+	color: #d3dce7;
+	font-size: 12px;
+	line-height: 1.45;
+}
+.setting-help-popup p strong,
+.setting-tour-callout p strong {
+	display: block;
+	color: #a8d7fa;
+	font-size: 11px;
+	margin-bottom: 2px;
+}
+.setting-help-popup button {
+	padding: 2px 7px;
+	border: 1px solid #617387;
+	border-radius: 3px;
+	color: #eef3f8;
+	background: #34414e;
+	cursor: pointer;
+}
+.setting-help-arrow {
+	fill: #668198;
+}
+.setting-help-popup button:focus-visible,
+button.setting-help-button:focus-visible {
+	outline: 2px solid #9bcfff;
+	outline-offset: 2px;
+}
+.setting-tour-target {
+	min-width: 0;
+}
+.setting-tour-target.active {
+	margin: 8px 0 16px;
+}
+.setting-tour-target.active > .setting-tour-control {
+	border: 2px solid #91cafa;
+	border-radius: 5px;
+	padding: 10px;
+	background: #87bdf508;
+}
+.setting-tour-callout {
+	position: relative;
+	margin: 0 0 12px;
+	padding: 12px 14px 17px;
+	border: 1px solid #668198;
+	border-radius: 6px;
+	background: #263645;
+	color: #eef3f8;
+}
+.setting-tour-callout header span {
+	font-size: 11px;
+	color: #b7d4ec;
+}
+.setting-tour-callout h3 {
+	font-size: 15px;
+	margin: 6px 0;
+	scroll-margin-top: 40px;
+	outline: none;
+}
+.setting-tour-callout nav {
+	display: flex;
+	gap: 6px;
+	margin-top: 10px;
+}
+.setting-tour-callout nav button:last-child {
+	margin-left: auto;
+}
+.setting-tour-pointer {
+	position: absolute;
+	bottom: -16px;
+	left: 24px;
+	color: #a8d7fa;
+	font-size: 22px;
+	line-height: 25px;
+	font-weight: bold;
+}
+.setting-help-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
+.setting-help-field {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 25px;
+	align-items: center;
+	gap: 5px;
+}
+.setting-help-field > button.setting-help-button {
+	margin: 0;
+}

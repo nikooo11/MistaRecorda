@@ -93,6 +93,16 @@
       ]
     }
   },
+  "pkg": {
+    "artifactName": "${productName}-${arch}.${ext}",
+    "installLocation": "/Applications",
+    "allowAnywhere": false,
+    "allowCurrentUserHome": false,
+    "allowRootDirectory": true,
+    "isRelocatable": false,
+    "mustClose": ["com.nikooo11.mistarecorda"],
+    "scripts": null
+  },
   "linux": {
     "target": [
       "AppImage"

@@ -30,14 +30,10 @@
 	border-bottom: 1px solid var(--capture-line);
 }
 .capture-heading h1 {
+	flex: 1;
 	font-size: 13px;
 	font-weight: 600;
 	margin: 0;
-}
-.capture-heading > span {
-	margin-left: auto;
-	color: var(--capture-muted);
-	font-size: 11px;
 }
 .capture-studio p {
 	color: var(--capture-muted);
@@ -636,7 +632,7 @@
 	border-radius: 4px;
 }
 .sound-recording-option label {
-	display: flex;
+	display: inline-flex;
 	align-items: center;
 	gap: 8px;
 	font-weight: 600;
@@ -725,3 +721,13 @@
 	display: block;
 	color: #ffd28a;
 }
+.stream-driver-setup {
+	border: 1px solid #494b50;
+	border-radius: 5px;
+	padding: 12px;
+	margin: 12px 0;
+	background: #222328;
+}
+.stream-driver-setup button + button { margin-left: 8px; }
+.stream-driver-setup .setting-hint { color: #b7bac3; }
+.stream-driver-setup [role="alert"] { color: #ffd28a; }

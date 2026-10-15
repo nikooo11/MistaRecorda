@@ -16,3 +16,9 @@ The packaging command requires that exact identity (or an existing identity expl
 Use the same certificate and bundle identifier for subsequent updates. Switching from the current ad-hoc identity to this identity still requires a fresh approval. Verify continuity with a second signed build before claiming the repeated-update prompt is resolved. Keep the certificate; replacing it recreates the same problem. Public releases should use an Apple Developer ID certificate and notarization.
 
 References: [Apple code-signing requirements](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements), [Apple's self-signed development identity procedure](https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Procedures/Procedures.html), [electron-builder v26 signing options](https://www.electron.build/v26/docs/mac/).
+
+## Optional app-only installer
+
+After building, `npm run package:local:mac:installer` signs the app using the persistent identity and creates `release/MistaRecorda-local-arm64.pkg` (or `-x64.pkg`). It installs only MistaRecorda into `/Applications`, requires the running app to close and has no driver/install scripts. The local package container is unsigned; use it only for development on this Mac.
+
+For public packages, release CI additionally needs `APPLE_INSTALLER_CERTIFICATE_P12_BASE64` and `APPLE_INSTALLER_CERTIFICATE_PASSWORD` for a **Developer ID Installer** certificate. The existing Developer ID Application and Apple notarization secrets are still required. CI signs, notarizes, staples and assesses the optional package before publishing. Without the installer certificate it continues producing DMG/ZIP. Audio routing remains optional: users can initiate verified BlackHole setup inside Sound effects → Stream.

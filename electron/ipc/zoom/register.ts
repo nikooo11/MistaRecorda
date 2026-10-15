@@ -83,6 +83,10 @@ export function registerRecordingZoomHandlers() {
 		}
 		settingsWindow = new BrowserWindow({
 			title: "MistaRecorda — Hold to zoom",
+			...(process.platform === "darwin" && {
+				titleBarStyle: "hiddenInset",
+				trafficLightPosition: { x: 14, y: 14 },
+			}),
 			width: 620,
 			height: 420,
 			minWidth: 480,

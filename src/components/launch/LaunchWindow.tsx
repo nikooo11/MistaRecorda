@@ -1,4 +1,6 @@
 import { RecordingZoomControl } from "../recording-zoom/RecordingZoomSettings";
+import { loadAppSetting, saveAppSetting } from "../../lib/appSettings";
+import { GUIDE_SEEN_KEY } from "../settings-guide/guideContent";
 import {
 	ArrowClockwiseIcon,
 	GearSixIcon,
@@ -58,6 +60,17 @@ export function LaunchWindow() {
 }
 
 function LaunchWindowContent() {
+	useEffect(() => {
+		if (loadAppSetting(GUIDE_SEEN_KEY) === true) return;
+		void window.electronAPI.studio
+			.request("openSettingsGuide")
+			.then(() => {
+				saveAppSetting(GUIDE_SEEN_KEY, true);
+			})
+			.catch(() => {
+				/* The recorder stays usable if the optional guide cannot open. */
+			});
+	}, []);
 	const t = useScopedT("launch");
 	const { openId, requestClose, requestOpen } = useLaunchPopoverCoordinator();
 

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { HelpTarget, SettingHelp, useSettingsTourTarget } from "../settings-guide/SettingHelp";
+import { useEffect, useState } from "react";
 import type { SoundEffect, StudioInfo } from "../../types/studio";
 import { ShortcutInput } from "./ShortcutInput";
 import { StreamSettings } from "./StreamSettings";
@@ -17,26 +18,29 @@ export function SoundRecordingOption({
 }) {
 	const included = info.settings.includeSoundboardInRecording !== false;
 	return (
-		<div className="sound-recording-option">
-			<label data-help={soundRecordingHelp}>
-				<input
-					type="checkbox"
-					checked={included}
-					disabled={disabled || info.recording}
-					onChange={(e) => void run("includeSoundboardInRecording", e.target.checked)}
-				/>
-				Include soundboard in recording
-			</label>
-			<small>
-				{included
-					? "Sounds become part of the recorded audio."
-					: "Sounds become movable clips in the editor."}
-			</small>
-			<p className="sound-caution">
-				⚠ Use headphones. Speaker playback can enter your microphone and create an echo or
-				duplicate sound.
-			</p>
-		</div>
+		<HelpTarget id="soundRecording">
+			<div className="sound-recording-option">
+				<label data-help={soundRecordingHelp}>
+					<input
+						type="checkbox"
+						checked={included}
+						disabled={disabled || info.recording}
+						onChange={(e) => void run("includeSoundboardInRecording", e.target.checked)}
+					/>
+					Include soundboard in recording
+				</label>
+				<SettingHelp id="soundRecording" />
+				<small>
+					{included
+						? "Sounds become part of the recorded audio."
+						: "Sounds become movable clips in the editor."}
+				</small>
+				<p className="sound-caution">
+					⚠ Use headphones. Speaker playback can enter your microphone and create an echo
+					or duplicate sound.
+				</p>
+			</div>
+		</HelpTarget>
 	);
 }
 
@@ -151,6 +155,10 @@ export function SoundboardSettings({
 	busy: boolean;
 	run: (method: string, input?: unknown) => Promise<void>;
 }) {
+	const tourTarget = useSettingsTourTarget();
+	useEffect(() => {
+		if (tourTarget?.startsWith("stream")) setTab("stream");
+	}, [tourTarget]);
 	const [search, setSearch] = useState("");
 	const [tab, setTab] = useState<"sounds" | "voices" | "stream">("sounds");
 	const sounds = [...info.settings.sounds]

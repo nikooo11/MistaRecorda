@@ -1,0 +1,345 @@
+.settings-guide {
+	height: 100vh;
+	display: flex;
+	flex-direction: column;
+	color: #e7e9ef;
+	background: #24262b;
+	color-scheme: dark;
+	font:
+		13px / 1.45 -apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		sans-serif;
+}
+.settings-guide * {
+	box-sizing: border-box;
+}
+.settings-guide header,
+.settings-guide footer {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	padding: 12px 22px;
+	border-bottom: 1px solid #45484f;
+	flex-shrink: 0;
+	background: #1e2024;
+}
+.settings-guide header span,
+.settings-guide footer span {
+	flex: 1;
+	color: #b8bec8;
+	font-size: 12px;
+}
+.settings-guide header {
+	height: 42px;
+	padding-top: 0;
+	padding-bottom: 0;
+}
+.settings-guide header strong {
+	flex: 1;
+	font-size: 13px;
+}
+.settings-guide footer {
+	border-top: 1px solid #45484f;
+	border-bottom: 0;
+}
+.settings-guide button,
+.settings-guide-link {
+	border: 1px solid #555b66;
+	background: #30343b;
+	border-radius: 5px;
+	padding: 7px 12px;
+	color: #edf0f5;
+	cursor: pointer;
+	font-size: 12px;
+}
+.settings-guide button:hover,
+.settings-guide-link:hover {
+	background: #3c424b;
+	border-color: #8fa1b5;
+}
+.settings-guide button:focus-visible,
+.settings-guide-link:focus-visible {
+	outline: 2px solid #8bc2ed;
+	outline-offset: 3px;
+}
+.settings-guide button:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+.guide-body {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: 22px 28px;
+}
+.settings-guide h1 {
+	font-size: 24px;
+	line-height: 1.2;
+	margin: 0 0 12px;
+	letter-spacing: -0.5px;
+}
+.settings-guide h1:focus {
+	outline: none;
+}
+.settings-guide p {
+	margin: 0 0 12px;
+}
+.guide-eyebrow {
+	color: #9bbbd5;
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+}
+.guide-lead {
+	color: #c4c9d2;
+	max-width: 680px;
+}
+.guide-choices {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 16px;
+	margin: 20px 0 16px;
+}
+.settings-guide .guide-choice {
+	padding: 0;
+	text-align: left;
+	overflow: hidden;
+}
+.guide-choice-copy {
+	padding: 14px;
+}
+.guide-choice strong {
+	font-size: 16px;
+}
+.guide-choice p {
+	font-size: 12px;
+	color: #c2c7d0;
+	margin: 6px 0 12px;
+	min-height: 36px;
+}
+.guide-choice-copy > span {
+	color: #aad5f5;
+	font-weight: 600;
+}
+.guide-choice small {
+	display: block;
+	margin-top: 4px;
+	color: #b5bbc4;
+	font-weight: 400;
+}
+.guide-scenario {
+	position: relative;
+	height: 200px;
+	overflow: hidden;
+	background: #20262c;
+}
+.guide-art {
+	position: absolute;
+	inset: 0;
+	background-image: url("/tutorial/record-and-stream.jpg");
+	background-size: 200% auto;
+	background-repeat: no-repeat;
+}
+.guide-scenario.record .guide-art {
+	background-position: left 30%;
+}
+.guide-scenario.stream .guide-art {
+	background-position: right 18%;
+}
+.guide-image-title {
+	position: absolute;
+	top: 12px;
+	left: 12px;
+	padding: 6px 10px;
+	border: 1px solid #718293;
+	border-radius: 4px;
+	background: #171e27ed;
+	color: #fff;
+	font-size: 18px !important;
+	line-height: 1.3;
+}
+.guide-app-badges {
+	position: absolute;
+	bottom: 10px;
+	left: 10px;
+	right: 10px;
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+.guide-app-badges span {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 5px 7px;
+	border: 1px solid #6b7c90;
+	border-radius: 4px;
+	background: #171e27f2;
+	color: #fff;
+	font:
+		500 12px / 1.2 -apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		sans-serif;
+}
+.guide-app-badges svg {
+	width: 20px;
+	height: 20px;
+	flex-shrink: 0;
+}
+.guide-app-badges span:nth-child(2) svg {
+	color: #a2a9ff;
+}
+.guide-app-badges span:nth-child(3) svg {
+	color: #7cb5ff;
+}
+.guide-note {
+	font-size: 12px;
+	color: #b8bec8;
+}
+.guide-step-top {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 12px;
+	color: #b8bec8;
+	font-size: 12px;
+}
+.guide-progress {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 18px;
+}
+.guide-progress button {
+	flex: 1;
+	padding: 2px 6px;
+	border-radius: 3px;
+}
+.guide-progress button[aria-current] {
+	background: #376685;
+	border-color: #91caee;
+}
+.guide-flow {
+	list-style: none;
+	display: flex;
+	align-items: stretch;
+	margin: 14px 0 18px;
+	padding: 0;
+	gap: 8px;
+}
+.guide-flow li {
+	display: flex;
+	align-items: center;
+	flex: 1;
+	gap: 8px;
+}
+.guide-flow span {
+	text-align: center;
+	flex: 1;
+	padding: 8px 5px;
+	border: 1px solid #4e5661;
+	border-radius: 4px;
+	font-size: 12px;
+}
+.guide-flow .guide-highlight {
+	border-color: #92c7e8;
+	background: #2c4658;
+}
+.guide-flow b {
+	color: #97c5e1;
+	font-size: 20px;
+}
+.guide-setting-list {
+	display: grid;
+	gap: 12px;
+}
+.guide-setting-list section {
+	display: flex;
+	gap: 12px;
+}
+.guide-number {
+	flex-shrink: 0;
+	width: 22px;
+	height: 22px;
+	border: 1px solid #718ca1;
+	border-radius: 50%;
+	text-align: center;
+	font-size: 12px;
+}
+.guide-setting-list h2 {
+	margin: 0 0 3px;
+	font-size: 13px;
+	font-weight: 600;
+}
+.guide-setting-list h2 strong {
+	margin-left: 12px;
+	color: #b3d6ed;
+	font-size: 12px;
+	font-weight: 500;
+}
+.guide-setting-list p {
+	margin: 0;
+	color: #c2c8d0;
+	font-size: 12px;
+}
+.guide-tip {
+	margin: 16px 0 12px;
+	padding: 10px 12px;
+	border-left: 3px solid #8aabbe;
+	background: #2d3239;
+	color: #d3d9e1;
+	font-size: 12px;
+}
+.settings-guide .guide-primary {
+	background: #356784;
+	border-color: #6da1c1;
+	color: white;
+}
+.settings-guide .guide-primary:hover {
+	background: #427b9b;
+}
+.settings-guide .guide-settings-link {
+	padding: 5px 9px;
+}
+@media (min-width: 1000px) {
+	.guide-choices {
+		max-width: 900px;
+	}
+	.guide-scenario {
+		height: 250px;
+	}
+}
+@media (max-width: 650px) {
+	.guide-body {
+		padding: 16px;
+	}
+	.guide-scenario {
+		height: 170px;
+	}
+	.guide-image-title {
+		left: 8px;
+		top: 8px;
+		font-size: 16px !important;
+	}
+	.guide-app-badges {
+		left: 6px;
+		right: 6px;
+		gap: 4px;
+	}
+	.guide-app-badges span {
+		font-size: 11px;
+		padding: 4px;
+	}
+	.guide-app-badges svg {
+		width: 16px;
+		height: 16px;
+	}
+	.settings-guide h1 {
+		font-size: 21px;
+	}
+	.guide-setting-list h2 strong {
+		display: block;
+		margin: 2px 0;
+	}
+}

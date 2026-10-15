@@ -1,3 +1,4 @@
+import { SettingHelp } from "../../settings-guide/SettingHelp";
 import { TimerIcon } from "@phosphor-icons/react";
 import type { ReactElement } from "react";
 import { useScopedT } from "@/contexts/I18nContext";
@@ -34,7 +35,10 @@ export function CountdownPopover({
 			trigger={trigger}
 			align="center"
 		>
-			<div className={styles.ddLabel}>{t("recording.countdownDelay")}</div>
+			<div className={styles.ddLabel}>
+				{t("recording.countdownDelay")} <SettingHelp id="countdown" />
+			</div>
+
 			{COUNTDOWN_OPTIONS.map((delay) => (
 				<DropdownItem
 					key={delay}
