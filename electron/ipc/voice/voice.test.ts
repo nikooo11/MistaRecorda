@@ -534,3 +534,32 @@ test("preserves provider voice quality models without inventing versions", () =>
 	).toEqual(["eleven_v3", "eleven_multilingual_v2"]);
 	expect(mapVoice({ voice_id: "b", name: "B" }).highQualityModelIds).toEqual([]);
 });
+
+test("instant cloning uploads selected samples and returns verification without selecting or processing", async () => {
+	const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+		new Response(JSON.stringify({ voice_id: "new-clone", requires_verification: true }), {
+			status: 200,
+		}),
+	);
+	const api = new ElevenLabs("test-key", fetcher);
+	await expect(
+		api.createVoice({ name: "Team narrator", description: "Clean speech" }, [
+			{ name: "sample.wav", bytes: new Uint8Array([1, 2, 3]) },
+		]),
+	).resolves.toEqual({ voiceId: "new-clone", requiresVerification: true });
+	expect(fetcher).toHaveBeenCalledTimes(1);
+	const [url, init] = fetcher.mock.calls[0];
+	expect(url).toBe("https://api.elevenlabs.io/v1/voices/add");
+	const form = init!.body as FormData;
+	expect(form.get("name")).toBe("Team narrator");
+	expect((form.getAll("files")[0] as File).name).toBe("sample.wav");
+});
+test("ambiguous clone failures are not automatically retried", async () => {
+	const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}", { status: 500 }));
+	await expect(
+		new ElevenLabs("key", fetcher).createVoice({ name: "Voice", description: "" }, [
+			{ name: "sample.wav", bytes: new Uint8Array([1]) },
+		]),
+	).rejects.toThrow("serviceUnavailable");
+	expect(fetcher).toHaveBeenCalledTimes(1);
+});

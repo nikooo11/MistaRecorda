@@ -458,3 +458,55 @@
 		animation: none;
 	}
 }
+
+.voice-custom-button {
+	align-self: flex-start;
+	font-size: 12px;
+}
+.custom-voice-setup {
+	display: grid;
+	gap: 14px;
+	font-size: 13px;
+	line-height: 1.5;
+}
+.custom-voice-setup p {
+	color: var(--voice-muted, #aeb4ba);
+	margin: 5px 0;
+}
+.custom-voice-setup fieldset,
+.custom-voice-result {
+	border: 1px solid #45474e;
+	border-radius: 4px;
+	padding: 12px;
+	display: grid;
+	gap: 9px;
+	min-width: 0;
+}
+.custom-voice-setup legend {
+	padding: 0 5px;
+	font-weight: 600;
+}
+.custom-voice-setup label {
+	display: grid;
+	gap: 4px;
+}
+.custom-voice-setup label.custom-voice-consent {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+}
+.custom-voice-consent input {
+	margin-top: 4px;
+}
+.custom-voice-setup summary {
+	cursor: pointer;
+	font-weight: 600;
+}
+.custom-voice-setup ol {
+	list-style: decimal;
+	padding-left: 20px;
+	margin: 9px 0;
+}
+.custom-voice-setup li {
+	margin: 6px 0;
+}

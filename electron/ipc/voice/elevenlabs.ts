@@ -45,7 +45,7 @@ export class ElevenLabs {
 		private sleep: (ms: number, signal?: AbortSignal) => Promise<void> = (ms, signal) =>
 			delay(ms, undefined, { signal }),
 	) {}
-	async request(endpoint: string, init: RequestInit = {}) {
+	async request(endpoint: string, init: RequestInit = {}, retry = true) {
 		for (let attempt = 0; ; attempt++) {
 			init.signal?.throwIfAborted();
 			const response = await this.fetcher(`https://api.elevenlabs.io/v1${endpoint}`, {
@@ -59,7 +59,7 @@ export class ElevenLabs {
 			});
 			if (response.ok) return response;
 			const status = response.status;
-			if ((status === 429 || status >= 500) && attempt < 4) {
+			if (retry && (status === 429 || status >= 500) && attempt < 4) {
 				await response.body?.cancel();
 				await this.sleep(1000 * 2 ** attempt, init.signal ?? undefined);
 				continue;
@@ -158,6 +158,27 @@ export class ElevenLabs {
 				},
 			)
 		).json();
+	}
+	async createVoice(
+		values: { name: string; description: string },
+		samples: Array<{ name: string; bytes: Uint8Array }>,
+	) {
+		if (!samples.length) throw new Error("invalidSamples");
+		const form = new FormData();
+		form.set("name", values.name);
+		form.set("description", values.description);
+		for (const sample of samples)
+			form.append("files", new Blob([new Uint8Array(sample.bytes)]), sample.name);
+		// Creation is not idempotent: an ambiguous failure must not create duplicates.
+		const data = await (
+			await this.request("/voices/add", { method: "POST", body: form }, false)
+		).json();
+		if (typeof data.voice_id !== "string" || !data.voice_id)
+			throw new Error("serviceUnavailable");
+		return {
+			voiceId: data.voice_id,
+			requiresVerification: data.requires_verification === true,
+		};
 	}
 	async editVoice(
 		id: string,

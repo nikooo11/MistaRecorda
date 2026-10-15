@@ -15,7 +15,7 @@ export function TrainedVoiceEditor({
 	const t = useScopedT("settings");
 	const [name, setName] = useState(voice.name);
 	const [description, setDescription] = useState(voice.description ?? "");
-	const [labels, setLabels] = useState(JSON.stringify(voice.labels ?? {}));
+	const [labels, setLabels] = useState<Record<string, string>>(voice.labels ?? {});
 	const [settings, setSettings] = useState({ ...defaultVoiceSettings, ...voice.defaultSettings });
 	const [addSamples, setAddSamples] = useState(false);
 	const [consent, setConsent] = useState(false);
@@ -26,7 +26,9 @@ export function TrainedVoiceEditor({
 		setBusy(true);
 		setMessage("");
 		try {
-			const parsedLabels = JSON.parse(labels);
+			const parsedLabels = Object.fromEntries(
+				Object.entries(labels).filter(([, value]) => value.trim()),
+			);
 			const savedName = name.trim();
 			unwrapVoice(
 				await window.electronAPI.voice.request("editVoice", {
@@ -69,7 +71,7 @@ export function TrainedVoiceEditor({
 	};
 	if (!voice.canEdit) return <p>{t("voice.voiceNotOwned")}</p>;
 	return (
-		<section className="border rounded p-4 space-y-3">
+		<section className="rounded space-y-3 text-sm">
 			<h2>{t("voice.editTrainedVoice")}</h2>
 			<label className="block">
 				{t("voice.name")}
@@ -88,14 +90,19 @@ export function TrainedVoiceEditor({
 					onChange={(e) => setDescription(e.target.value)}
 				/>
 			</label>
-			<label className="block">
-				{t("voice.labels")}
-				<textarea
-					className="voice-input"
-					value={labels}
-					onChange={(e) => setLabels(e.target.value)}
-				/>
-			</label>
+			<div className="grid grid-cols-2 gap-2">
+				{["language", "accent", "gender", "age"].map((key) => (
+					<label className="block capitalize" key={key}>
+						{key}
+						<input
+							className="voice-input"
+							maxLength={256}
+							value={labels[key] ?? ""}
+							onChange={(e) => setLabels({ ...labels, [key]: e.target.value })}
+						/>
+					</label>
+				))}
+			</div>
 			{(["stability", "similarityBoost", "style"] as const).map((k) => (
 				<label className="block" key={k}>
 					{t(`voice.${k}`)} {settings[k]}
@@ -119,14 +126,22 @@ export function TrainedVoiceEditor({
 				/>
 				{t("voice.useSpeakerBoost")}
 			</label>
-			<label className="block">
-				<input
-					type="checkbox"
-					checked={addSamples}
-					onChange={(e) => setAddSamples(e.target.checked)}
-				/>
-				{t("voice.addSamples")}
-			</label>
+			{voice.category === "cloned" && (
+				<label className="block">
+					<input
+						type="checkbox"
+						checked={addSamples}
+						onChange={(e) => setAddSamples(e.target.checked)}
+					/>
+					{t("voice.addSamples")}
+				</label>
+			)}
+			{voice.category === "professional" && (
+				<p className="text-sm">
+					Update professional training samples and verification in ElevenLabs Voices.
+					Name, labels, and conversion defaults can be edited here.
+				</p>
+			)}
 			{addSamples && (
 				<label className="block">
 					<input

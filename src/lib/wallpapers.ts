@@ -20,7 +20,11 @@ export const STUDIO_BACKGROUNDS = [
 		image: "/wallpapers/studio-contour.png",
 		motion: "/wallpapers/studio-contour.mp4",
 	},
-	{ name: "Graphite", image: "/wallpapers/studio-graphite.png", motion: null },
+	{
+		name: "Graphite",
+		image: "/wallpapers/studio-graphite.png",
+		motion: "/wallpapers/studio-graphite.mp4",
+	},
 	{ name: "Paper", image: "/wallpapers/studio-paper.png", motion: null },
 ] as const;
 

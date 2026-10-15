@@ -24,6 +24,21 @@ let getBounds: (() => Electron.Rectangle | null) | undefined;
 let getCursor = () => screen.getCursorScreenPoint();
 const keyCodes: Record<string, number> = Object.fromEntries([
 	...Object.entries({
+		Space: 57,
+		Up: 57416,
+		Down: 57424,
+		Left: 57419,
+		Right: 57421,
+		"0": 11,
+		"1": 2,
+		"2": 3,
+		"3": 4,
+		"4": 5,
+		"5": 6,
+		"6": 7,
+		"7": 8,
+		"8": 9,
+		"9": 10,
 		A: 30,
 		B: 48,
 		C: 46,

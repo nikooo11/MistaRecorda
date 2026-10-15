@@ -1,4 +1,12 @@
-import { MicrophoneIcon, MicrophoneSlashIcon, MinusIcon, PauseIcon, PlayIcon, SquareIcon, XIcon } from "@phosphor-icons/react";
+import {
+	MicrophoneIcon,
+	MicrophoneSlashIcon,
+	MinusIcon,
+	PauseIcon,
+	PlayIcon,
+	SquareIcon,
+	XIcon,
+} from "@phosphor-icons/react";
 import { useMemo } from "react";
 import { useScopedT } from "@/contexts/I18nContext";
 import { Button } from "@/components/ui/button";
@@ -56,14 +64,15 @@ export const RecordingControls = ({
 					{formatTime(elapsed)}
 				</span>
 
-				<Separator orientation="vertical" className="mx-[5px] h-6" />
+				<Separator orientation="vertical" className="mx-1 h-5" />
 
 				<span title={t("recording.micToggleDisabledTip")}>
 					<Button
 						variant="ghost"
+						data-hud-icon
 						size="icon"
 						iconSize="lg"
-						className={microphoneEnabled ? styles.ibActive : ""}
+						className={`h-[30px] w-[30px] [&_svg]:size-4 ${microphoneEnabled ? styles.ibActive : ""}`}
 						aria-label={t("recording.micToggleDisabledTip")}
 						disabled
 						onClick={onToggleMicrophone}
@@ -76,10 +85,11 @@ export const RecordingControls = ({
 					</Button>
 				</span>
 
-				<Separator orientation="vertical" className="mx-[5px] h-6" />
+				<Separator orientation="vertical" className="mx-1 h-5" />
 
 				<Button
 					variant={paused ? "default" : "ghost"}
+					data-hud-icon
 					size="icon"
 					iconSize="lg"
 					onClick={onPauseResume}
@@ -96,6 +106,7 @@ export const RecordingControls = ({
 
 				<Button
 					variant="ghost"
+					data-hud-icon
 					size="icon"
 					iconSize="lg"
 					onClick={onStopRecording}
@@ -108,6 +119,7 @@ export const RecordingControls = ({
 
 				<Button
 					variant="ghost"
+					data-hud-icon
 					size="icon"
 					iconSize="lg"
 					onClick={onHideHud}
@@ -119,6 +131,7 @@ export const RecordingControls = ({
 
 				<Button
 					variant="ghost"
+					data-hud-icon
 					size="icon"
 					iconSize="lg"
 					onClick={onCancelRecording}

@@ -1,3 +1,4 @@
+import { captionWordLimit } from "./captionPresets";
 import type { CaptionEditTarget } from "./captionEditing";
 import type {
 	AutoCaptionAnimation,
@@ -330,6 +331,7 @@ function buildCaptionPages(options: {
 }
 
 function buildCaptionLines(options: {
+	maxWords?: number;
 	words: CaptionWordLayout[];
 	maxWidthPx: number;
 	measureText: (text: string) => number;
@@ -352,6 +354,7 @@ function buildCaptionLines(options: {
 		let lineWidth = plainWordWidths[startIndex];
 
 		for (let endIndex = startIndex; endIndex < wordCount; endIndex += 1) {
+			if (options.maxWords && endIndex - startIndex >= options.maxWords) break;
 			if (endIndex > startIndex) {
 				if (options.words[endIndex].forcedBreakBefore) {
 					break;
@@ -459,7 +462,8 @@ export function buildActiveCaptionLayout(options: {
 				? sourceWords.length - 1
 				: clamp(activeWordIndex - 1, 0, sourceWords.length - 1);
 	}
-	const maxRows = clamp(Math.round(options.settings.maxRows || 1), 1, 4);
+	const wordLimit = captionWordLimit(options.settings);
+	const maxRows = wordLimit ? 1 : clamp(Math.round(options.settings.maxRows || 1), 1, 4);
 
 	const words: CaptionWordLayout[] = sourceWords.map((word, index) => {
 		return {
@@ -483,6 +487,7 @@ export function buildActiveCaptionLayout(options: {
 
 	const lines = buildCaptionLines({
 		words,
+		maxWords: wordLimit,
 		maxWidthPx: options.maxWidthPx,
 		measureText: options.measureText,
 	});

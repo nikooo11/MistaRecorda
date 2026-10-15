@@ -10,6 +10,7 @@ import {
 import type { PresetEntry, VoicePreset } from "@/types/voicePreset";
 import { PresetEditor } from "./PresetEditor";
 import { TrainedVoiceEditor } from "./TrainedVoiceEditor";
+import { CustomVoiceSetup } from "./CustomVoiceSetup";
 import { ArrowClockwiseIcon, DotsThreeIcon, StarIcon } from "@phosphor-icons/react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VoicePreviewButton } from "./VoicePreviewButton";
@@ -46,6 +47,8 @@ export function VoiceBrowser({
 	const [presets, setPresets] = useState<PresetEntry[]>([]);
 	const [editing, setEditing] = useState<VoicePreset | null>(null);
 	const [trained, setTrained] = useState<VoiceInfo | null>(null);
+	const [customVoice, setCustomVoice] = useState(false);
+	const [creatingVoice, setCreatingVoice] = useState(false);
 	const [imports, setImports] = useState<ImportItem[]>([]);
 	const [message, setMessage] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -248,6 +251,14 @@ export function VoiceBrowser({
 					</button>
 				))}
 			</nav>
+			<button
+				type="button"
+				className="voice-custom-button"
+				disabled={!enabled || disabled}
+				onClick={() => setCustomVoice(true)}
+			>
+				Create / add custom voice…
+			</button>
 			<div className="voice-search-row">
 				<input
 					aria-label="Search voices"
@@ -445,7 +456,7 @@ export function VoiceBrowser({
 												: "Only voices you own can be edited."
 										}
 									>
-										Edit owned voice…
+										{v.canEdit ? "Edit voice…" : "Edit unavailable · not owned"}
 									</button>
 								</div>
 							</details>
@@ -604,16 +615,31 @@ export function VoiceBrowser({
 				</p>
 			)}
 			<Dialog
-				open={Boolean(editing || trained)}
+				open={Boolean(editing || trained || customVoice)}
 				onOpenChange={(open) => {
-					if (!open) {
+					if (!open && !creatingVoice) {
+						setCustomVoice(false);
 						setEditing(null);
 						setTrained(null);
 					}
 				}}
 			>
 				<DialogContent className="voice-studio voice-modal" aria-describedby={undefined}>
-					<DialogTitle>{editing ? "Voice preset" : "Edit voice"}</DialogTitle>
+					<DialogTitle>
+						{customVoice ? "Custom voices" : editing ? "Voice preset" : "Edit voice"}
+					</DialogTitle>
+					{customVoice && (
+						<CustomVoiceSetup
+							onBusy={setCreatingVoice}
+							onReady={() => {
+								setCustomVoice(false);
+								setTab("mine");
+								setSearch("");
+								setReload((n) => n + 1);
+								refresh();
+							}}
+						/>
+					)}
 					{editing && (
 						<PresetEditor
 							key={editing.id}

@@ -1,7 +1,18 @@
+import { ownsShortcutCapture } from "./shortcutCapture";
+import {
+	defaultEnvironmentAudio,
+	environmentAudioUnavailable,
+	type EnvironmentAudio,
+} from "../../src/components/studio/environmentAudio";
+import { isZoomSettingsWindow } from "../ipc/zoom/register";
 import { z } from "zod";
 import { showCapturePanel } from "../panelToggle";
 import { CaptureCamera } from "./camera";
 import { normalizeShortcut, recorderShortcuts } from "../../src/components/studio/shortcuts";
+import {
+	isSelectedSource,
+	sourceSwitchUnavailable,
+} from "../../src/components/studio/sourceSwitching";
 import { setCaptureCanvasAspect } from "./geometry";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -73,13 +84,19 @@ const camera = new CaptureCamera(
 let panelTab: import("../../src/types/studio").StudioTab = "layers";
 let message = "";
 let switching = false;
+let audioState: EnvironmentAudio = { ...defaultEnvironmentAudio };
+let capturedAudio: EnvironmentAudio = { ...defaultEnvironmentAudio };
+let audioRecording = false;
 let take = new SoundTake();
 let savedPath: string | null = null;
 let panel: BrowserWindow | undefined;
 let shortcutCaptureOwner: Electron.WebContents | undefined;
 let shortcutCaptureTimer: ReturnType<typeof setTimeout> | undefined;
+let shortcutCaptureCleanup: (() => void) | undefined;
 function endShortcutCapture() {
 	clearTimeout(shortcutCaptureTimer);
+	shortcutCaptureCleanup?.();
+	shortcutCaptureCleanup = undefined;
 	shortcutCaptureOwner = undefined;
 	globalShortcut.setSuspended(false);
 }
@@ -95,6 +112,13 @@ const info = (): StudioInfo => ({
 	switching,
 	canSwitch: process.platform === "darwin",
 	selectedName: selectedSource?.name ?? "Choose a source",
+	selectedSource: selectedSource?.id
+		? {
+				...selectedSource,
+				id: selectedSource.id,
+				sourceType: selectedSource.id.startsWith("window:") ? "window" : "screen",
+			}
+		: undefined,
 	message,
 });
 function publish() {
@@ -223,6 +247,18 @@ async function applyScene(id: string) {
 	const scene = settings.scenes.find((s) => s.id === id);
 	if (!scene) throw Error("Choose a saved scene.");
 	if (switching) throw Error("A source switch is already in progress.");
+	const targetAudio = scene.audio ?? audioState;
+	const changesAudio =
+		targetAudio.microphone !== audioState.microphone ||
+		targetAudio.system !== audioState.system;
+	if (isCursorCaptureActive && changesAudio) {
+		const unavailable = environmentAudioUnavailable(
+			targetAudio,
+			capturedAudio,
+			nativeScreenRecordingActive && !nativeCaptureProcess,
+		);
+		if (unavailable) throw Error(unavailable);
+	}
 	if (isCursorCaptureActive) {
 		// Never change the camera if the source switch fails.
 		if (scene.source.id !== selectedSource?.id) {
@@ -261,6 +297,15 @@ async function applyScene(id: string) {
 		camera.sync();
 		await save();
 	}
+	if (scene.audio) {
+		if (isCursorCaptureActive && nativeCaptureProcess?.stdin.writable)
+			nativeCaptureProcess.stdin.write(
+				`audio ${targetAudio.microphone ? "on" : "off"} ${targetAudio.system ? "on" : "off"}\n`,
+			);
+		await sendRecordingControl(targetAudio.microphone ? "microphone-on" : "microphone-off");
+		await sendRecordingControl(targetAudio.system ? "system-audio-on" : "system-audio-off");
+		audioState = { ...targetAudio };
+	}
 	sendRecordingControl(scene.camera ? "webcam-on" : "webcam-off");
 	message = `Scene: ${scene.name}`;
 	publish();
@@ -268,12 +313,34 @@ async function applyScene(id: string) {
 export async function switchWindow(input: StudioSource) {
 	if (switching) throw Error("A source switch is already in progress.");
 	const target = sourceSchema.parse(input);
-	if (process.platform !== "darwin")
-		throw Error("Live window switching currently requires native macOS capture.");
+	const unavailable = sourceSwitchUnavailable(info(), target);
+	if (unavailable) throw Error(unavailable);
+	if (isCursorCaptureActive && isSelectedSource(target, info().selectedSource)) return;
 	assertBoardCaptureSource(target);
 	switching = true;
 	publish();
 	try {
+		// Displays and non-native window sources can be recalled before a take.
+		if (target.sourceType === "screen" || process.platform !== "darwin") {
+			requireScreenRecordingAccess();
+			const sources = await desktopCapturer.getSources({
+				types: [target.sourceType],
+				thumbnailSize: { width: 0, height: 0 },
+			});
+			const found = sources.find((source) =>
+				target.sourceType === "screen" && target.display_id
+					? source.display_id === target.display_id
+					: source.id === target.id,
+			);
+			if (!found) throw Error("That source is unavailable. Reassign it in Capture settings.");
+			const next = { ...target, id: found.id, name: found.name || target.name };
+			setSelectedSource(next);
+			setSelectedWindowBounds(null);
+			for (const w of BrowserWindow.getAllWindows())
+				w.webContents.send("selected-source-changed", next);
+			message = `Recording source: ${next.name}`;
+			return;
+		}
 		const sources = await getNativeMacWindowSources({ maxAgeMs: 0 });
 		const found =
 			sources.find(
@@ -500,9 +567,19 @@ export function registerStudio() {
 		if (method === "shortcutCapture") {
 			if (input === true) {
 				if (isCursorCaptureActive) throw Error("Stop recording before editing shortcuts.");
-				if (!panel || panel.webContents !== e.sender)
-					throw Error("Open Capture settings to edit shortcuts.");
+				if (!ownsShortcutCapture(panel, e.sender) && !isZoomSettingsWindow(e.sender))
+					throw Error("Open Capture or Zoom settings to edit shortcuts.");
+				shortcutCaptureCleanup?.();
 				shortcutCaptureOwner = e.sender;
+				e.sender.setIgnoreMenuShortcuts(true);
+				const ownerWindow = BrowserWindow.fromWebContents(e.sender);
+				ownerWindow?.once("blur", endShortcutCapture);
+				e.sender.once("destroyed", endShortcutCapture);
+				shortcutCaptureCleanup = () => {
+					ownerWindow?.removeListener("blur", endShortcutCapture);
+					e.sender.removeListener("destroyed", endShortcutCapture);
+					if (!e.sender.isDestroyed()) e.sender.setIgnoreMenuShortcuts(false);
+				};
 				globalShortcut.setSuspended(true);
 				clearTimeout(shortcutCaptureTimer);
 				shortcutCaptureTimer = setTimeout(endShortcutCapture, 60000);
@@ -515,6 +592,16 @@ export function registerStudio() {
 			return info();
 		}
 		if (method === "info") return info();
+		if (method === "audioStatus") {
+			const next = z
+				.object({ recording: z.boolean(), microphone: z.boolean(), system: z.boolean() })
+				.parse(input);
+			if (next.recording && !audioRecording)
+				capturedAudio = { microphone: next.microphone, system: next.system };
+			audioRecording = next.recording;
+			audioState = { microphone: next.microphone, system: next.system };
+			return info();
+		}
 		if (method === "cameraStatus") {
 			if (!e.sender.getURL().includes("windowType=hud-overlay"))
 				throw Error("Camera status is owned by the recorder.");
@@ -548,18 +635,37 @@ export function registerStudio() {
 			await prepareStudioCapture();
 			return info();
 		}
-		if (method === "togglePanel" && panel && !panel.isDestroyed() && panel.isVisible()) {
+		if (
+			method === "togglePanel" &&
+			panel &&
+			!panel.isDestroyed() &&
+			panel.isVisible() &&
+			(!input || input === panelTab)
+		) {
 			panel.hide();
 			return info();
 		}
 		if (method === "open" || method === "togglePanel") {
-			if (input === "layers") panelTab = "layers";
+			if (["windows", "sounds", "controls", "scenes", "layers"].includes(input))
+				panelTab = input;
 			await openPanel();
 			publish();
 			return info();
 		}
 		if (method === "fireSound") {
 			fireSound(String(input));
+			return info();
+		}
+		if (method === "renameSource") {
+			const source = sourceSchema.parse(input?.source);
+			const name = z.string().trim().max(80).parse(input?.name);
+			const aliases = (settings.sourceAliases ?? []).filter((entry) => !isSelectedSource(entry.source, source));
+			settings = studioSettingsSchema.parse({ ...settings, sourceAliases: name ? [...aliases, { source, name }] : aliases });
+			await save();
+			return info();
+		}
+		if (method === "selectSource") {
+			await switchWindow(input);
 			return info();
 		}
 		if (method === "switch") {
@@ -633,10 +739,9 @@ export function registerStudio() {
 		}
 		if (method === "assignWindow") {
 			const slot = Number(input?.slot);
-			if (!Number.isInteger(slot) || slot < 1 || slot > 6)
+			if (!Number.isInteger(slot) || slot < 1 || slot > 64)
 				throw Error("Invalid window slot.");
 			const source = sourceSchema.parse(input.source);
-			if (source.sourceType !== "window") throw Error("Choose an application window.");
 			const shortcut = shortcutSchema.parse(input.shortcut);
 			const next = {
 				...settings,

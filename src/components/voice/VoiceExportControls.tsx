@@ -1,3 +1,4 @@
+import { VoiceCostEstimate } from "./VoiceCostEstimate";
 import { useEffect, useState } from "react";
 import { unwrapVoice, type VoiceInfo } from "@/types/voice";
 import type { VoicePreset } from "@/types/voicePreset";
@@ -216,6 +217,12 @@ export function VoiceExportControls({
 					</div>
 					{enabled && (
 						<>
+							{recording?.videoPath && settings && (
+								<VoiceCostEstimate
+									videoPath={recording.videoPath}
+									modelId={settings.modelId}
+								/>
+							)}
 							{!settings?.hasKey ? (
 								<button type="button" onClick={onManage} className="mt-2 underline">
 									Connect ElevenLabs

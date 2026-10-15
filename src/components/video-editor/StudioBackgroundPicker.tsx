@@ -9,6 +9,7 @@ export function StudioBackgroundPicker({
 	value: string;
 	onSelect: (source: string, frame: boolean) => void;
 }) {
+	const [motion, setMotion] = useState(true);
 	const [posters, setPosters] = useState<Record<string, string>>({});
 	useEffect(() => {
 		let disposed = false;
@@ -38,9 +39,14 @@ export function StudioBackgroundPicker({
 					<input
 						aria-label="Animate studio background"
 						type="checkbox"
-						checked={Boolean(selected?.motion && value === selected.motion)}
+						checked={
+							selected
+								? Boolean(selected.motion && value === selected.motion)
+								: motion
+						}
 						disabled={!selected?.motion}
 						onChange={(e) => {
+							setMotion(e.target.checked);
 							if (selected)
 								onSelect(
 									e.target.checked && selected.motion
@@ -60,7 +66,7 @@ export function StudioBackgroundPicker({
 						key={b.name}
 						aria-label={`${b.name} studio background`}
 						aria-pressed={selected === b}
-						onClick={() => onSelect(b.image, true)}
+						onClick={() => onSelect(motion && b.motion ? b.motion : b.image, true)}
 						data-help={`Frame your recording with the original ${b.name} backdrop. Adds a clean margin, rounded corners, and shadow; all remain editable.`}
 						className={`overflow-hidden rounded border text-left transition-colors ${selected === b ? "border-blue-500 ring-1 ring-blue-500" : "border-foreground/15 hover:border-foreground/40"}`}
 					>
@@ -73,14 +79,20 @@ export function StudioBackgroundPicker({
 						<span className="flex items-center justify-between px-2 py-1 text-[11px]">
 							<span>{b.name}</span>
 							<span className="text-muted-foreground">
-								{selected === b ? "Selected" : b.motion ? "+ Motion" : "Still"}
+								{selected === b
+									? value === b.motion
+										? "Motion ✓"
+										: "Still ✓"
+									: b.motion
+										? "Motion"
+										: "Still"}
 							</span>
 						</span>
 					</button>
 				))}
 			</div>
 			<p className="text-[10px] text-muted-foreground">
-				Applied after recording. Change the frame below.
+				Motion plays with the preview and is included in export.
 			</p>
 		</section>
 	);

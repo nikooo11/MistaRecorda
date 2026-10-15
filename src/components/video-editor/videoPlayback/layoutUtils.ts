@@ -19,7 +19,13 @@ export function isZeroPadding(padding: Padding | number): boolean {
 	if (typeof padding === "number") {
 		return padding === 0;
 	}
-	return padding.top === 0 && padding.bottom === 0 && padding.left === 0 && padding.right === 0;
+	return (
+		(padding.scale ?? 1) === 1 &&
+		padding.top === 0 &&
+		padding.bottom === 0 &&
+		padding.left === 0 &&
+		padding.right === 0
+	);
 }
 
 export interface PaddedLayoutResult {
@@ -88,9 +94,18 @@ export function computePaddedLayout(params: {
 	const fullFrameVideoW = croppedVideoWidth / screenFracW;
 	const fullFrameVideoH = croppedVideoHeight / screenFracH;
 
-	const scale = Math.min(
+	const paddedScale = Math.min(
 		fullFrameVideoW > 0 ? maxDisplayWidth / fullFrameVideoW : 0,
 		fullFrameVideoH > 0 ? maxDisplayHeight / fullFrameVideoH : 0,
+	);
+	const layerScale =
+		typeof padding === "object" && Number.isFinite(padding.scale)
+			? Math.min(2, Math.max(0.1, padding.scale!))
+			: 1;
+	const scale = Math.min(
+		paddedScale * layerScale,
+		fullFrameVideoW > 0 ? width / fullFrameVideoW : 0,
+		fullFrameVideoH > 0 ? height / fullFrameVideoH : 0,
 	);
 
 	const fullVideoDisplayWidth = videoWidth * scale;
@@ -115,8 +130,14 @@ export function computePaddedLayout(params: {
 			})()
 		: topPadFrac * height + maxDisplayHeight / 2;
 
-	const frameCenterX = availableCenterX - fullFrameDisplayW / 2;
-	const frameCenterY = availableCenterY - fullFrameDisplayH / 2;
+	const frameCenterX = Math.max(
+		0,
+		Math.min(width - fullFrameDisplayW, availableCenterX - fullFrameDisplayW / 2),
+	);
+	const frameCenterY = Math.max(
+		0,
+		Math.min(height - fullFrameDisplayH, availableCenterY - fullFrameDisplayH / 2),
+	);
 
 	const centerOffsetX = insets ? frameCenterX + insets.left * fullFrameDisplayW : frameCenterX;
 	const centerOffsetY = insets ? frameCenterY + insets.top * fullFrameDisplayH : frameCenterY;

@@ -1,3 +1,4 @@
+import { captionPresetSettings } from "./captionPresets";
 import { useVoiceExport } from "../voice/useVoiceExport";
 import { VoiceExportControls } from "../voice/VoiceExportControls";
 import { unwrapVoice } from "@/types/voice";
@@ -545,6 +546,7 @@ export default function VideoEditor() {
 	const [cursorSway, setCursorSway] = useState(initialEditorPreferences.cursorSway);
 	const [borderRadius, setBorderRadius] = useState(initialEditorPreferences.borderRadius);
 	const [padding, setPadding] = useState(initialEditorPreferences.padding);
+	const [screenSelected, setScreenSelected] = useState(false);
 	const [frame, setFrame] = useState<string | null>(initialEditorPreferences.frame);
 	const [cropRegion, setCropRegion] = useState<CropRegion>(DEFAULT_CROP_REGION);
 	const [webcam, setWebcam] = useState<WebcamOverlaySettings>(
@@ -579,9 +581,10 @@ export default function VideoEditor() {
 	const [sourceAudioFallbackRefreshKey, setSourceAudioFallbackRefreshKey] = useState(0);
 	const [hasClipSourceAudio, setHasClipSourceAudio] = useState(false);
 	const [autoCaptions, setAutoCaptions] = useState<CaptionCue[]>([]);
-	const [autoCaptionSettings, setAutoCaptionSettings] = useState<AutoCaptionSettings>(
-		DEFAULT_AUTO_CAPTION_SETTINGS,
-	);
+	const [autoCaptionSettings, setAutoCaptionSettings] = useState<AutoCaptionSettings>({
+		...DEFAULT_AUTO_CAPTION_SETTINGS,
+		...captionPresetSettings("highlight"),
+	});
 	const [includeCaptionSidecar, setIncludeCaptionSidecar] = useState(false);
 	const [whisperExecutablePath, setWhisperExecutablePath] = useState<string | null>(
 		initialEditorPreferences.whisperExecutablePath,
@@ -2906,7 +2909,7 @@ export default function VideoEditor() {
 	}, [downloadedWhisperModelPath]);
 
 	const handleGenerateAutoCaptions = useCallback(async () => {
-		if (isGeneratingCaptions) {
+		if (isGeneratingCaptions || whisperModelDownloadStatus === "downloading") {
 			return;
 		}
 
@@ -2941,17 +2944,32 @@ export default function VideoEditor() {
 
 		await syncActiveVideoSource(sourcePath, webcam.sourcePath ?? null);
 
-		if (!whisperModelPath) {
-			toast.error("Select a Whisper model or download the small model first");
-			return;
-		}
-
 		setIsGeneratingCaptions(true);
 		try {
+			let modelPath = whisperModelPath;
+			if (!modelPath) {
+				setWhisperModelDownloadStatus("downloading");
+				setWhisperModelDownloadProgress(0);
+				try {
+					const downloaded = await window.electronAPI.downloadWhisperSmallModel();
+					if (!downloaded.success || !downloaded.path)
+						throw new Error(
+							downloaded.error ||
+								"Could not prepare the speech engine. Try Generate captions again.",
+						);
+					modelPath = downloaded.path;
+					setDownloadedWhisperModelPath(modelPath);
+					setWhisperModelPath(modelPath);
+					setWhisperModelDownloadStatus("downloaded");
+				} catch (error) {
+					setWhisperModelDownloadStatus("error");
+					throw error;
+				}
+			}
 			const result = await window.electronAPI.generateAutoCaptions({
 				videoPath: sourcePath,
 				whisperExecutablePath: whisperExecutablePath ?? undefined,
-				whisperModelPath,
+				whisperModelPath: modelPath,
 				language: autoCaptionSettings.language,
 			});
 
@@ -2976,6 +2994,7 @@ export default function VideoEditor() {
 		}
 	}, [
 		autoCaptionSettings.language,
+		whisperModelDownloadStatus,
 		isGeneratingCaptions,
 		webcam.sourcePath,
 		syncActiveVideoSource,
@@ -5728,6 +5747,15 @@ export default function VideoEditor() {
 			connectedZoomEasing={connectedZoomEasing}
 			borderRadius={borderRadius}
 			padding={padding}
+			screenSelected={screenSelected}
+			onSelectScreen={() => {
+				setScreenSelected(true);
+				setSelectedZoomId(null);
+				setSelectedAnnotationId(null);
+				setActiveEffectSection("scene");
+			}}
+			onDeselectScreen={() => setScreenSelected(false)}
+			onPaddingChange={setPadding}
 			frame={frame}
 			cropRegion={cropRegion}
 			webcam={webcam}
@@ -6597,6 +6625,9 @@ export default function VideoEditor() {
 									setWebcam((w) => ({ ...w, enabled: !w.enabled }))
 								}
 								screen={() => {
+									getActivePlayback()?.pause();
+									setScreenSelected(true);
+									setSelectedZoomId(null);
 									setSelectedAnnotationId(null);
 									setActiveEffectSection("scene");
 								}}

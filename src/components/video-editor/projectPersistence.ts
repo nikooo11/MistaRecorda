@@ -758,6 +758,17 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 			? (editor.autoCaptionSettings as Partial<AutoCaptionSettings>)
 			: {};
 	const normalizedAutoCaptionSettings: AutoCaptionSettings = {
+		...(rawAutoCaptionSettings.preset &&
+		["highlight", "short", "single", "classic"].includes(rawAutoCaptionSettings.preset)
+			? { preset: rawAutoCaptionSettings.preset }
+			: {}),
+		...(isFiniteNumber(rawAutoCaptionSettings.wordsPerPage)
+			? { wordsPerPage: clamp(Math.round(rawAutoCaptionSettings.wordsPerPage), 1, 3) }
+			: {}),
+		...(typeof rawAutoCaptionSettings.highlightColor === "string" &&
+		/^#[0-9a-f]{6}$/i.test(rawAutoCaptionSettings.highlightColor)
+			? { highlightColor: rawAutoCaptionSettings.highlightColor }
+			: {}),
 		enabled:
 			typeof rawAutoCaptionSettings.enabled === "boolean"
 				? rawAutoCaptionSettings.enabled
@@ -957,15 +968,17 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 		padding: (() => {
 			const p = editor.padding;
 			if (p && typeof p === "object") {
+				const scale = isFiniteNumber(p.scale) ? { scale: clamp(p.scale, 0.1, 2) } : {};
 				const linked = typeof p.linked === "boolean" ? p.linked : true;
 				const verticalMax = linked ? 100 : ADVANCED_VERTICAL_PADDING_MAX;
 				const top = isFiniteNumber(p.top)
 					? clamp(p.top, 0, verticalMax)
 					: DEFAULT_PADDING.top;
 				if (linked) {
-					return { top, bottom: top, left: top, right: top, linked: true };
+					return { ...scale, top, bottom: top, left: top, right: top, linked: true };
 				}
 				return {
+					...scale,
 					top,
 					bottom: isFiniteNumber(p.bottom)
 						? clamp(p.bottom, 0, verticalMax)

@@ -1,0 +1,55 @@
+.voice-cost {
+	font-size: 11px;
+	line-height: 1.5;
+	color: #aeb5c0;
+	margin: 6px 0;
+}
+.voice-cost summary {
+	cursor: pointer;
+}
+.voice-cost summary strong {
+	color: #e5e7eb;
+	font-weight: 600;
+}
+.voice-cost summary span {
+	display: block;
+	margin-left: 12px;
+	font-size: 10px;
+}
+.voice-cost p {
+	margin: 8px 0;
+}
+.voice-cost table {
+	width: 100%;
+	border-collapse: collapse;
+	font-variant-numeric: tabular-nums;
+}
+.voice-cost caption {
+	text-align: left;
+	margin: 4px 0;
+}
+.voice-cost th,
+.voice-cost td {
+	text-align: right;
+	padding: 3px 4px;
+	border-bottom: 1px solid #ffffff18;
+}
+.voice-cost th:first-child,
+.voice-cost td:first-child {
+	text-align: left;
+}
+.voice-cost a {
+	color: #8eb8ff;
+	text-decoration: underline;
+}
+.voice-model-status {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	grid-column: 1 / -1;
+	font-size: 10px;
+}
+.voice-model-status span {
+	flex: 1;
+	color: #aeb5c0;
+}

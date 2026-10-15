@@ -153,14 +153,14 @@ export function registerSettingsHandlers() {
 					typeof parsed.microphoneDeviceId === "string"
 						? parsed.microphoneDeviceId
 						: undefined,
-				systemAudioEnabled: parsed.systemAudioEnabled === true,
+				systemAudioEnabled: parsed.systemAudioEnabled !== false,
 			};
 		} catch {
 			return {
 				success: true,
 				microphoneEnabled: true,
 				microphoneDeviceId: undefined,
-				systemAudioEnabled: false,
+				systemAudioEnabled: true,
 			};
 		}
 	});

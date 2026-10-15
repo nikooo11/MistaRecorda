@@ -1,5 +1,7 @@
 import type { AudioRegion } from "../components/video-editor/types";
 export interface StudioSource {
+	thumbnail?: string | null;
+	appIcon?: string | null;
 	id: string;
 	name: string;
 	appName?: string;
@@ -21,6 +23,7 @@ export interface WindowSlot {
 	source: StudioSource;
 }
 export interface StudioSettings {
+	sourceAliases?: Array<{ source: StudioSource; name: string }>;
 	glow: boolean;
 	windows: WindowSlot[];
 	sounds: SoundEffect[];
@@ -29,6 +32,7 @@ export interface StudioSettings {
 	scenes: RecordingScene[];
 }
 export interface RecordingScene {
+	audio?: { microphone: boolean; system: boolean };
 	id: string;
 	name: string;
 	source: StudioSource;
@@ -45,6 +49,7 @@ export interface StudioInfo {
 	switching: boolean;
 	canSwitch: boolean;
 	selectedName: string;
+	selectedSource?: StudioSource;
 	message: string;
 }
 export interface StudioAPI {

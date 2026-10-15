@@ -43,6 +43,7 @@ import { MorePopover } from "./popovers/MorePopover";
 import { ProjectPopover } from "./popovers/ProjectPopover";
 import { SourcePopover } from "./popovers/SourcePopover";
 import { WebcamPopover } from "./popovers/WebcamPopover";
+import { WindowSwitchPopover } from "./popovers/WindowSwitchPopover";
 import { RecordingControls } from "./RecordingControls";
 import { MarqueeText } from "./SourceSelector";
 
@@ -221,6 +222,10 @@ function LaunchWindowContent() {
 				if (action === "webcam") setWebcamEnabled(!webcamEnabled);
 				if (action === "webcam-on") setWebcamEnabled(true);
 				if (action === "webcam-off") setWebcamEnabled(false);
+				if (action === "microphone-on") setMicrophoneEnabled(true);
+				if (action === "microphone-off") setMicrophoneEnabled(false);
+				if (action === "system-audio-on") setSystemAudioEnabled(true);
+				if (action === "system-audio-off") setSystemAudioEnabled(false);
 			}),
 		[
 			recording,
@@ -230,8 +235,19 @@ function LaunchWindowContent() {
 			pauseRecording,
 			resumeRecording,
 			setWebcamEnabled,
+			setMicrophoneEnabled,
+			setSystemAudioEnabled,
 		],
 	);
+	useEffect(() => {
+		void window.electronAPI.studio
+			.request("audioStatus", {
+				recording,
+				microphone: microphoneEnabled,
+				system: systemAudioEnabled,
+			})
+			.catch(() => undefined);
+	}, [recording, microphoneEnabled, systemAudioEnabled]);
 	useEffect(() => {
 		void window.electronAPI.board.request("status", {
 			recording,
@@ -250,6 +266,7 @@ function LaunchWindowContent() {
 
 	const recordingControls = (
 		<>
+			<WindowSwitchPopover recording />
 			<Button
 				variant="ghost"
 				title="Drawing studio: annotate your screen, open a whiteboard, or connect your iPad. Command/Control + Shift + B toggles the board."
@@ -321,7 +338,7 @@ function LaunchWindowContent() {
 							<Button
 								variant="outline"
 								size="lg"
-								className={`${styles.electronNoDrag} group gap-2 px-3 min-w-0 max-w-[180px] rounded-[11px] font-medium text-[12px] shrink-0 border-[var(--launch-border)] bg-[var(--launch-surface)] text-[var(--launch-text)] hover:border-[var(--launch-border-strong)] hover:bg-[var(--launch-hover)] transition-all ${openId === "sources" ? "border-[var(--launch-border-strong)] bg-[var(--launch-hover)]" : ""}`}
+								className={`${styles.electronNoDrag} group gap-2 px-3 min-w-0 max-w-[144px] rounded-[11px] font-medium text-[12px] shrink-0 border-[var(--launch-border)] bg-[var(--launch-surface)] text-[var(--launch-text)] hover:border-[var(--launch-border-strong)] hover:bg-[var(--launch-hover)] transition-all ${openId === "sources" ? "border-[var(--launch-border-strong)] bg-[var(--launch-hover)]" : ""}`}
 								title={selectedSource}
 							>
 								<MonitorIcon size={16} className="shrink-0" />
@@ -337,8 +354,9 @@ function LaunchWindowContent() {
 							</Button>
 						}
 					/>
+					<WindowSwitchPopover recording={false} disabled={countdownActive} />
 
-					<Separator orientation="vertical" className="mx-[5px] h-6" />
+					<Separator orientation="vertical" className="mx-1 h-5" />
 				</>
 			)}
 
@@ -359,6 +377,7 @@ function LaunchWindowContent() {
 				trigger={
 					<Button
 						variant="ghost"
+						data-hud-icon
 						size="icon"
 						iconSize="lg"
 						title={
@@ -399,6 +418,7 @@ function LaunchWindowContent() {
 				trigger={
 					<Button
 						variant="ghost"
+						data-hud-icon
 						size="icon"
 						iconSize="lg"
 						title={
@@ -423,6 +443,7 @@ function LaunchWindowContent() {
 				trigger={
 					<Button
 						variant="ghost"
+						data-hud-icon
 						size="icon"
 						iconSize="lg"
 						title={t("recording.countdownDelay")}
@@ -450,7 +471,7 @@ function LaunchWindowContent() {
 				<div className={styles.recDot} />
 			</button>
 
-			<Separator orientation="vertical" className="mx-[5px] h-6" />
+			<Separator orientation="vertical" className="mx-1 h-5" />
 
 			<div className="relative w-0 h-0">
 				<ProjectPopover
@@ -486,7 +507,13 @@ function LaunchWindowContent() {
 				}}
 				appVersion={appVersion}
 				trigger={
-					<Button variant="ghost" size="icon" iconSize="lg" title={t("recording.more")}>
+					<Button
+						variant="ghost"
+						data-hud-icon
+						size="icon"
+						iconSize="lg"
+						title={t("recording.more")}
+					>
 						<DotsThreeVerticalIcon size={18} />
 					</Button>
 				}
@@ -494,6 +521,7 @@ function LaunchWindowContent() {
 
 			<Button
 				variant="ghost"
+				data-hud-icon
 				size="icon"
 				iconSize="lg"
 				onClick={() => window.electronAPI?.hudOverlayHide?.()}
@@ -504,6 +532,7 @@ function LaunchWindowContent() {
 
 			<Button
 				variant="ghost"
+				data-hud-icon
 				size="icon"
 				iconSize="lg"
 				onClick={() => window.electronAPI?.hudOverlayClose?.()}

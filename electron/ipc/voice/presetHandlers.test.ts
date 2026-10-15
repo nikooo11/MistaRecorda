@@ -4,6 +4,8 @@ const mock = vi.hoisted(() => ({
 	handlers: new Map<string, (input: unknown) => Promise<unknown>>(),
 	getVoice: vi.fn(),
 	editVoice: vi.fn(),
+	createVoice: vi.fn(),
+	showOpenDialog: vi.fn(),
 	read: vi.fn(),
 	save: vi.fn(),
 	notify: vi.fn(),
@@ -11,12 +13,16 @@ const mock = vi.hoisted(() => ({
 vi.mock("electron", () => ({
 	app: { getPath: () => "/tmp/mistarecorda-name-tests", on: vi.fn() },
 	BrowserWindow: { getAllWindows: () => [] },
-	dialog: {},
+	dialog: { showOpenDialog: mock.showOpenDialog },
 }));
 vi.mock("./register", () => ({
 	voiceHandle: (name: string, handler: (input: unknown) => Promise<unknown>) =>
 		mock.handlers.set(name, handler),
-	voiceClient: async () => ({ getVoice: mock.getVoice, editVoice: mock.editVoice }),
+	voiceClient: async () => ({
+		getVoice: mock.getVoice,
+		editVoice: mock.editVoice,
+		createVoice: mock.createVoice,
+	}),
 	voiceStore: () => ({ read: mock.read, save: mock.save }),
 	notifyVoiceSettings: mock.notify,
 }));
@@ -78,4 +84,20 @@ test("blank names are rejected before the voice API is called", async () => {
 		"invalidSettings",
 	);
 	expect(mock.getVoice).not.toHaveBeenCalled();
+});
+
+test("cloning requires explicit sample consent before opening files or uploading", async () => {
+	await expect(
+		mock.handlers.get("createVoice")!({ name: "Team", description: "", consent: false }),
+	).rejects.toThrow("sampleConsentRequired");
+	expect(mock.showOpenDialog).not.toHaveBeenCalled();
+	expect(mock.createVoice).not.toHaveBeenCalled();
+});
+test("canceling the sample picker creates no voice and changes no selected voice", async () => {
+	mock.showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
+	await expect(
+		mock.handlers.get("createVoice")!({ name: "Team", description: "", consent: true }),
+	).resolves.toBeNull();
+	expect(mock.createVoice).not.toHaveBeenCalled();
+	expect(mock.save).not.toHaveBeenCalled();
 });

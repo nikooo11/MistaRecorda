@@ -1,3 +1,4 @@
+import { defaultEnvironmentAudio } from "./environmentAudio";
 import { useState } from "react";
 import type { RecordingScene, StudioInfo, StudioSource } from "../../types/studio";
 import { ShortcutInput } from "./ShortcutInput";
@@ -23,31 +24,36 @@ export function RecordingScenes({
 		<>
 			<div className="capture-section-heading">
 				<div>
-					<h2>Recording scenes</h2>
-					<p>A source and camera setup, recalled with one shortcut.</p>
+					<h2>Environments</h2>
+					<p>
+						Save a source, camera layout, and audio inputs. Recall with one click or
+						shortcut.
+					</p>
 				</div>
 				<button
-					title="Save a reusable screen or window source with face camera on or off."
+					title="Save a screen or window, camera layout, and audio on/off."
 					disabled={busy || info.recording || scenes.length >= 6}
 					onClick={() => {
 						setError("");
 						setDraft({
 							id: crypto.randomUUID(),
 							name: "",
-							source: sources[0],
+							source: info.selectedSource ?? sources[0],
 							camera: info.camera?.enabled ?? false,
+							audio: { ...defaultEnvironmentAudio },
 							cameraLayout: info.settings.cameraLayout,
 							shortcut: "",
 						});
 					}}
 				>
-					Add scene
+					Save current setup
 				</button>
 			</div>
 			<div className="capture-note">
 				Choose a display for drawing or iPad annotations. Window scenes can switch during
-				native macOS window recording. Microphone and system audio use the recorder’s
-				current settings.
+				native macOS window recording. New environments start with microphone and computer
+				audio on. Start a take with both inputs enabled to mute and restore either while
+				switching.
 			</div>
 			{draft && (
 				<form
@@ -59,7 +65,7 @@ export function RecordingScenes({
 						setError("");
 						void saveShortcut("saveScene", {
 							...draft,
-							cameraLayout: info.settings.cameraLayout,
+							cameraLayout: draft.cameraLayout ?? info.settings.cameraLayout,
 						})
 							.then(() => setDraft(undefined))
 							.catch((e) => setError(e.message))
@@ -111,13 +117,101 @@ export function RecordingScenes({
 						/>
 						Face camera
 					</label>
+					<div className="scene-audio-controls">
+						{(["microphone", "system"] as const).map((key) => (
+							<label key={key}>
+								<input
+									type="checkbox"
+									checked={draft.audio?.[key] ?? true}
+									onChange={(e) =>
+										setDraft({
+											...draft,
+											audio: {
+												microphone: draft.audio?.microphone ?? true,
+												system: draft.audio?.system ?? true,
+												[key]: e.target.checked,
+											},
+										})
+									}
+								/>
+								{key === "microphone" ? "Microphone" : "Computer audio"}
+							</label>
+						))}
+					</div>
+					{draft.camera && (
+						<div className="scene-layout-editor">
+							<label>
+								Camera position
+								<select
+									aria-label="Environment camera position"
+									value={`${draft.cameraLayout?.x ?? 0.97},${draft.cameraLayout?.y ?? 0.97}`}
+									onChange={(e) => {
+										const [x, y] = e.target.value.split(",").map(Number);
+										setDraft({
+											...draft,
+											cameraLayout: {
+												...(draft.cameraLayout ??
+													info.settings.cameraLayout),
+												x,
+												y,
+											},
+										});
+									}}
+								>
+									{!["0,0", "1,0", "0,1", "1,1", "0.5,0.5"].includes(
+										`${draft.cameraLayout?.x ?? 0.97},${draft.cameraLayout?.y ?? 0.97}`,
+									) && (
+										<option
+											value={`${draft.cameraLayout?.x ?? 0.97},${draft.cameraLayout?.y ?? 0.97}`}
+										>
+											Custom position
+										</option>
+									)}
+									<option value="0,0">Top left</option>
+									<option value="1,0">Top right</option>
+									<option value="0,1">Bottom left</option>
+									<option value="1,1">Bottom right</option>
+									<option value="0.5,0.5">Center</option>
+								</select>
+							</label>
+							<label>
+								Camera size
+								<input
+									aria-label="Environment camera size"
+									type="range"
+									min="10"
+									max="60"
+									value={draft.cameraLayout?.size ?? 26}
+									onChange={(e) =>
+										setDraft({
+											...draft,
+											cameraLayout: {
+												...(draft.cameraLayout ??
+													info.settings.cameraLayout),
+												size: Number(e.target.value),
+											},
+										})
+									}
+								/>
+							</label>
+							<button
+								type="button"
+								onClick={() =>
+									setDraft({ ...draft, cameraLayout: info.settings.cameraLayout })
+								}
+							>
+								Use current camera layout
+							</button>
+						</div>
+					)}
+
 					<div>
 						<button
 							type="submit"
 							title="Save this scene. You can assign its shortcut in the scene list."
 							disabled={!draft.source || !draft.name.trim() || busy || saving}
 						>
-							{saving ? "Saving…" : "Save scene"}
+							{saving ? "Saving…" : "Save environment"}
 						</button>{" "}
 						<button
 							type="button"
@@ -137,8 +231,8 @@ export function RecordingScenes({
 			)}
 			{!scenes.length && !draft && (
 				<div className="sound-empty">
-					<h3>No scenes needed to start</h3>
-					<p>Record directly from the toolbar, or save a setup you use often.</p>
+					<h3>No saved environments yet</h3>
+					<p>Set up your source and camera, then save an environment you use often.</p>
 				</div>
 			)}
 			{scenes.map((scene) => (
@@ -147,6 +241,9 @@ export function RecordingScenes({
 						<strong>{scene.name}</strong>
 						<small>
 							{scene.source.name} · Camera {scene.camera ? "on" : "off"}
+							{scene.audio
+								? ` · Mic ${scene.audio.microphone ? "on" : "off"} · Computer ${scene.audio.system ? "on" : "off"}`
+								: " · Audio unchanged"}
 						</small>
 					</div>
 					<ShortcutInput
@@ -171,14 +268,14 @@ export function RecordingScenes({
 					/>
 					<button
 						disabled={busy || info.switching}
-						title="Select this source and turn the face camera on or off as saved."
+						title="Apply this source, camera layout, and audio settings."
 						onClick={() => void run("applyScene", scene.id)}
 					>
-						Use
+						Switch
 					</button>
 					<button
 						disabled={busy || info.recording}
-						title="Change this scene’s name, source, or face camera state."
+						title="Edit this environment’s source, camera layout, and audio settings."
 						onClick={() => setDraft(scene)}
 					>
 						Edit

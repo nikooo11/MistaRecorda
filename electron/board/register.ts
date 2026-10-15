@@ -770,7 +770,19 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			applyVisibility();
 			return true;
 		case "control":
-			if (!["record", "pause", "webcam", "webcam-on", "webcam-off"].includes(String(input)))
+			if (
+				![
+					"record",
+					"pause",
+					"webcam",
+					"webcam-on",
+					"webcam-off",
+					"microphone-on",
+					"microphone-off",
+					"system-audio-on",
+					"system-audio-off",
+				].includes(String(input))
+			)
 				throw Error("Unknown recording control");
 			for (const w of BrowserWindow.getAllWindows())
 				if (w.webContents.getURL().includes("windowType=hud-overlay"))
@@ -916,7 +928,16 @@ export async function registerBoard() {
 
 // Native menus and global shortcuts use the same recording command path.
 export function sendRecordingControl(
-	control: "record" | "pause" | "webcam" | "webcam-on" | "webcam-off",
+	control:
+		| "record"
+		| "pause"
+		| "webcam"
+		| "webcam-on"
+		| "webcam-off"
+		| "microphone-on"
+		| "microphone-off"
+		| "system-audio-on"
+		| "system-audio-off",
 ) {
 	return action("control", control);
 }

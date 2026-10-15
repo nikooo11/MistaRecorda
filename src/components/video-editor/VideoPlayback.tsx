@@ -1,3 +1,4 @@
+import { ScreenLayerControl } from "./ScreenLayerControl";
 import { cameraOverlayAt } from "../../lib/cameraLayout";
 import { isWebcamVisible } from "@/lib/webcamVisibility";
 import { Application, Container, Graphics, Rectangle, Sprite, Texture, VideoSource } from "pixi.js";
@@ -349,6 +350,10 @@ interface VideoPlaybackProps {
 	connectedZoomEasing?: ZoomTransitionEasing;
 	borderRadius?: number;
 	padding?: Padding | number;
+	screenSelected?: boolean;
+	onSelectScreen?: () => void;
+	onDeselectScreen?: () => void;
+	onPaddingChange?: (padding: Padding) => void;
 	frame?: string | null;
 	cropRegion?: import("./types").CropRegion;
 	webcam?: WebcamOverlaySettings;
@@ -433,7 +438,11 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 			zoomOutEasing = DEFAULT_ZOOM_OUT_EASING,
 			connectedZoomEasing = DEFAULT_CONNECTED_ZOOM_EASING,
 			borderRadius = 0,
-			padding = DEFAULT_PADDING,
+			padding: savedPadding = DEFAULT_PADDING,
+			screenSelected = false,
+			onSelectScreen,
+			onDeselectScreen,
+			onPaddingChange,
 			frame = null,
 			cropRegion,
 			webcam,
@@ -490,6 +499,8 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 		const motionBlurFilterRef = useRef<MotionBlurFilter | null>(null);
 		const cameraContainerRef = useRef<Container | null>(null);
 		const timeUpdateAnimationRef = useRef<number | null>(null);
+		const [resizePadding, setResizePadding] = useState<Padding | null>(null);
+		const padding = resizePadding ?? savedPadding;
 		const [pixiReady, setPixiReady] = useState(false);
 		const [videoReady, setVideoReady] = useState(false);
 		const [pixiRendererError, setPixiRendererError] = useState<string | null>(null);
@@ -3051,6 +3062,34 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 						</div>
 					</div>
 				)}
+				{pixiReady &&
+					videoReady &&
+					!isPlaying &&
+					!selectedZoomId &&
+					!selectedAnnotationId &&
+					onSelectScreen &&
+					onPaddingChange &&
+					annotationRecordingRect.width > 0 && (
+						<ScreenLayerControl
+							rect={annotationRecordingRect}
+							padding={
+								typeof padding === "number"
+									? {
+											top: padding,
+											bottom: padding,
+											left: padding,
+											right: padding,
+											linked: true,
+										}
+									: padding
+							}
+							selected={screenSelected}
+							onSelect={onSelectScreen}
+							onDeselect={() => onDeselectScreen?.()}
+							onPreview={setResizePadding}
+							onCommit={onPaddingChange}
+						/>
+					)}
 				{/* Canvas overlay for extension cursor effects (drawn via Canvas 2D API) */}
 				<canvas
 					ref={cursorEffectsCanvasRef}
@@ -3062,7 +3101,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 					<div
 						ref={overlayRef}
 						className="absolute inset-0 select-none"
-						style={{ pointerEvents: "none" }}
+						style={{ pointerEvents: "none", zIndex: 2 }}
 						onPointerDown={handleOverlayPointerDown}
 						onPointerMove={handleOverlayPointerMove}
 						onPointerUp={handleOverlayPointerUp}
@@ -3316,6 +3355,8 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 															getCaptionWordVisualState(
 																activeCaptionLayout.hasWordTimings,
 																word.state,
+																autoCaptionSettings.preset ===
+																	"highlight",
 															);
 
 														return (
@@ -3324,9 +3365,16 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 																style={{
 																	display: "inline-block",
 																	whiteSpace: "pre",
-																	color: visualState.isInactive
-																		? autoCaptionSettings.inactiveTextColor
-																		: autoCaptionSettings.textColor,
+																	backgroundColor:
+																		visualState.isHighlighted
+																			? (autoCaptionSettings.highlightColor ??
+																				"#68E0CF")
+																			: "transparent",
+																	color: visualState.isHighlighted
+																		? "#111111"
+																		: visualState.isInactive
+																			? autoCaptionSettings.inactiveTextColor
+																			: autoCaptionSettings.textColor,
 																	opacity: visualState.opacity,
 																}}
 															>

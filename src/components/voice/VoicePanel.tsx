@@ -1,3 +1,4 @@
+import { VoiceCostEstimate } from "./VoiceCostEstimate";
 import { useEffect, useRef, useState } from "react";
 import { WaveformIcon, KeyIcon, CaretDownIcon, DeviceTabletIcon } from "@phosphor-icons/react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -34,7 +35,9 @@ export function VoicePanel({
 	const [connect, setConnect] = useState(false);
 	const [expanded, setExpanded] = useState(true);
 	const [models, setModels] = useState<VoiceModel[]>(fallbackVoiceModels);
-	const [modelNotice, setModelNotice] = useState("");
+	const [modelNotice, setModelNotice] = useState("Connect to load live voice-conversion models.");
+	const [modelRevision, setModelRevision] = useState(0);
+	const [loadingModels, setLoadingModels] = useState(false);
 	const { recording, job, loaded, error } = useVoiceRecording(videoPath);
 	const processing = busy || job?.state === "running";
 	const selectedVoiceId = settings.voiceId;
@@ -74,9 +77,15 @@ export function VoicePanel({
 			off();
 		};
 	}, [request]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Refresh explicitly re-fetches the live provider model list.
 	useEffect(() => {
-		if (!hasKey) return;
+		if (!hasKey) {
+			setModels(fallbackVoiceModels);
+			setModelNotice("Connect to load live voice-conversion models.");
+			return;
+		}
 		let disposed = false;
+		setLoadingModels(true);
 		void request("models", undefined)
 			.then((r) => {
 				const all = unwrapVoice(r).filter((m) => m.canConvert);
@@ -84,19 +93,24 @@ export function VoicePanel({
 					setModels(all);
 					setModelNotice(
 						all.length
-							? ""
+							? "Live ElevenLabs voice-conversion models loaded."
 							: "No voice conversion models are available for this account.",
 					);
 				}
 			})
 			.catch(() => {
 				if (!disposed)
-					setModelNotice("Using standard v2 models; live model list unavailable.");
+					setModelNotice(
+						"Offline fallback: standard v2 models. Refresh to check availability.",
+					);
+			})
+			.finally(() => {
+				if (!disposed) setLoadingModels(false);
 			});
 		return () => {
 			disposed = true;
 		};
-	}, [hasKey, request]);
+	}, [hasKey, request, modelRevision]);
 	useEffect(() => window.electronAPI.voice.onImportRequested(() => setExpanded(true)), []);
 	const check = () => {
 		if (!hasKey) {
@@ -235,6 +249,9 @@ export function VoicePanel({
 				>
 					Process voice via ElevenLabs
 				</button>
+				{videoPath && recording?.micPath && (
+					<VoiceCostEstimate videoPath={videoPath} modelId={settings.modelId} />
+				)}
 				<details className="voice-tuning-disclosure">
 					<summary data-help="Expand to adjust the conversion model, stability, similarity, style, and noise reduction.">
 						Voice settings <span>{modelLabel(settings.modelId)}</span>
@@ -262,6 +279,20 @@ export function VoicePanel({
 								))}
 							</select>
 						</label>
+						<div className="voice-model-status">
+							<span>{modelNotice}</span>
+							<button
+								type="button"
+								disabled={!hasKey || loadingModels}
+								onClick={() => setModelRevision((n) => n + 1)}
+							>
+								{loadingModels ? "Checking…" : "Refresh models"}
+							</button>
+						</div>
+						<p className="voice-hint">
+							Multilingual v2 is recommended for recorded speech. Only models
+							supporting voice conversion appear here.
+						</p>
 						<div className="voice-tuning-grid">
 							{(["stability", "similarityBoost", "style"] as const).map((k) => (
 								<label
@@ -350,7 +381,6 @@ export function VoicePanel({
 						</div>
 					</fieldset>
 				</details>
-				{modelNotice && <p className="voice-hint">{modelNotice}</p>}
 				<label
 					className="voice-upload"
 					data-help="Only the microphone audio is sent to ElevenLabs when you click Process voice. Video and computer audio stay local."
@@ -363,7 +393,7 @@ export function VoicePanel({
 							setSettings({ ...settings, noticeAccepted: e.target.checked })
 						}
 					/>
-					Allow mic upload to ElevenLabs when I click Use
+					Allow mic upload to ElevenLabs when I click Process
 				</label>
 			</div>
 			<div id="voice-browser-panel" className="voice-browser-slot" hidden={!expanded}>
@@ -380,7 +410,7 @@ export function VoicePanel({
 			</div>
 			<footer className="voice-footer">
 				<div className="voice-status" role="status">
-					{status || "Preview → Use → Export"}
+					{status || "Preview → Use → Process → Export"}
 				</div>
 				{job?.state === "running" && (
 					<button

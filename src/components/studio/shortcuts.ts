@@ -1,4 +1,14 @@
 export type ShortcutPlatform = "darwin" | "win32" | "linux";
+export function formatShortcut(value: string, mac: boolean) {
+	return value
+		.replace(/CommandOrControl/g, mac ? "⌘" : "Ctrl")
+		.replace(/Command/g, "⌘")
+		.replace(/Control/g, "Ctrl")
+		.replace(/Super/g, "Win")
+		.replace(/Alt/g, mac ? "⌥" : "Alt")
+		.replace(/Shift/g, "⇧")
+		.replace(/\+/g, " + ");
+}
 export function normalizeShortcut(shortcut: string, platform: ShortcutPlatform) {
 	const parts = shortcut.toLowerCase().split("+");
 	const key = (parts.pop() || "").replace(/^arrow/, "");
@@ -78,6 +88,7 @@ export function shortcutWarning(
 		return `May overlap ${conflict.name} (${platform === "darwin" ? "macOS" : platform === "win32" ? "Windows" : "common app shortcut"}).`;
 	if (platform === "win32" && normalized.includes("super"))
 		return "The Windows key is used by many system shortcuts. Check this combination before saving.";
+	if (/^(?:[A-Z0-9]|Space)$/.test(shortcut)) return "Single-key shortcut: this key will trigger the action instead of typing in other apps.";
 	return "";
 }
 export function shortcutFromKey(
@@ -101,8 +112,7 @@ export function shortcutFromKey(
 	if (
 		!/^(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|Space|Tab|Escape|Enter|Arrow(?:Up|Down|Left|Right)|Delete|Backspace)$/.test(
 			key,
-		) ||
-		!(event.metaKey || event.ctrlKey || event.altKey)
+		)
 	)
 		return "";
 	return [

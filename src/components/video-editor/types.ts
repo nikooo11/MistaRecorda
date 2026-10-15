@@ -510,6 +510,8 @@ export const DEFAULT_CROP_REGION: CropRegion = {
 export const ADVANCED_VERTICAL_PADDING_MAX = 250;
 
 export interface Padding {
+	/** Direct screen-layer resize, relative to the padded frame. Omitted means 1. */
+	scale?: number;
 	top: number;
 	bottom: number;
 	left: number;
@@ -557,6 +559,9 @@ export interface CaptionCueWord {
 export type AutoCaptionAnimation = "none" | "fade" | "rise" | "pop";
 
 export interface AutoCaptionSettings {
+	preset?: "highlight" | "short" | "single" | "classic";
+	wordsPerPage?: number;
+	highlightColor?: string;
 	enabled: boolean;
 	/** Show the hover ghost on the timeline caption track for click-to-add. */
 	timelineQuickAdd: boolean;

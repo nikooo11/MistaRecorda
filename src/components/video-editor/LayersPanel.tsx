@@ -136,9 +136,9 @@ export function LayersPanel({
 			<div className="editor-layer-row">
 				<button className="layer-name" onClick={screen}>
 					<strong>Screen recording</strong>
-					<small>Base video · background and frame</small>
+					<small>Drag edges in preview to resize</small>
 				</button>
-				<button onClick={screen}>Edit</button>
+				<button onClick={screen}>Resize</button>
 			</div>
 			<p className="layer-hint">
 				Use the timeline to set when each overlay appears. Drawing captured during the take

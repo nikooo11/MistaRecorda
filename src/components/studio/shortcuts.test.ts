@@ -50,7 +50,7 @@ describe("shortcut editing", () => {
 			),
 		).toBe("Command+Alt+E");
 	});
-	test("does not turn bare typing into global hotkeys", () => {
+	test("accepts a single key when explicitly capturing a hotkey", () => {
 		expect(
 			shortcutFromKey(
 				{
@@ -63,6 +63,6 @@ describe("shortcut editing", () => {
 				},
 				"darwin",
 			),
-		).toBe("");
+		).toBe("A");
 	});
 });

@@ -1,5 +1,7 @@
+import { ShortcutGesture } from "./shortcutGesture";
+import { zoomShortcutValue } from "../recording-zoom/zoomShortcut";
 import { useEffect, useRef, useState } from "react";
-import { shortcutFromKey, shortcutWarning, type ShortcutPlatform } from "./shortcuts";
+import { formatShortcut, shortcutWarning, type ShortcutPlatform } from "./shortcuts";
 export function ShortcutInput({
 	value,
 	onChange,
@@ -18,22 +20,39 @@ export function ShortcutInput({
 		: /Win/.test(navigator.platform)
 			? "win32"
 			: "linux";
+	const [zoomBinding, setZoomBinding] = useState<Array<{ shortcut: string; name: string }>>([]);
+	useEffect(() => {
+		let disposed = false;
+		void window.electronAPI.recordingZoom
+			.getStatus()
+			.then((status) => {
+				if (!disposed && status.settings.enabled)
+					setZoomBinding([
+						{
+							shortcut: zoomShortcutValue(status.settings, platform),
+							name: "Hold to zoom",
+						},
+					]);
+			})
+			.catch(() => undefined);
+		return () => {
+			disposed = true;
+		};
+	}, [platform]);
 	const [editing, setEditing] = useState(false);
 	const [draft, setDraft] = useState(value);
 	const [ready, setReady] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState("");
 	const input = useRef<HTMLInputElement>(null);
-	const warning = error || shortcutWarning(editing ? draft : value, platform, assigned);
-	const format = (v: string) =>
-		v
-			.replace(/CommandOrControl/g, platform === "darwin" ? "⌘" : "Ctrl")
-			.replace(/Command/g, "⌘")
-			.replace(/Control/g, "Ctrl")
-			.replace(/Super/g, "Win")
-			.replace(/Alt/g, platform === "darwin" ? "⌥" : "Alt")
-			.replace(/Shift/g, "⇧")
-			.replace(/\+/g, " + ");
+	const gesture = useRef(new ShortcutGesture());
+	const savingRef = useRef(false);
+	useEffect(() => {
+		if (editing && ready) input.current?.focus();
+	}, [editing, ready]);
+	const warning =
+		error || shortcutWarning(editing ? draft : value, platform, [...assigned, ...zoomBinding]);
+	const format = (value: string) => formatShortcut(value, platform === "darwin");
 	useEffect(() => {
 		if (!editing) return;
 		let cancelled = false;
@@ -42,10 +61,18 @@ export function ShortcutInput({
 			.then(() => {
 				if (!cancelled) {
 					setReady(true);
-					input.current?.focus();
 				}
 			})
-			.catch(() => setError("Could not start shortcut capture."));
+			.catch((error) =>
+				setError(
+					error instanceof Error
+						? error.message.replace(
+								/^Error invoking remote method '[^']+': (?:Error: )?/,
+								"",
+							)
+						: "Could not start shortcut capture.",
+				),
+			);
 		const stop = () => setEditing(false);
 		const timeout = setTimeout(stop, 55000);
 		window.addEventListener("blur", stop);
@@ -56,12 +83,14 @@ export function ShortcutInput({
 			void window.electronAPI.studio.request("shortcutCapture", false).catch(() => undefined);
 		};
 	}, [editing]);
-	const save = async () => {
+	const save = async (shortcut: string) => {
+		if (savingRef.current) return;
+		savingRef.current = true;
 		setSaving(true);
 		setError("");
 		try {
 			await window.electronAPI.studio.request("shortcutCapture", false);
-			await onChange(draft);
+			await onChange(shortcut);
 			setEditing(false);
 		} catch (e) {
 			setError(
@@ -72,6 +101,7 @@ export function ShortcutInput({
 			await window.electronAPI.studio.request("shortcutCapture", true).catch(() => undefined);
 		} finally {
 			setSaving(false);
+			savingRef.current = false;
 		}
 	};
 	return (
@@ -83,10 +113,12 @@ export function ShortcutInput({
 					disabled={disabled}
 					aria-label={`Change ${label}`}
 					data-help={
-						warning || "Click, then press a new key combination. Save to apply it."
+						warning ||
+						"Click, hold a key or combination, then release all keys to save."
 					}
 					onClick={() => {
-						setDraft(value);
+						setDraft("");
+						gesture.current.reset();
 						setReady(false);
 						setError("");
 						setEditing(true);
@@ -101,45 +133,46 @@ export function ShortcutInput({
 						readOnly
 						aria-label={label}
 						className="shortcut-input"
+						onBlur={(event) => {
+							if (
+								!event.currentTarget
+									.closest(".shortcut-editor")
+									?.contains(event.relatedTarget)
+							)
+								setEditing(false);
+						}}
 						value={format(draft)}
 						placeholder={ready ? "Press keys…" : "Preparing…"}
 						disabled={!ready || saving}
 						onKeyDown={(e) => {
-							if (e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey) return;
+							if (e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey) {
+								setEditing(false);
+								return;
+							}
 							e.preventDefault();
 							e.stopPropagation();
 							if (e.key === "Escape" && !e.altKey && !e.ctrlKey && !e.metaKey) {
 								setEditing(false);
 								return;
 							}
-							if (e.key === "Enter" && !e.altKey && !e.ctrlKey && !e.metaKey) {
-								void save();
-								return;
-							}
-							if (
-								(e.key === "Backspace" || e.key === "Delete") &&
-								!e.altKey &&
-								!e.ctrlKey &&
-								!e.metaKey
-							) {
-								setDraft("");
-								setError("");
-								return;
-							}
-							const next = shortcutFromKey(e, platform);
-							if (next) {
-								setDraft(next);
-								setError("");
-							}
+							const next = gesture.current.update(e, true, platform);
+							setDraft(next.shortcut);
+							setError(next.error);
+						}}
+						onKeyUp={(e) => {
+							e.preventDefault();
+							e.stopPropagation();
+							const next = gesture.current.update(e, false, platform);
+							if (next.complete) void save(next.shortcut);
 						}}
 					/>
 					<div className="shortcut-actions">
 						<button
 							type="button"
 							disabled={!ready || saving}
-							onClick={() => void save()}
+							onClick={() => void save("")}
 						>
-							{saving ? "Saving…" : "Save"}
+							{saving ? "Saving…" : "Clear shortcut"}
 						</button>
 						<button type="button" disabled={saving} onClick={() => setEditing(false)}>
 							Cancel
@@ -148,7 +181,7 @@ export function ShortcutInput({
 				</>
 			)}
 			{warning && <small role="status">{warning}</small>}
-			{editing && !warning && <small>Press keys · Enter saves · Esc cancels</small>}
+			{editing && !warning && <small>Hold keys · Release all to save · Esc cancels</small>}
 		</div>
 	);
 }

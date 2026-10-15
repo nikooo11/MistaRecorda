@@ -8,6 +8,7 @@ test("existing settings gain a camera shortcut without changing user choices", (
 		windows: [],
 		sounds: [],
 		scenes: [],
+		sourceAliases: [],
 		cameraShortcut: "CommandOrControl+Shift+W",
 		cameraLayout: DEFAULT_CAMERA_LAYOUT,
 	});
@@ -27,7 +28,7 @@ test("sound cues use media time, ignore pause and suppress keyboard repeats", ()
 });
 test("shortcut and imported sound validation reject unsafe input", () => {
 	expect(shortcutSchema.parse("CommandOrControl+Alt+1")).toBeTruthy();
-	expect(shortcutSchema.safeParse("Z").success).toBe(false);
+	expect(shortcutSchema.safeParse("Z").success).toBe(true);
 	expect(shortcutSchema.safeParse("Control+../foo").success).toBe(false);
 	expect(
 		soundSchema.safeParse({

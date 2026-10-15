@@ -56,6 +56,8 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	private var firstInlineAudioSampleTime: CMTime?
 	private var capturesSystemAudio = false
 	private var capturesMicrophone = false
+	private var microphoneAudible = true
+	private var systemAudioAudible = true
 	private var writesSystemAudioToSeparateTrack = false
 	private var writesMicrophoneToSeparateTrack = false
 
@@ -345,6 +347,29 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		fflush(stdout)
 	}
 
+	func setAudio(microphone: Bool, system: Bool) {
+		queue.async {
+			self.microphoneAudible = microphone
+			self.systemAudioAudible = system
+		}
+	}
+
+	// Preserve the audio clock while an environment mutes an input. Dropping
+	// buffers would produce gaps or collapse timing when the sidecars are mixed.
+	private func silentAudio(_ sample: CMSampleBuffer) -> CMSampleBuffer? {
+		guard let format = sample.formatDescription,
+			let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(format),
+			asbd.pointee.mFormatID == kAudioFormatLinearPCM,
+			let original = CMSampleBufferGetDataBuffer(sample) else { return nil }
+		let length = CMBlockBufferGetDataLength(original)
+		var data: CMBlockBuffer?
+		guard CMBlockBufferCreateWithMemoryBlock(allocator: kCFAllocatorDefault, memoryBlock: nil, blockLength: length, blockAllocator: kCFAllocatorDefault, customBlockSource: nil, offsetToData: 0, dataLength: length, flags: 0, blockBufferOut: &data) == kCMBlockBufferNoErr,
+			let data, CMBlockBufferFillDataBytes(with: 0, blockBuffer: data, offsetIntoDestination: 0, dataLength: length) == kCMBlockBufferNoErr else { return nil }
+		var silence: CMSampleBuffer?
+		guard CMAudioSampleBufferCreateReadyWithPacketDescriptions(allocator: kCFAllocatorDefault, dataBuffer: data, formatDescription: format, sampleCount: CMSampleBufferGetNumSamples(sample), presentationTimeStamp: sample.presentationTimeStamp, packetDescriptions: nil, sampleBufferOut: &silence) == noErr else { return nil }
+		return silence
+	}
+
 	func pauseCapture() {
 		guard isRecording, !isPaused else { return }
 		isPaused = true
@@ -389,7 +414,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 
 		if outputType == .audio {
-			guard let systemAudioInput else { return }
+			guard let systemAudioInput, let sampleBuffer = systemAudioAudible ? sampleBuffer : silentAudio(sampleBuffer) else { return }
 			appendAudioSampleBuffer(sampleBuffer, to: systemAudioInput, firstSampleTime: &firstSystemAudioSampleTime, presentationTime: presentationTime)
 			// Also write system audio to the inline video track
 			if let inlineAudioInput, inlineAudioInput.isReadyForMoreMediaData {
@@ -399,6 +424,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 
 		if outputType.rawValue == microphoneOutputTypeRawValue {
+			guard let sampleBuffer = microphoneAudible ? sampleBuffer : silentAudio(sampleBuffer) else { return }
 			if let microphoneOnlyInput {
 				appendAudioSampleBuffer(sampleBuffer, to: microphoneOnlyInput, firstSampleTime: &firstMicrophoneSampleTime, presentationTime: presentationTime)
 			}
@@ -691,6 +717,10 @@ final class RecorderService {
 		}
 	}
 
+	func setAudio(microphone: Bool, system: Bool) {
+		recorder.setAudio(microphone: microphone, system: system)
+	}
+
 	func pause() {
 		queue.async {
 			self.recorder.pauseCapture()
@@ -764,6 +794,13 @@ service.start(configJSON: CommandLine.arguments[1])
 
 DispatchQueue.global(qos: .utility).async {
 	while let input = readLine(strippingNewline: true)?.lowercased() {
+		if input.hasPrefix("audio ") {
+			let parts = input.split(separator: " ")
+			if parts.count == 3, ["on", "off"].contains(parts[1]), ["on", "off"].contains(parts[2]) {
+				service.setAudio(microphone: parts[1] == "on", system: parts[2] == "on")
+			}
+			continue
+		}
 		if input.hasPrefix("switch-window "), let id = UInt32(input.dropFirst(14)) {
 			service.switchWindow(id)
 			continue

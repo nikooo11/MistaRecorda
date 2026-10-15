@@ -47,11 +47,10 @@ export function getCaptionTextMaxWidth(
 	);
 }
 
-export function getCaptionWordVisualState(_hasWordTimings: boolean, _state: CaptionWordState) {
-	// Per-word "spoken" highlighting is disabled: word-level timings from the
-	// transcriber are unreliable, so captions render as a single uniform block.
-	return {
-		isInactive: false,
-		opacity: 1,
-	};
+export function getCaptionWordVisualState(
+	_hasWordTimings: boolean,
+	state: CaptionWordState,
+	highlight = false,
+) {
+	return { isInactive: false, isHighlighted: highlight && state === "active", opacity: 1 };
 }

@@ -1792,13 +1792,25 @@ export class FrameRenderer {
 				const visualState = getCaptionWordVisualState(
 					state.layout.hasWordTimings,
 					word.state,
+					settings.preset === "highlight",
 				);
 
 				ctx.save();
 				ctx.translate(cursorX, lineY);
-				ctx.fillStyle = visualState.isInactive
-					? settings.inactiveTextColor
-					: settings.textColor;
+				if (visualState.isHighlighted) {
+					ctx.fillStyle = settings.highlightColor ?? "#68E0CF";
+					ctx.fillRect(
+						0,
+						(-state.fontSize * CAPTION_LINE_HEIGHT) / 2,
+						segmentWidth,
+						state.fontSize * CAPTION_LINE_HEIGHT,
+					);
+				}
+				ctx.fillStyle = visualState.isHighlighted
+					? "#111111"
+					: visualState.isInactive
+						? settings.inactiveTextColor
+						: settings.textColor;
 				ctx.globalAlpha = visualState.opacity;
 				ctx.fillText(segmentText, 0, 0);
 				ctx.restore();

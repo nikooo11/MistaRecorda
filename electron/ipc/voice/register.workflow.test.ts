@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
 	start: vi.fn().mockResolvedValue("job"),
 	key: vi.fn().mockResolvedValue("mock-key"),
 	read: vi.fn(),
+	duration: vi.fn().mockResolvedValue(123.4),
+	metadata: vi.fn(),
 	select: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("electron", () => ({
@@ -32,11 +34,11 @@ vi.mock("./settings", () => ({
 	},
 }));
 vi.mock("./job", () => ({ startVoiceJob: mocks.start, cancelJob: vi.fn(), jobProgress: () => [] }));
-vi.mock("./chunker", () => ({ ffmpeg: vi.fn() }));
+vi.mock("./chunker", () => ({ ffmpeg: vi.fn(), audioDuration: mocks.duration }));
 vi.mock("../recording/library", () => ({
 	prepareRecordingAudio: vi.fn(),
 	recordingBase: vi.fn(),
-	readAudioMetadata: vi.fn(),
+	readAudioMetadata: mocks.metadata,
 	writeAudioMetadata: vi.fn(),
 }));
 vi.mock("../project/manager", () => ({ resolveApprovedLocalMediaPath: async (p: string) => p }));
@@ -80,4 +82,26 @@ test("explicit Process voice uses the selected voice and waits for startup selec
 		expect.objectContaining({ voiceId: "favorite" }),
 		expect.anything(),
 	);
+});
+
+test("cost duration inspects only the original microphone without API credentials or conversion", async () => {
+	mocks.metadata.mockResolvedValueOnce({
+		micPath: "/original.wav",
+		changedMicPath: "/changed.wav",
+	});
+	expect(await mocks.handlers.get("voice:audioDuration")!(event, "/recording.mp4")).toEqual({
+		ok: true,
+		data: 123.4,
+	});
+	expect(mocks.duration).toHaveBeenCalledWith("/original.wav");
+	expect(mocks.key).not.toHaveBeenCalled();
+	expect(mocks.start).not.toHaveBeenCalled();
+});
+test("cost duration never substitutes system audio for missing microphone", async () => {
+	mocks.metadata.mockResolvedValueOnce({ micPath: null, systemAudioPath: "/system.wav" });
+	expect(await mocks.handlers.get("voice:audioDuration")!(event, "/recording.mp4")).toEqual({
+		ok: false,
+		error: "missingMic",
+	});
+	expect(mocks.duration).not.toHaveBeenCalled();
 });

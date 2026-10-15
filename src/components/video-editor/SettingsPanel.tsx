@@ -1,3 +1,4 @@
+import { CaptionStylePicker } from "./CaptionStylePicker";
 import { StudioBackgroundPicker } from "./StudioBackgroundPicker";
 import { editCameraOverlayAt } from "../../lib/cameraLayout";
 import {
@@ -1676,6 +1677,7 @@ export function SettingsPanel({
 				(padding.top + padding.bottom + padding.left + padding.right) / 4,
 			);
 			onPaddingChange?.({
+				...padding,
 				top: avg,
 				bottom: avg,
 				left: avg,
@@ -1693,6 +1695,7 @@ export function SettingsPanel({
 	const handlePaddingSideChange = (side: keyof Padding, value: number) => {
 		if (padding.linked !== false) {
 			onPaddingChange?.({
+				...padding,
 				top: value,
 				bottom: value,
 				left: value,
@@ -2049,6 +2052,7 @@ export function SettingsPanel({
 					onWallpaperChange(source);
 					if (frame) {
 						onPaddingChange?.({
+							...padding,
 							top: 28,
 							bottom: 28,
 							left: 28,
@@ -2673,17 +2677,11 @@ export function SettingsPanel({
 				</div>
 			</div>
 
-			<div className="rounded-lg bg-foreground/[0.03] px-2.5 py-2 space-y-3">
-				<div>
-					<Button
-						type="button"
-						variant="outline"
-						onClick={onPickWhisperModel}
-						className="h-10 w-full rounded-xl border-foreground/10 bg-foreground/5 px-4 text-sm text-foreground hover:bg-foreground/10 hover:text-foreground"
-					>
-						{tSettings("captions.selectModel", "Select Model")}
-					</Button>
-				</div>
+			<CaptionStylePicker
+				settings={autoCaptionSettings}
+				onChange={updateAutoCaptionSettings}
+			/>
+			<div className="rounded border border-foreground/10 p-2.5 space-y-2">
 				<div className="flex items-center justify-between gap-3">
 					<div className="text-sm font-medium text-foreground">
 						{tSettings("captions.language", "Language")}
@@ -2692,7 +2690,7 @@ export function SettingsPanel({
 						value={autoCaptionSettings.language || "auto"}
 						onValueChange={(value) => updateAutoCaptionSettings({ language: value })}
 					>
-						<SelectTrigger className="h-10 w-[180px] rounded-xl border-foreground/10 bg-foreground/5 text-sm text-foreground hover:bg-foreground/10">
+						<SelectTrigger className="h-8 w-[150px] rounded border-foreground/10 bg-foreground/5 text-sm text-foreground hover:bg-foreground/10">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent className="border-foreground/10 bg-editor-surface-alt text-foreground">
@@ -2704,79 +2702,84 @@ export function SettingsPanel({
 						</SelectContent>
 					</Select>
 				</div>
-				<div className="flex flex-wrap items-center gap-2">
-					<div className="grid w-full grid-cols-2 gap-2">
-						{whisperModelDownloadStatus === "downloading" ? (
-							<Button
-								type="button"
-								disabled
-								className="h-10 w-full rounded-xl bg-foreground/10 px-4 text-sm font-medium text-foreground hover:bg-foreground/10"
-							>
-								{tSettings("captions.downloading", "Downloading...")}{" "}
-								{Math.round(whisperModelDownloadProgress)}%
-							</Button>
-						) : whisperModelPath ? (
-							<Button
-								type="button"
-								variant="outline"
-								onClick={onDeleteWhisperSmallModel}
-								className="h-10 w-full rounded-xl border-foreground/10 bg-foreground/5 px-4 text-sm text-foreground hover:bg-foreground/10 hover:text-foreground"
-							>
-								{tSettings("captions.deleteModel", "Delete Model")}
-							</Button>
-						) : (
-							<Button
-								type="button"
-								onClick={onDownloadWhisperSmallModel}
-								className="h-10 w-full rounded-xl bg-[#2563EB] px-4 text-sm font-medium text-white hover:bg-[#2563EB]/90"
-							>
-								{tSettings("captions.downloadModel", "Download Model")}
-							</Button>
-						)}
+				<Button
+					type="button"
+					onClick={onGenerateAutoCaptions}
+					disabled={isGeneratingCaptions || whisperModelDownloadStatus === "downloading"}
+					className="h-9 w-full rounded bg-[#2563EB] text-white"
+				>
+					{whisperModelDownloadStatus === "downloading"
+						? `Preparing captions · ${Math.round(whisperModelDownloadProgress)}%`
+						: isGeneratingCaptions
+							? "Generating captions…"
+							: captionCueCount > 0
+								? "Regenerate captions"
+								: "Generate captions"}
+				</Button>
+				<p className="text-xs text-muted-foreground">
+					{!whisperModelPath
+						? "First use downloads the local speech engine. Your audio stays on this computer."
+						: "Speech engine ready · audio is processed locally."}
+				</p>
+				<p className="text-xs text-muted-foreground">
+					Pause and click a caption in the preview to correct it. Word timing is estimated
+					when precise timestamps are unavailable.
+				</p>
+				{whisperModelDownloadStatus === "downloading" && (
+					<progress
+						aria-label="Speech engine download"
+						className="w-full"
+						max={100}
+						value={whisperModelDownloadProgress}
+					/>
+				)}
+				{isGeneratingCaptions && whisperModelDownloadStatus !== "downloading" && (
+					<div role="status" className="text-xs">
+						Listening to your recording. This can take a moment…
+					</div>
+				)}
+				{captionCueCount > 0 && (
+					<Button
+						type="button"
+						variant="outline"
+						className="h-7 rounded text-xs"
+						disabled={isGeneratingCaptions}
+						onClick={onClearAutoCaptions}
+					>
+						Clear captions
+					</Button>
+				)}
+				<details className="text-xs text-muted-foreground">
+					<summary className="cursor-pointer">Advanced transcription</summary>
+					<div className="flex flex-wrap gap-2 mt-2">
 						<Button
 							type="button"
 							variant="outline"
-							onClick={onClearAutoCaptions}
-							disabled={captionCueCount === 0}
-							className="h-10 w-full rounded-xl border-foreground/10 bg-foreground/5 px-4 text-sm text-foreground hover:bg-foreground/10 hover:text-foreground disabled:opacity-50"
+							className="h-7 rounded text-xs"
+							disabled={isGeneratingCaptions}
+							onClick={onPickWhisperModel}
 						>
-							{tSettings("captions.clearFull", "Clear Captions")}
+							Choose local model…
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							className="h-7 rounded text-xs"
+							disabled={
+								isGeneratingCaptions || whisperModelDownloadStatus === "downloading"
+							}
+							onClick={
+								whisperModelPath
+									? onDeleteWhisperSmallModel
+									: onDownloadWhisperSmallModel
+							}
+						>
+							{whisperModelPath
+								? "Remove downloaded model"
+								: "Download speech engine"}
 						</Button>
 					</div>
-				</div>
-				<div className="flex flex-col gap-2">
-					<Button
-						type="button"
-						onClick={onGenerateAutoCaptions}
-						disabled={isGeneratingCaptions || !whisperModelPath}
-						className="h-10 w-full rounded-xl bg-[#2563EB] px-4 text-sm font-medium text-white hover:bg-[#2563EB]/90 disabled:opacity-60"
-					>
-						{isGeneratingCaptions
-							? tSettings("captions.generating", "Generating...")
-							: captionCueCount > 0
-								? tSettings("captions.regenerateFull", "Regenerate Captions")
-								: tSettings("captions.generateFull", "Generate Captions")}
-					</Button>
-					{isGeneratingCaptions ? (
-						<div className="space-y-1">
-							<div className="text-xs text-muted-foreground">
-								{tSettings(
-									"captions.generatingStatus",
-									"Generating captions. This can take a moment.",
-								)}
-							</div>
-							<div className="indeterminate-progress h-2 rounded-full bg-foreground/5" />
-						</div>
-					) : null}
-				</div>
-				{whisperModelDownloadStatus === "downloading" ? (
-					<div className="h-2 overflow-hidden rounded-full bg-foreground/5">
-						<div
-							className="h-full rounded-full bg-[#2196f3] transition-all"
-							style={{ width: `${whisperModelDownloadProgress}%` }}
-						/>
-					</div>
-				) : null}
+				</details>
 			</div>
 
 			<div className="flex flex-col gap-1.5">

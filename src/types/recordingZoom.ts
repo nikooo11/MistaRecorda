@@ -1,7 +1,12 @@
 import type { ZoomDepth, ZoomRegion } from "../components/video-editor/types";
 
 export const RECORDING_ZOOM_KEYS = [
-	..."ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+	..."ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+	"Space",
+	"Up",
+	"Down",
+	"Left",
+	"Right",
 	...Array.from({ length: 12 }, (_, i) => `F${i + 1}`),
 ];
 export interface RecordingZoomSettings {

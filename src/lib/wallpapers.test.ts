@@ -21,7 +21,7 @@ describe("wallpapers", () => {
 		expect(DEFAULT_WALLPAPER_RELATIVE_PATH).toBe("wallpapers/tahoe-light.jpg");
 		expect(BUILT_IN_WALLPAPERS.at(0)?.publicPath).toBe(DEFAULT_WALLPAPER_PATH);
 		expect(BUILT_IN_WALLPAPERS.at(1)?.publicPath).toBe("/wallpapers/tahoe-dark.jpg");
-		expect(BUILT_IN_WALLPAPERS).toHaveLength(31);
+		expect(BUILT_IN_WALLPAPERS).toHaveLength(32);
 	});
 
 	it("preserves the curated order when asset discovery returns extra files", async () => {

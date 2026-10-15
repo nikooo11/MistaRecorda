@@ -1,5 +1,5 @@
 import { isVoiceExportReady, voiceProcessingKey } from "../../../src/lib/voiceExport";
-import { ffmpeg } from "./chunker";
+import { audioDuration, ffmpeg } from "./chunker";
 import { prepareRecordingAudio, recordingBase } from "../recording/library";
 import { pathToFileURL } from "node:url";
 import { getPackagedRendererBaseUrl } from "../../rendererServer";
@@ -194,6 +194,13 @@ export function registerVoiceHandlers() {
 		const p = typeof input === "string" ? await resolveApprovedLocalMediaPath(input) : null;
 		if (!p) throw new Error("noAccess");
 		return (await readAudioMetadata(p)) ?? prepareRecordingAudio(p);
+	});
+	voiceHandle("audioDuration", async (input) => {
+		const p = typeof input === "string" ? await resolveApprovedLocalMediaPath(input) : null;
+		if (!p) throw new Error("noAccess");
+		const meta = await readAudioMetadata(p);
+		if (!meta?.micPath) throw new Error("missingMic");
+		return audioDuration(meta.micPath);
 	});
 	voiceHandle("exportReady", async (input) => {
 		const p = typeof input === "string" ? await resolveApprovedLocalMediaPath(input) : null;

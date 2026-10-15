@@ -1,3 +1,5 @@
+import { LayerSources } from "./LayerSources";
+import { isSelectedSource, sourceSwitchUnavailable } from "./sourceSwitching";
 import { CaptureLayers } from "./CaptureLayers";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -46,8 +48,8 @@ export function StudioPanel() {
 		try {
 			const all = await window.electronAPI.getSources({
 				types: ["window", "screen"],
-				thumbnailSize: { width: 0, height: 0 },
-				fetchWindowIcons: false,
+				thumbnailSize: { width: 240, height: 150 },
+				fetchWindowIcons: true,
 			});
 			setSources(all as StudioSource[]);
 		} catch (e) {
@@ -57,7 +59,12 @@ export function StudioPanel() {
 	useEffect(() => {
 		void run("info");
 		void refresh();
-		return window.electronAPI.studio.onChanged(setInfo);
+		const stop = window.electronAPI.studio.onChanged(setInfo);
+		const sourceChanged = window.electronAPI.onSelectedSourceChanged(() => void run("info"));
+		return () => {
+			stop();
+			sourceChanged?.();
+		};
 	}, [run, refresh]);
 	useEffect(() => () => audio.current?.pause(), []);
 	useEffect(() => {
@@ -97,7 +104,7 @@ export function StudioPanel() {
 					[
 						{ id: "controls", label: "Recording", Icon: KeyboardIcon },
 						{ id: "layers", label: "Layers", Icon: StackIcon },
-						{ id: "scenes", label: "Recording scenes", Icon: StackIcon },
+						{ id: "scenes", label: "Environments", Icon: StackIcon },
 						{ id: "windows", label: "Window shortcuts", Icon: MonitorIcon },
 						{ id: "sounds", label: "Sound effects", Icon: SpeakerHighIcon },
 					] as const
@@ -111,12 +118,12 @@ export function StudioPanel() {
 						}}
 						title={
 							{
-								layers: "Add a camera and drawings, choose camera placement, and lock its position.",
+								layers: "Choose screens and windows, assign shortcuts, and save environments.",
 								windows:
 									"Assign hotkeys to switch the recorded application window during a take.",
 								sounds: "Import sound clips, preview them, and choose hotkeys that add them to your recording.",
 								controls: "Recording defaults, camera shortcut, and capture glow.",
-								scenes: "Save a source and face-camera setup, then recall it with one shortcut.",
+								scenes: "Recall a source, camera layout, and audio inputs with one shortcut.",
 							}[id]
 						}
 					>
@@ -126,7 +133,26 @@ export function StudioPanel() {
 				))}
 			</nav>
 			<div className="capture-content">
-				{tab === "layers" && <CaptureLayers info={info} run={run} />}
+				{tab === "layers" && (
+					<>
+						<LayerSources
+							info={info}
+							sources={sources}
+							busy={busy}
+							run={run}
+							saveShortcut={saveShortcut}
+							refresh={refresh}
+						/>
+						<RecordingScenes
+							info={info}
+							sources={sources}
+							busy={busy}
+							run={run}
+							saveShortcut={saveShortcut}
+						/>
+						<CaptureLayers info={info} run={run} />
+					</>
+				)}
 				{tab === "scenes" && (
 					<RecordingScenes
 						info={info}
@@ -141,7 +167,10 @@ export function StudioPanel() {
 						<div className="capture-section-heading">
 							<div>
 								<h2>Window shortcuts</h2>
-								<p>Assign a window and click its shortcut to change the keys.</p>
+								<p>
+									Save up to six windows or screens. Click a shortcut to edit it;
+									click Switch to select its source.
+								</p>
 							</div>
 							<button
 								disabled={busy}
@@ -153,8 +182,8 @@ export function StudioPanel() {
 						</div>
 						<div className="capture-note">
 							{info.canSwitch
-								? "Start with a window source to switch windows during recording. Use display capture to include drawings."
-								: "Live window switching is available with native macOS capture. The rest of the recorder works on this platform."}
+								? "Use the Windows button on the recorder to switch saved targets. During a take, start with a window source to switch between windows. Display changes require stopping."
+								: "Click a saved source or press its shortcut before recording. Live window switching requires native macOS capture."}
 						</div>
 						<p className="shortcut-check-note">
 							Yellow indicates a known shortcut conflict. Some shortcuts in other apps
@@ -162,14 +191,19 @@ export function StudioPanel() {
 						</p>
 						{[1, 2, 3, 4, 5, 6].map((slot) => {
 							const assigned = info.settings.windows.find((w) => w.slot === slot);
+							const selected =
+								assigned && isSelectedSource(assigned.source, info.selectedSource);
+							const unavailable = assigned
+								? sourceSwitchUnavailable(info, assigned.source)
+								: "";
 							return (
 								<div className="window-slot" key={slot}>
 									<span className="slot-number">{slot}</span>
 									<label>
-										Window {slot}
+										Source {slot}
 										<select
-											aria-label={`Window ${slot}`}
-											disabled={busy || info.recording || !info.canSwitch}
+											aria-label={`Source ${slot}`}
+											disabled={busy || info.recording}
 											value={assigned?.source.id ?? ""}
 											onChange={(e) => {
 												const source = sources.find(
@@ -185,7 +219,7 @@ export function StudioPanel() {
 													});
 											}}
 										>
-											<option value="">Choose an open window…</option>
+											<option value="">Choose a window or screen…</option>
 											{assigned &&
 												!sources.some(
 													(s) => s.id === assigned.source.id,
@@ -194,13 +228,11 @@ export function StudioPanel() {
 														{assigned.source.name} (reopen window)
 													</option>
 												)}
-											{sources
-												.filter((s) => s.sourceType === "window")
-												.map((s) => (
-													<option key={s.id} value={s.id}>
-														{s.name}
-													</option>
-												))}
+											{sources.map((s) => (
+												<option key={s.id} value={s.id}>
+													{s.name}
+												</option>
+											))}
 										</select>
 									</label>
 									<ShortcutInput
@@ -237,11 +269,21 @@ export function StudioPanel() {
 									/>
 									<button
 										aria-label={`Switch to window ${slot}`}
-										title="Select this window before recording, or switch to it during native window capture."
-										disabled={!assigned || busy || info.switching}
+										title={
+											unavailable ||
+											"Switch the recorded source to this window or screen."
+										}
+										aria-pressed={!!selected}
+										disabled={
+											!assigned ||
+											busy ||
+											info.switching ||
+											selected ||
+											!!unavailable
+										}
 										onClick={() => void run("switch", slot)}
 									>
-										<PlayIcon size={16} />
+										{selected ? "Selected" : "Switch"}
 									</button>
 									<button
 										aria-label={`Remove window ${slot}`}

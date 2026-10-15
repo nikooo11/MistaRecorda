@@ -277,6 +277,27 @@ export function registerPresetHandlers() {
 		notify();
 		return p;
 	});
+	voiceHandle("createVoice", async (input) => {
+		if (
+			!input ||
+			typeof input.name !== "string" ||
+			!input.name.trim() ||
+			input.name.length > 160 ||
+			typeof input.description !== "string" ||
+			input.description.length > 2000
+		)
+			throw new Error("invalidSettings");
+		if (input.consent !== true) throw new Error("sampleConsentRequired");
+		const api = await voiceClient();
+		const audio = await samples();
+		if (!audio.length) return null;
+		const created = await api.createVoice(
+			{ name: input.name.trim(), description: input.description },
+			audio,
+		);
+		notify();
+		return created;
+	});
 	voiceHandle("editVoice", async (input) => {
 		if (
 			!input ||

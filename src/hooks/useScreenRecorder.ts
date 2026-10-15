@@ -312,7 +312,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	const [isMacOS, setIsMacOS] = useState(false);
 	const [microphoneEnabled, setMicrophoneEnabled] = useState(true);
 	const [microphoneDeviceId, setMicrophoneDeviceId] = useState<string | undefined>(undefined);
-	const [systemAudioEnabled, setSystemAudioEnabled] = useState(false);
+	const [systemAudioEnabled, setSystemAudioEnabled] = useState(true);
 	const [webcamEnabled, setWebcamEnabledState] = useState(false);
 	const webcamVisibility = useRef<WebcamVisibilityEvent[]>([]);
 	const liveRecording = useRef(false);
@@ -1327,6 +1327,10 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 
 	const persistMicrophoneEnabled = useCallback((enabled: boolean) => {
 		setMicrophoneEnabled(enabled);
+		for (const track of microphoneStream.current?.getAudioTracks() ?? [])
+			track.enabled = enabled;
+		for (const track of micFallbackRecorder.current?.stream.getAudioTracks() ?? [])
+			track.enabled = enabled;
 		void window.electronAPI.setRecordingPreferences({ microphoneEnabled: enabled });
 	}, []);
 
@@ -1337,6 +1341,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 
 	const persistSystemAudioEnabled = useCallback((enabled: boolean) => {
 		setSystemAudioEnabled(enabled);
+		for (const track of screenStream.current?.getAudioTracks() ?? []) track.enabled = enabled;
 		void window.electronAPI.setRecordingPreferences({ systemAudioEnabled: enabled });
 	}, []);
 

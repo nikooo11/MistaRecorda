@@ -6,10 +6,10 @@ export const shortcutSchema = z
 	.refine(
 		(s) =>
 			s === "" ||
-			/^(?:(?:CommandOrControl|Command|Control|Alt|Shift|Super)\+)+(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|Space|Tab|Escape|Enter|(?:Arrow)?(?:Up|Down|Left|Right)|Delete|Backspace)$/.test(
+			/^(?:(?:CommandOrControl|Command|Control|Alt|Shift|Super)\+)*(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|Space|Tab|Escape|Enter|(?:Arrow)?(?:Up|Down|Left|Right)|Delete|Backspace)$/.test(
 				s,
 			),
-		"Use Command, Control, Alt, or Windows with a letter, number, function key, or navigation key.",
+		"Use a letter, number, function key or navigation key, optionally with modifiers.",
 	);
 export const sourceSchema = z.object({
 	id: z.string().regex(/^(window|screen):\d+(?::\d+)?$/),
@@ -36,6 +36,10 @@ export const cameraLayoutSchema = z.object({
 	locked: z.boolean(),
 });
 export const studioSettingsSchema = z.object({
+	sourceAliases: z
+		.array(z.object({ source: sourceSchema, name: z.string().trim().min(1).max(80) }))
+		.max(100)
+		.default([]),
 	glow: z.boolean(),
 	cameraLayout: cameraLayoutSchema.default({
 		x: 0.97,
@@ -53,6 +57,7 @@ export const studioSettingsSchema = z.object({
 				name: z.string().trim().min(1).max(60),
 				source: sourceSchema,
 				camera: z.boolean(),
+				audio: z.object({ microphone: z.boolean(), system: z.boolean() }).optional(),
 				cameraLayout: cameraLayoutSchema.optional(),
 				shortcut: shortcutSchema,
 			}),
@@ -62,12 +67,12 @@ export const studioSettingsSchema = z.object({
 	windows: z
 		.array(
 			z.object({
-				slot: z.number().int().min(1).max(6),
+				slot: z.number().int().min(1).max(64),
 				shortcut: shortcutSchema,
 				source: sourceSchema,
 			}),
 		)
-		.max(6),
+		.max(64),
 	sounds: z.array(soundSchema).max(24),
 });
 export class SoundTake {

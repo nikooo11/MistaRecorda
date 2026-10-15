@@ -1,0 +1,104 @@
+.screen-layer-control {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	pointer-events: none;
+}
+.screen-layer-bounds {
+	position: absolute;
+	pointer-events: none;
+}
+.screen-layer-bounds.is-selected {
+	outline: 1px solid #65a3ff;
+	outline-offset: 1px;
+}
+.screen-layer-select,
+.screen-layer-dismiss {
+	position: absolute;
+	inset: 0;
+	background: transparent;
+	border: 0;
+	pointer-events: auto;
+}
+.screen-layer-select {
+	cursor: default;
+}
+.screen-layer-select:focus-visible {
+	outline: 2px solid #65a3ff;
+}
+.screen-layer-label {
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	padding: 4px 7px;
+	border-radius: 3px;
+	background: #242830ee;
+	color: #fff;
+	font: 11px / 1.4 system-ui;
+	pointer-events: none;
+}
+.screen-layer-handle {
+	position: absolute;
+	width: 24px;
+	height: 24px;
+	margin: -12px;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	pointer-events: auto;
+	touch-action: none;
+}
+.screen-layer-handle::after {
+	content: "";
+	position: absolute;
+	width: 8px;
+	height: 8px;
+	inset: 8px;
+	border: 1px solid #2563eb;
+	background: white;
+	border-radius: 1px;
+}
+.screen-layer-handle:focus-visible::after {
+	outline: 2px solid #65a3ff;
+	outline-offset: 2px;
+}
+.handle-nw {
+	top: 0;
+	left: 0;
+	cursor: nwse-resize;
+}
+.handle-ne {
+	top: 0;
+	left: 100%;
+	cursor: nesw-resize;
+}
+.handle-sw {
+	top: 100%;
+	left: 0;
+	cursor: nesw-resize;
+}
+.handle-se {
+	top: 100%;
+	left: 100%;
+	cursor: nwse-resize;
+}
+.handle-n {
+	top: 0;
+	left: 50%;
+	cursor: ns-resize;
+}
+.handle-s {
+	top: 100%;
+	left: 50%;
+	cursor: ns-resize;
+}
+.handle-e {
+	top: 50%;
+	left: 100%;
+	cursor: ew-resize;
+}
+.handle-w {
+	top: 50%;
+	left: 0;
+	cursor: ew-resize;
+}

@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / 'public/wallpapers'
 W, H = 1920, 1080
 
-def backdrop(name, base, line, kind):
+def backdrop(name, base, line, kind, phase=0, save=True):
     im = Image.new('RGB', (W, H), base)
     d = ImageDraw.Draw(im)
     if kind == 'grid':
@@ -25,7 +25,7 @@ def backdrop(name, base, line, kind):
         for n in range(32):
             points=[]
             for x in range(-20,W+21,8):
-                y=H*0.5 + (n-15.5)*47 + 130*math.sin(x/390+n*.045) + 30*math.sin(x/160+n*.15)
+                y=H*0.5 + (n-15.5)*47 + 130*math.sin(x/390+n*.045+phase) + 30*math.sin(x/160+n*.15-phase)
                 points.append((x,y))
             d.line(points,fill=line if n%4 else (65,86,82),width=1 if n%4 else 2)
     elif kind == 'graphite':
@@ -42,6 +42,24 @@ def backdrop(name, base, line, kind):
         d.rectangle((42,42,W-42,H-42),outline=(200,197,188),width=1)
         d.line((42,74,290,74),fill=(130,127,118),width=2)
         d.line((W-290,H-74,W-42,H-74),fill=(130,127,118),width=2)
+    if phase or not save:
+        # Periodic, independent glints; every frame at 12 seconds joins frame zero.
+        for j in range(38):
+            x = 54 + ((j * 397 + 59) % (W-108))
+            y = 54 + ((j * 181 + 17) % (H-108))
+            intensity = max(0, math.sin(phase + j * 2.399)) ** 8
+            if intensity > .03:
+                bright = (138, 177, 199) if kind == 'grid' else (133, 153, 151)
+                c = tuple(round(base[k] + (bright[k]-base[k]) * intensity * .7) for k in range(3))
+                r = 2 + round(3 * intensity)
+                d.line((x-r,y,x+r,y), fill=c, width=1)
+                d.line((x,y-r,x,y+r), fill=c, width=1)
+                d.ellipse((x-1,y-1,x+1,y+1), fill=c)
+        if kind == 'grid':
+            for n in range(5):
+                points=[(x, H*.5 + (n-2)*140 + 50*math.sin(x/420+phase+n*.2)) for x in range(-8,W+9,8)]
+                d.line(points,fill=(34,61,83),width=2)
+    if not save: return im
     dest=OUT/f'studio-{name}.png'
     im.save(dest,optimize=True)
     return dest
@@ -49,11 +67,21 @@ def backdrop(name, base, line, kind):
 for name, base, line, kind, motion in [
  ('blueprint',(17,29,43),(28,44,61),'grid',True),
  ('contour',(24,39,37),(40,60,56),'contour',True),
- ('graphite',(32,33,36),(41,42,46),'graphite',False),
+ ('graphite',(32,33,36),(41,42,46),'graphite',True),
  ('paper',(236,234,227),(199,197,190),'paper',False),
 ]:
     source=backdrop(name,base,line,kind)
     if motion:
-        # A closed 8-second path; muted MP4s loop without a jump. Fixed-resolution
-        # assets keep playback on the existing hardware-decoded wallpaper path.
-        subprocess.run([str(ROOT/'node_modules/ffmpeg-static/ffmpeg'),'-hide_banner','-loglevel','error','-y','-loop','1','-framerate','30','-i',str(source),'-t','8','-vf',"scale=1984:1116,crop=1920:1080:x='32+20*sin(2*PI*t/8)':y='18+12*cos(2*PI*t/8)'",'-an','-c:v','libx264','-preset','medium','-crf','22','-pix_fmt','yuv420p','-movflags','+faststart',str(OUT/f'studio-{name}.mp4')],check=True)
+        # Encode real animation as silent 1080p MP4; existing preview/export paths decode it.
+        cmd=[str(ROOT/'node_modules/ffmpeg-static/ffmpeg'), '-hide_banner','-loglevel','error','-y',
+             '-f','rawvideo','-pixel_format','rgb24','-video_size',f'{W}x{H}', '-framerate','30','-i','-',
+             '-an','-c:v','libx264','-preset','fast','-crf','21','-pix_fmt','yuv420p','-movflags','+faststart',str(OUT/f'studio-{name}.mp4')]
+        process=subprocess.Popen(cmd,stdin=subprocess.PIPE)
+        try:
+            for frame in range(360):
+                image=backdrop(name,base,line,kind,2*math.pi*frame/360,False)
+                process.stdin.write(image.tobytes())
+        finally:
+            process.stdin.close()
+        if process.wait(): raise RuntimeError(f'Encoding failed: {name}')
+        print(f'Generated {name}: 12-second seamless motion',flush=True)

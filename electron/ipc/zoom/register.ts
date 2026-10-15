@@ -9,6 +9,11 @@ import { loadZoomSettings, saveZoomSettings, zoomStatus } from "./capture";
 import { normalizeRecordedZooms } from "./model";
 
 let settingsWindow: BrowserWindow | null = null;
+export function isZoomSettingsWindow(contents: Electron.WebContents) {
+	return Boolean(
+		settingsWindow && !settingsWindow.isDestroyed() && settingsWindow.webContents === contents,
+	);
+}
 function trusted(event: IpcMainInvokeEvent) {
 	if (
 		event.senderFrame !== event.sender.mainFrame ||
@@ -78,8 +83,11 @@ export function registerRecordingZoomHandlers() {
 		}
 		settingsWindow = new BrowserWindow({
 			title: "MistaRecorda — Hold to zoom",
-			width: 760,
-			height: 700,
+			width: 620,
+			height: 420,
+			minWidth: 480,
+			minHeight: 380,
+			backgroundColor: "#28292d",
 			webPreferences: {
 				preload: path.join(app.getAppPath(), "dist-electron/preload.mjs"),
 				contextIsolation: true,

@@ -22,6 +22,8 @@ const host = vi.hoisted(() => ({
 	sources: [] as Array<{ id: string; display_id?: string }>,
 	selected: null as { id: string } | null,
 	control: vi.fn(),
+	nativeWrite: vi.fn(),
+	native: false,
 }));
 vi.mock("electron", () => ({
 	app: { getPath: () => host.root, getAppPath: () => host.root, on: vi.fn() },
@@ -81,7 +83,13 @@ vi.mock("../ipc/state", () => ({
 	setSelectedSource: (source: { id: string }) => {
 		host.selected = source;
 	},
-	nativeScreenRecordingActive: false,
+	setSelectedWindowBounds: vi.fn(),
+	get nativeScreenRecordingActive() {
+		return host.native;
+	},
+	get nativeCaptureProcess() {
+		return host.native ? { stdin: { writable: true, write: host.nativeWrite } } : null;
+	},
 }));
 vi.mock("../ipc/project/manager", () => ({
 	resolveApprovedLocalMediaPath: async (p: string) => p,
@@ -116,6 +124,38 @@ afterEach(async () => {
 	stopStudioTake();
 	host.active = false;
 	if (host.root) await fs.rm(host.root, { recursive: true, force: true });
+});
+test("saved display slots recall by click and hotkey and reject unavailable or live display changes", async () => {
+	host.root = await fs.mkdtemp(path.join(os.tmpdir(), "studio-window-slots-"));
+	await fs.mkdir(path.join(host.root, "studio"));
+	await fs.writeFile(
+		path.join(host.root, "studio/settings.json"),
+		JSON.stringify({ glow: true, windows: [], sounds: [] }),
+	);
+	host.selected = null;
+	registerStudio();
+	const frame = { url: "http://127.0.0.1:9876/?windowType=studio" };
+	const event = { senderFrame: frame, sender: { mainFrame: frame } };
+	const request = (method: string, input?: unknown) =>
+		host.handlers.get("studio:request")!(event, method, input);
+	const source = { id: "screen:12:0", name: "Display", display_id: "12", sourceType: "screen" };
+	await request("assignWindow", { slot: 1, shortcut: "CommandOrControl+Alt+1", source });
+	host.sources = [{ id: "screen:99:0", display_id: "12" }];
+	await request("switch", 1);
+	expect(host.selected).toMatchObject({ id: "screen:99:0", sourceType: "screen" });
+	host.selected = null;
+	host.bindings.get("CommandOrControl+Alt+1")!();
+	await vi.waitFor(() => expect(host.selected?.id).toBe("screen:99:0"));
+	host.active = true;
+	host.selected = { id: "window:25:0" };
+	await expect(request("switch", 1)).rejects.toThrow("Stop recording");
+	expect(host.selected.id).toBe("window:25:0");
+	host.active = false;
+	host.sources = [];
+	await expect(request("switch", 1)).rejects.toThrow("unavailable");
+	expect(host.selected.id).toBe("window:25:0");
+	await request("removeWindow", 1);
+	expect(host.bindings.has("CommandOrControl+Alt+1")).toBe(false);
 });
 test("saved source scenes apply camera only after source validation and shortcuts persist", async () => {
 	host.root = await fs.mkdtemp(path.join(os.tmpdir(), "studio-scenes-"));
@@ -265,4 +305,68 @@ test("sound import cancels cleanly and converts an audio file to a persistent WA
 	expect((await fs.stat(path.join(host.root, "studio", sound.file))).size).toBeGreaterThan(9600);
 	expect(await fs.readFile(host.importFile)).toEqual(source);
 	expect(await request("soundPath", sound.id)).toBe(path.join(host.root, "studio", sound.file));
+});
+
+test("environment audio defaults can be muted and restored live without losing the captured tracks", async () => {
+	host.root = await fs.mkdtemp(path.join(os.tmpdir(), "studio-environment-audio-"));
+	registerStudio();
+	const frame = { url: "http://127.0.0.1:9876/?windowType=studio" };
+	const event = { senderFrame: frame, sender: { mainFrame: frame } };
+	const request = (method: string, input?: unknown) =>
+		host.handlers.get("studio:request")!(event, method, input);
+	await request("info");
+	const source = { id: "screen:42:0", name: "Screen", display_id: "42", sourceType: "screen" };
+	host.sources = [source];
+	await request("selectSource", source);
+	const scene = {
+		id: crypto.randomUUID(),
+		name: "Quiet demo",
+		source,
+		camera: false,
+		shortcut: "",
+		audio: { microphone: false, system: false },
+	};
+	await request("saveScene", scene);
+	await request("audioStatus", { recording: false, microphone: true, system: true });
+	await request("audioStatus", { recording: true, microphone: true, system: true });
+	host.active = true;
+	host.native = true;
+	host.control.mockClear();
+	host.nativeWrite.mockClear();
+	await request("applyScene", scene.id);
+	expect(host.nativeWrite).toHaveBeenCalledWith("audio off off\n");
+	expect(host.control).toHaveBeenCalledWith("microphone-off");
+	expect(host.control).toHaveBeenCalledWith("system-audio-off");
+	host.active = false;
+	await request("saveScene", { ...scene, audio: { microphone: true, system: true } });
+	host.active = true;
+	await request("applyScene", scene.id);
+	expect(host.nativeWrite).toHaveBeenLastCalledWith("audio on on\n");
+	expect(host.control).toHaveBeenCalledWith("microphone-on");
+	expect(host.control).toHaveBeenCalledWith("system-audio-on");
+	await request("audioStatus", { recording: false, microphone: false, system: true });
+	await request("audioStatus", { recording: true, microphone: false, system: true });
+	host.control.mockClear();
+	await expect(request("applyScene", scene.id)).rejects.toThrow("started without");
+	expect(host.control).not.toHaveBeenCalled();
+	host.native = false;
+});
+
+test("renaming a source preserves its capture identity and persists across refresh", async () => {
+ host.root = await fs.mkdtemp(path.join(os.tmpdir(), "studio-source-name-"));
+ registerStudio();
+ const frame = { url: "http://127.0.0.1:9876/?windowType=studio" };
+ const event = { senderFrame: frame, sender: { mainFrame: frame } };
+ const request = (method: string, input?: unknown) => host.handlers.get("studio:request")!(event, method, input);
+ const source={id:"window:888:0",name:"Google Chrome — Example",appName:"Google Chrome",windowTitle:"Example",sourceType:"window"};
+ await request("renameSource",{source,name:"Article"});
+ const saved=JSON.parse(await fs.readFile(path.join(host.root,"studio/settings.json"),"utf8"));
+ expect(saved.sourceAliases).toEqual([{source,name:"Article"}]);
+ expect(saved.sourceAliases[0].source.windowTitle).toBe("Example");
+ await request("renameSource",{source,name:"Reference"});
+ const renamed=await request("info") as {settings:{sourceAliases:unknown[]}};
+ expect(renamed.settings.sourceAliases).toEqual([{source,name:"Reference"}]);
+ await request("renameSource",{source,name:""});
+ const reset=await request("info") as {settings:{sourceAliases:unknown[]}};
+ expect(reset.settings.sourceAliases).toEqual([]);
 });

@@ -1,0 +1,70 @@
+.caption-style-picker {
+	display: grid;
+	gap: 9px;
+	font-size: 12px;
+}
+.caption-style-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+.caption-style-heading span,
+.caption-style-picker p {
+	color: #aeb1b8;
+	font-size: 11px;
+}
+.caption-style-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 7px;
+}
+.caption-style-grid button {
+	display: grid;
+	gap: 5px;
+	padding: 9px;
+	text-align: left;
+	background: #25262a;
+	color: #eee;
+	border: 1px solid #45474e;
+	border-radius: 4px;
+}
+.caption-style-grid button:hover {
+	background: #303239;
+}
+.caption-style-grid button[aria-pressed="true"] {
+	border-color: #72a8ff;
+	box-shadow: inset 0 0 0 1px #72a8ff;
+}
+.caption-style-grid small {
+	color: #b1b5bd;
+	font-size: 10px;
+}
+.caption-style-example {
+	min-height: 35px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	white-space: pre-wrap;
+	gap: 3px;
+	font-weight: 600;
+	background: #17181b;
+	border-radius: 2px;
+	font-size: 12px;
+}
+.caption-style-example mark {
+	background: #68e0cf;
+	color: #111;
+	padding: 0 2px;
+}
+.caption-style-heading select {
+	background: #25262a;
+	border: 1px solid #45474e;
+	padding: 3px 10px;
+	border-radius: 3px;
+}
+.caption-style-heading input[type="color"] {
+	width: 28px;
+	height: 24px;
+	background: transparent;
+}
