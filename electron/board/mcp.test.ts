@@ -55,6 +55,11 @@ test("MCP requires the session token and exposes drawing guide, tools and editab
 			"presenter_preference",
 			"presentation_save",
 			"presentation_import",
+			"chart_list",
+			"chart_create",
+			"chart_update",
+			"chart_place",
+			"chart_present",
 		])
 			expect(tools.result.tools.map((t: { name: string }) => t.name)).toContain(name);
 		const change = {

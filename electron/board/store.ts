@@ -56,7 +56,7 @@ export function validateScene(input: unknown): BoardScene {
 			throw Error("Invalid element");
 		if (
 			meta?.reference &&
-			(!["image", "meme", "sound", "link", "note"].includes(meta.reference.kind) ||
+			(!["image", "meme", "sound", "link", "note", "chart"].includes(meta.reference.kind) ||
 				typeof meta.reference.id !== "string" ||
 				meta.reference.id.length < 1 ||
 				meta.reference.id.length > 100)
@@ -70,6 +70,14 @@ export function validateScene(input: unknown): BoardScene {
 				Math.abs(e[k] as number) > 1e7
 			)
 				throw Error("Invalid geometry");
+		const chart = (e.customData as { chart?: { chartId?: unknown } } | undefined)?.chart;
+		if (
+			chart !== undefined &&
+			(e.type !== "rectangle" ||
+				typeof chart?.chartId !== "string" ||
+				!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chart.chartId))
+		)
+			throw Error("Invalid chart object");
 		if (e.link || e.type === "embeddable" || e.type === "magicframe")
 			throw Error("Embedded links are not supported on the recording board");
 	}

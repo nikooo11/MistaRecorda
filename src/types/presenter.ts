@@ -1,4 +1,4 @@
-export type PresenterObjectKind = "image" | "meme" | "sound" | "link" | "note";
+export type PresenterObjectKind = "image" | "meme" | "sound" | "link" | "note" | "chart";
 export interface ObjectReference {
 	kind: PresenterObjectKind;
 	id: string;

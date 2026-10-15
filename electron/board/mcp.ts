@@ -4,11 +4,13 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import { canvasNoteSchema, linkSchema } from "./presenter";
+import { chartDataSchema, chartDocumentSchema, chartImageSchema } from "../../src/components/board/charts/chartModel";
 export const DRAWING_GUIDE = `MistaRecorda drawing guide
 Read board_get before changing a scene. Coordinates are canvas pixels; x increases right and y down. Preserve unrelated objects. Use board_draw to add editable shapes with stable IDs. Types: rectangle, ellipse, diamond, text, arrow, line, freedraw. Use 24–40px text, generous spacing, high contrast, and short labels. Arrows use points relative to x/y; position endpoints on shape edges. Group related shapes using matching groupIds. Apply related changes as one batch so undo remains useful. Use board_update to move, resize or recolor existing IDs. Call board_view to frame the diagram; zoom is shared by the desktop, iPad and recording. board_screenshot provides visual feedback; inspect it after edits if your client supports images. Save named scenes with board_save. Hiding the board never clears it. Clear only when the user explicitly asks. Images must be PNG/JPEG/WebP data URLs; never include credentials or fetch arbitrary URLs. The screen and opaque board have separate scenes. Prepare tutorials before recording. This server does not fetch or watch YouTube videos: obtain captions and relevant frames through your client's authorized capabilities, then translate the explanation into diagrams.
 Example: create a rectangle at (100,150), ellipse at (500,150), labels inside them, and an arrow starting at (350,210) with points [[0,0],[140,0]]. Read and inspect the result; save as Introduction. Keep all content editable, and report any content you could not inspect.
 Presenter environments: board_get includes presenter notes, references, preferences and private object metadata. Add shadow:true to board_draw elements or board_image to keep them at 50% opacity on the iPad only. Set note:true on text elements to default to shadow; enter can be none/fade/spin/fall. Never reveal a private object unless the user requests it. board_shadow changes selected IDs with the current revision from board_get. Optional mode on draw/image/update/delete prepares screen or board without changing the active output. Shadows are excluded from board_screenshot; inspect their geometry in board_get and the iPad preview. A clean screenshot verifies they stayed private.
 Use presenter_note for reusable canvas notes, presenter_link for named Chrome links (URL, exact text, or section anchor), presenter_preference for shadow/width/entrance settings, and presenter_notes to save bullet points (**bold**, @{token} references mapped to kind/id). Read notesVersion before editing notes. Use presentation_save to bundle both canvases, media and notes. presentation_load/import replace both canvases and back up the previous environment; only do this when the user requests it. Never embed credentials or copyrighted assets without appropriate rights. An authorized screenshot can be imported with board_image shadow:true, then add separate editable labels and shapes; a screenshot alone does not make its contents editable. Use your client’s authorized screenshot/vision capabilities to reconstruct the scene, then verify positions. Link objects open in the user’s Chrome session; logged-in web pages cannot be embedded into the board.
+AI charts: never paint a chart as an image. Use chart_create with structured data (kind line|bar|pie|card, categories, series values with confidence printed|estimated|unreadable|manual; missing values stay null, never 0) and an optional authorized source screenshot plus source url/publisher/date range. Prefer primary sources and printed values; disclose estimates. Charts you create or update are drafts until the presenter confirms them on the iPad. chart_place adds a selectable chart object (shadow:true by default). Showing it or playing its reveal requires a reviewed chart and an explicit user request. chart_present controls the private reveal clock (play, pause, next, previous, reset, showAll, seek). Pie charts need one nonnegative series and an explicit whole (pieTotal mode sum or fixed). Bars start at zero unless yAxis.min is set, which is disclosed.
 Example presentation workflow: board_get; board_image(mode:board, shadow:true, dataURL:<authorized screenshot>, x:80,y:80,width:900,height:500); board_draw(mode:board,elements:[{type:text,text:"Explain the trend",x:100,y:620,note:true,enter:"fade"}]); presenter_notes(version:<notesVersion>,notes:{body:"- **Key point**",references:{}}); presentation_save(name:"Trend explanation").`;
 export class DrawingMcpServer {
 	server?: Server;
@@ -205,7 +207,7 @@ export class DrawingMcpServer {
 						body: z.string().max(40000),
 						references: z.record(
 							z.object({
-								kind: z.enum(["image", "meme", "sound", "link", "note"]),
+								kind: z.enum(["image", "meme", "sound", "link", "note", "chart"]),
 								id: z.string(),
 							}),
 						),
@@ -233,6 +235,64 @@ export class DrawingMcpServer {
 				"importPresentation",
 			);
 
+			tool("chart_list", "List charts (IDs, status, data, revision). Source images are omitted.", {}, "chartInfo");
+			tool(
+				"chart_create",
+				"Create an editable chart draft from structured data and optional authorized screenshot. The presenter must review it before it can be shown.",
+				{
+					name: z.string().max(80).optional(),
+					data: chartDataSchema,
+					source: chartDocumentSchema.shape.source
+						.pick({ url: true, publisher: true, published: true, dateRange: true, notes: true })
+						.partial()
+						.optional(),
+					sourceImage: chartImageSchema.optional(),
+				},
+				"chartCreate",
+			);
+			tool(
+				"chart_update",
+				"Update a chart by ID using baseRevision from chart_list. Agent edits return the chart to draft for review.",
+				{
+					id: z.string().uuid(),
+					baseRevision: z.number().int(),
+					name: z.string().max(80).optional(),
+					data: chartDataSchema.optional(),
+					source: chartDocumentSchema.shape.source
+						.pick({ url: true, publisher: true, published: true, dateRange: true, notes: true })
+						.partial()
+						.optional(),
+					reveal: chartDocumentSchema.shape.reveal.optional(),
+					style: chartDocumentSchema.shape.style.optional(),
+				},
+				"chartUpdate",
+			);
+			tool(
+				"chart_place",
+				"Place a chart object in the screen or board scene. Defaults to a private shadow; shadow:false requires a reviewed chart and a user request.",
+				{
+					chartId: z.string().uuid(),
+					mode: z.enum(["screen", "board"]).optional(),
+					x: z.number(),
+					y: z.number(),
+					width: z.number().positive().optional(),
+					height: z.number().positive().optional(),
+					shadow: z.boolean().optional(),
+				},
+				"chartPlace",
+			);
+			tool(
+				"chart_present",
+				"Control a reviewed chart's reveal only when the user asks: play, pause, next, previous, reset, showAll or seek (position in steps).",
+				{
+					id: z.string().uuid(),
+					command: z.discriminatedUnion("action", [
+						z.object({ action: z.enum(["play", "pause", "next", "previous", "reset", "showAll"]) }),
+						z.object({ action: z.literal("seek"), position: z.number() }),
+					]),
+				},
+				"chartPlayback",
+			);
 			mcp.registerTool(
 				"board_screenshot",
 				{ description: "Inspect a clean board screenshot after drawing", inputSchema: {} },

@@ -1,6 +1,8 @@
 import type { BoardState } from "../../types/board";
 import { sortedMemes } from "./memePreferences";
 import type { SoundEffect } from "../../types/studio";
+import type { ChartDocument } from "../../types/charts";
+import { chartDataURL } from "./charts/chartRender";
 import {
 	objectKey,
 	type PresenterDocument,
@@ -34,6 +36,7 @@ export function presenterObjects(
 	state: BoardState,
 	doc: PresenterDocument,
 	sounds: Omit<SoundEffect, "file">[],
+	charts: ChartDocument[] = [],
 ): PresenterObject[] {
 	return [
 		...Object.values(state.assets).map(
@@ -71,6 +74,19 @@ export function presenterObjects(
 				id: a.id,
 				name: a.name,
 				detail: `Chrome · ${presenterURL(a.url).hostname}`,
+			}),
+		),
+		...charts.map(
+			(c): PresenterObject => ({
+				kind: "chart",
+				id: c.id,
+				name: c.name,
+				preview: chartDataURL(c, 240, 150),
+				detail: `Chart · ${c.data.kind}${c.status === "reviewed" ? "" : " · draft"}`,
+				searchTerms: [c.data.title, c.source.publisher, ...c.data.categories.slice(0, 20)],
+				// Charts are prepared privately and revealed deliberately.
+				shadow: true,
+				widthPercent: 45,
 			}),
 		),
 		...(doc.canvasNotes ?? []).map(

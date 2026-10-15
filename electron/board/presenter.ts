@@ -36,7 +36,7 @@ const notesSchema = z.object({
 		.record(
 			key,
 			z.object({
-				kind: z.enum(["image", "meme", "sound", "link", "note"]),
+				kind: z.enum(["image", "meme", "sound", "link", "note", "chart"]),
 				id: z.string().min(1).max(100),
 			}),
 		)

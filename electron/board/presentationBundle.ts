@@ -4,6 +4,8 @@ import type { PresenterDocument } from "../../src/types/presenter";
 import { validateScene } from "./store";
 import { validateMemes } from "./memes";
 import { documentSchema } from "./presenter";
+import { chartBundleSchema, type ChartBundle } from "../charts/store";
+import { chartMeta } from "../../src/components/board/charts/chartModel";
 
 export const soundBundleSchema = z.object({
 	id: z.string().uuid(),
@@ -38,6 +40,8 @@ export interface PresentationBundle {
 	>;
 	presenter: PresenterDocument;
 	sounds: BundledSound[];
+	/** Optional so environments saved before AI charts still load. */
+	charts?: ChartBundle;
 }
 export function validatePresentationBundle(input: unknown): PresentationBundle {
 	if (!input || JSON.stringify(input).length > 44 * 1024 * 1024)
@@ -59,6 +63,7 @@ export function validatePresentationBundle(input: unknown): PresentationBundle {
 			}),
 			presenter: documentSchema,
 			sounds: z.array(soundBundleSchema).max(200),
+			charts: chartBundleSchema.optional(),
 		})
 		.parse(input);
 	const board = value.board as PresentationBundle["board"];
@@ -76,6 +81,13 @@ export function validatePresentationBundle(input: unknown): PresentationBundle {
 				scene.files[id] = assets[id];
 			}
 	}
+	const chartIds = new Set(value.charts?.charts.map((c) => c.id) ?? []);
+	for (const scene of [screen, whiteboard])
+		for (const element of scene.elements) {
+			const meta = chartMeta(element);
+			if (meta && !element.isDeleted && !chartIds.has(meta.chartId))
+				throw Error("Presentation has a missing chart.");
+		}
 	const memes = validateMemes(board as BoardState);
 	for (const mode of ["screen", "board"] as const) {
 		memes.placedMemes[mode] = memes.placedMemes[mode]

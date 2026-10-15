@@ -18,6 +18,7 @@ import type { SoundEffect } from "../../types/studio";
 import { mentionAt, noteParts, presenterObjects, referenceToken } from "./presenterModel";
 import { ObjectIcon, PresenterObjects, validNoteLink } from "./PresenterObjects";
 import "./presenter.css";
+import type { ChartDocument } from "../../types/charts";
 import { EnvironmentFiles } from "./EnvironmentFiles";
 export interface PlacementPoint {
 	x: number;
@@ -29,7 +30,11 @@ export function TalkingPoints({
 	onPlace,
 	onPreview,
 	onMemeSettings,
+	charts = [],
+	onChartSettings,
 }: {
+	charts?: ChartDocument[];
+	onChartSettings?: (id: string) => void;
 	transport: BoardAPI;
 	state: BoardState;
 	onPlace: (object: PresenterObject, point?: PlacementPoint) => Promise<void>;
@@ -54,7 +59,10 @@ export function TalkingPoints({
 	const textarea = useRef<HTMLTextAreaElement>(null);
 	const dirtyRef = useRef(false);
 	dirtyRef.current = dirty;
-	const objects = useMemo(() => presenterObjects(state, doc, sounds), [state, doc, sounds]);
+	const objects = useMemo(
+		() => presenterObjects(state, doc, sounds, charts),
+		[state, doc, sounds, charts],
+	);
 	const mention = editing ? mentionAt(notes.body, caret) : null;
 	useEffect(() => {
 		const accept = (data: PresenterDocument) => {
@@ -216,6 +224,10 @@ export function TalkingPoints({
 								onMemeSettings={(id) => {
 									setOpen(false);
 									onMemeSettings(id);
+								}}
+								onChartSettings={(id) => {
+									setOpen(false);
+									onChartSettings?.(id);
 								}}
 								onImportMeme={() => {
 									setOpen(false);
