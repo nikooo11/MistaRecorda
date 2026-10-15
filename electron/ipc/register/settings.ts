@@ -1,24 +1,15 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import fs from "node:fs/promises";
-import { app, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import { hideCursor } from "../../cursorHider";
-import { closeCountdownWindow, createCountdownWindow, getCountdownWindow } from "../../windows";
+import { closeCountdownWindow, createCountdownWindow } from "../../windows";
 import {
 	APP_SETTINGS_FILE,
 	COUNTDOWN_SETTINGS_FILE,
 	RECORDINGS_SETTINGS_FILE,
 	SHORTCUTS_FILE,
 } from "../constants";
-import {
-	countdownCancelled,
-	countdownInProgress,
-	countdownRemaining,
-	countdownTimer,
-	setCountdownCancelled,
-	setCountdownInProgress,
-	setCountdownRemaining,
-	setCountdownTimer,
-} from "../state";
+import { CountdownSession } from "../../countdownSession";
 import { parseJsonWithByteOrderMark } from "../utils";
 
 const BROWSER_MICROPHONE_PROFILE_ENV = "RECORDLY_BROWSER_MIC_PROFILE";
@@ -225,84 +216,25 @@ export function registerSettingsHandlers() {
 		}
 	});
 
-	ipcMain.handle("start-countdown", async (_, seconds: number) => {
-		if (countdownInProgress) {
-			return { success: false, error: "Countdown already in progress" };
+	const countdown = new CountdownSession((seconds) => {
+		if (seconds === null) closeCountdownWindow();
+		for (const win of BrowserWindow.getAllWindows()) {
+			if (!win.isDestroyed()) win.webContents.send("countdown-tick", seconds ?? 0);
 		}
-
-		setCountdownInProgress(true);
-		setCountdownCancelled(false);
-		setCountdownRemaining(seconds);
-
-		const countdownWin = createCountdownWindow();
-
-		if (countdownWin.webContents.isLoadingMainFrame()) {
-			await new Promise<void>((resolve) => {
-				countdownWin.webContents.once("did-finish-load", () => {
-					resolve();
-				});
-			});
-		}
-
-		return new Promise<{ success: boolean; cancelled?: boolean }>((resolve) => {
-			let remaining = seconds;
-			setCountdownRemaining(remaining);
-
-			countdownWin.webContents.send("countdown-tick", remaining);
-
-			setCountdownTimer(
-				setInterval(() => {
-					if (countdownCancelled) {
-						if (countdownTimer) {
-							clearInterval(countdownTimer);
-							setCountdownTimer(null);
-						}
-						closeCountdownWindow();
-						setCountdownInProgress(false);
-						setCountdownRemaining(null);
-						resolve({ success: false, cancelled: true });
-						return;
-					}
-
-					remaining--;
-					setCountdownRemaining(remaining);
-
-					if (remaining <= 0) {
-						if (countdownTimer) {
-							clearInterval(countdownTimer);
-							setCountdownTimer(null);
-						}
-						closeCountdownWindow();
-						setCountdownInProgress(false);
-						setCountdownRemaining(null);
-						resolve({ success: true });
-					} else {
-						const win = getCountdownWindow();
-						if (win && !win.isDestroyed()) {
-							win.webContents.send("countdown-tick", remaining);
-						}
-					}
-				}, 1000),
-			);
-		});
 	});
-
+	ipcMain.handle("start-countdown", async (_, seconds: number) => {
+		if (countdown.remaining !== null)
+			return { success: false, error: "Countdown already in progress" };
+		if (!Number.isInteger(seconds) || seconds < 0 || seconds > 30)
+			return { success: false, error: "Invalid countdown" };
+		if (seconds > 0) createCountdownWindow();
+		// Start immediately. The popup reads get-active-countdown when it finishes
+		// loading, and Cancel can settle this gate even before that load completes.
+		return countdown.start(seconds);
+	});
 	ipcMain.handle("cancel-countdown", () => {
-		setCountdownCancelled(true);
-		setCountdownInProgress(false);
-		setCountdownRemaining(null);
-		if (countdownTimer) {
-			clearInterval(countdownTimer);
-			setCountdownTimer(null);
-		}
-		closeCountdownWindow();
+		countdown.cancel();
 		return { success: true };
 	});
-
-	ipcMain.handle("get-active-countdown", () => {
-		return {
-			success: true,
-			seconds: countdownInProgress ? countdownRemaining : null,
-		};
-	});
+	ipcMain.handle("get-active-countdown", () => ({ success: true, seconds: countdown.remaining }));
 }

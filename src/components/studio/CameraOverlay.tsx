@@ -13,6 +13,7 @@ export function CameraOverlay() {
 		return () => window.removeEventListener("resize", resize);
 	}, []);
 	const video = useRef<HTMLVideoElement>(null);
+	const dragging = useRef(false);
 	useEffect(() => {
 		void window.electronAPI.studio.request("info").then(setInfo);
 		return window.electronAPI.studio.onChanged(setInfo);
@@ -61,11 +62,34 @@ export function CameraOverlay() {
 	return (
 		<main
 			className="live-camera"
+			onContextMenu={(e) => {
+				e.preventDefault();
+				void window.electronAPI.studio.request("cameraMenu");
+			}}
+			onPointerDown={(e) => {
+				if (e.button !== 0 || layout.locked || (e.target as Element).closest("button"))
+					return;
+				e.preventDefault();
+				e.currentTarget.setPointerCapture(e.pointerId);
+				dragging.current = true;
+				void window.electronAPI.studio.request("cameraDrag", "start");
+			}}
+			onPointerMove={() => {
+				if (dragging.current) void window.electronAPI.studio.request("cameraDrag", "move");
+			}}
+			onPointerUp={() => {
+				dragging.current = false;
+				void window.electronAPI.studio.request("cameraDrag", "end");
+			}}
+			onLostPointerCapture={() => {
+				dragging.current = false;
+				void window.electronAPI.studio.request("cameraDrag", "end");
+			}}
 			data-locked={layout.locked}
 			title={
 				layout.locked
 					? "Camera position locked. Unlock in Layers."
-					: "Drag to move your camera in the recording. Resize in Layers."
+					: "Drag to move your camera in the recording. Right-click to hide. Resize in Layers."
 			}
 		>
 			<video
@@ -81,9 +105,9 @@ export function CameraOverlay() {
 			{error && <span className="camera-error">{error}</span>}
 			<button
 				className="camera-layout-button"
-				aria-label="Camera layer settings"
+				aria-label="Facecam menu"
 				title="Choose camera size, shape, position, and lock movement."
-				onClick={() => void window.electronAPI.studio.request("open", "layers")}
+				onClick={() => void window.electronAPI.studio.request("cameraMenu")}
 			>
 				⋮
 			</button>

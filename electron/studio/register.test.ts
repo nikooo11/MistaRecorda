@@ -649,3 +649,14 @@ test("preview status ends with playback and older sounds cannot clear newer noti
 		expect((await request("info")).message).toContain("Audio device disconnected"),
 	);
 });
+
+test("native application exclusion keeps the studio usable without exposing other panels", async () => {
+	const recorder = window("hud-overlay");
+	const settings = window("studio");
+	const surface = window("board-surface");
+	host.windows = [recorder, settings, surface];
+	await prepareStudioCapture(true);
+	expect(recorder.hide).not.toHaveBeenCalled();
+	expect(settings.hide).toHaveBeenCalledOnce();
+	expect(surface.hide).not.toHaveBeenCalled();
+});

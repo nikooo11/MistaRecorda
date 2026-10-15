@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, screen } from "electron";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { getRecordingBoundsInDips, getCursorCaptureElapsedMs } from "../ipc/cursor/telemetry";
@@ -25,12 +25,30 @@ export class CaptureCamera {
 	private target = "";
 	private desired = "";
 	private applyingBounds = false;
+	private dragOrigin?: { cursor: { x: number; y: number }; window: { x: number; y: number } };
 	constructor(
 		private getLayout: () => CameraLayout,
 		private changed: (layout: CameraLayout) => void,
 	) {}
 	private bounds() {
 		return getRecordingBoundsInDips() ?? { x: 0, y: 0, width: 1280, height: 720 };
+	}
+	drag(phase: "start" | "move" | "end") {
+		const win = this.window;
+		if (phase === "end" || !win || win.isDestroyed() || this.getLayout().locked) {
+			this.dragOrigin = undefined;
+			return;
+		}
+		const cursor = screen.getCursorScreenPoint();
+		if (phase === "start") this.dragOrigin = { cursor, window: win.getBounds() };
+		else if (this.dragOrigin) {
+			const origin = this.dragOrigin;
+			win.setPosition(
+				Math.round(origin.window.x + cursor.x - origin.cursor.x),
+				Math.round(origin.window.y + cursor.y - origin.cursor.y),
+				false,
+			);
+		}
 	}
 	start() {
 		this.cues = [{ timeMs: 0, layout: { ...this.getLayout() } }];

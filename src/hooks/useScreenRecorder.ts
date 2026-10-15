@@ -133,6 +133,7 @@ type DesktopCaptureMediaDevices = {
 
 type UseScreenRecorderReturn = {
 	recording: boolean;
+	starting: boolean;
 	paused: boolean;
 	finalizing: boolean;
 	countdownActive: boolean;
@@ -1471,12 +1472,15 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 						document.visibilityState !== "hidden",
 					)
 				: [];
-			await window.electronAPI.studio.request("prepareCapture");
 			const useNativeMacScreenCapture =
 				platform === "darwin" &&
 				(selectedSource.id?.startsWith("screen:") ||
 					selectedSource.id?.startsWith("window:")) &&
 				typeof window.electronAPI.startNativeScreenRecording === "function";
+
+			await window.electronAPI.studio.request("prepareCapture", {
+				nativeMac: useNativeMacScreenCapture,
+			});
 
 			let useNativeWindowsCapture = false;
 			let nativeWindowsCaptureStartFailed = false;
@@ -1650,6 +1654,8 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 					"Drawing-board recording requires native Mac capture. Check Screen Recording permission and restart the app.",
 				);
 			}
+			// Browser fallback cannot exclude the controller application reliably.
+			await window.electronAPI.studio.request("prepareCapture");
 			const browserCursorPolicy = resolveBrowserCaptureCursorPolicy({
 				nativeWindowsCaptureStartFailed,
 			});
@@ -2209,6 +2215,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 
 	return {
 		recording,
+		starting,
 		paused,
 		finalizing,
 		countdownActive,

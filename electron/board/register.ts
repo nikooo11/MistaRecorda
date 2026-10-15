@@ -1432,8 +1432,15 @@ export async function registerBoard() {
 		const hud = BrowserWindow.getAllWindows().find((w) =>
 			w.webContents.getURL().includes("windowType=hud-overlay"),
 		);
-		if (hud?.isVisible()) hud.hide();
-		else hud?.showInactive();
+		if (hud?.isMinimized()) {
+			hud.restore();
+			hud.show();
+			hud.focus();
+		} else if (hud?.isVisible()) hud.hide();
+		else {
+			hud?.show();
+			hud?.focus();
+		}
 	});
 	app.on("before-quit", (event) => {
 		if (closing) return;

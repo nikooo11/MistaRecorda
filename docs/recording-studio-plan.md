@@ -1,6 +1,6 @@
 # Recording Studio window
 
-Planning proposal — October 15, 2026. This document does not change the installed recorder.
+Implementation status, October 15, 2026: the normal persistent studio window is installed. The trusted recorder route and single recording hook are retained. This document records the original design target, including follow-up ideas. The shipped scope and checks are listed in [recording-studio-validation.md](recording-studio-validation.md); the preview is currently a refreshable source snapshot, not a live composition feed.
 
 ## Intended experience
 

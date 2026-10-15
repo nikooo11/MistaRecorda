@@ -300,8 +300,8 @@ export function StudioPanel() {
 							</p>
 							<div className="capture-note">
 								Quality adjusts automatically to your source. The countdown and
-								audio choices are remembered. Controls hide before capture. Voice
-								changes are available after recording, in the editor.
+								audio choices are remembered. The studio is excluded from native Mac
+								capture. Voice changes are available after recording, in the editor.
 							</div>
 							<div className="shortcut-list">
 								{[

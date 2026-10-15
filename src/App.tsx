@@ -37,7 +37,6 @@ export default function App() {
 
 		if (
 			type.startsWith("board-") ||
-			type === "hud-overlay" ||
 			type === "source-selector" ||
 			type === "countdown" ||
 			(type === "update-toast" && isMacOS)
@@ -47,12 +46,7 @@ export default function App() {
 			document.getElementById("root")?.style.setProperty("background", "transparent");
 		}
 
-		if (type === "hud-overlay") {
-			document.documentElement.classList.add("hud-overlay-window");
-			document.body.classList.add("hud-overlay-window");
-			document.getElementById("root")?.classList.add("hud-overlay-window");
-			window.electronAPI?.hudOverlaySetIgnoreMouse?.(true);
-		} else if (type === "update-toast") {
+		if (type === "update-toast") {
 			document.documentElement.style.overflow = "visible";
 			document.body.style.overflow = "visible";
 			document.getElementById("root")?.style.setProperty("overflow", "visible");

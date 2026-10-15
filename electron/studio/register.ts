@@ -4,7 +4,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-import { app, BrowserWindow, desktopCapturer, dialog, globalShortcut, ipcMain } from "electron";
+import {
+	app,
+	BrowserWindow,
+	desktopCapturer,
+	dialog,
+	globalShortcut,
+	ipcMain,
+	Menu,
+} from "electron";
 import { z } from "zod";
 import {
 	defaultEnvironmentAudio,
@@ -686,7 +694,7 @@ async function persistSounds(videoPath: string) {
 		}
 	}
 }
-export async function prepareStudioCapture() {
+export async function prepareStudioCapture(keepRecorder = false) {
 	if (isStreaming()) await stopStream();
 	if (!glow || glow.isDestroyed()) {
 		glow = new BrowserWindow({
@@ -711,7 +719,13 @@ export async function prepareStudioCapture() {
 		const kind = new URL(w.webContents.getURL() || "about:blank").searchParams.get(
 			"windowType",
 		);
-		if (w !== glow && w !== camera.window && !isDrawingSurfaceWindow(w) && kind !== "countdown")
+		if (
+			w !== glow &&
+			w !== camera.window &&
+			!isDrawingSurfaceWindow(w) &&
+			kind !== "countdown" &&
+			!(keepRecorder && kind === "hud-overlay")
+		)
 			w.hide();
 		if (process.platform === "win32" && !isDrawingSurfaceWindow(w))
 			w.setContentProtection(true);
@@ -883,6 +897,24 @@ export function registerStudio() {
 			if (changed) publish();
 			return info();
 		}
+		if (method === "cameraDrag" || method === "cameraMenu") {
+			if (e.sender !== camera.window?.webContents)
+				throw Error("Camera controls require the camera window.");
+			if (method === "cameraDrag" && ["start", "move", "end"].includes(input))
+				camera.drag(input);
+			if (method === "cameraMenu")
+				Menu.buildFromTemplate([
+					{ label: "Hide facecam", click: () => sendRecordingControl("webcam-off") },
+					{
+						label: "Facecam layout & shortcuts…",
+						click: () => {
+							panelTab = "layers";
+							void openPanel();
+						},
+					},
+				]).popup({ window: camera.window });
+			return info();
+		}
 		if (method === "cameraStatus") {
 			if (!e.sender.getURL().includes("windowType=hud-overlay"))
 				throw Error("Camera status is owned by the recorder.");
@@ -913,7 +945,7 @@ export function registerStudio() {
 			return info();
 		}
 		if (method === "prepareCapture") {
-			await prepareStudioCapture();
+			await prepareStudioCapture(process.platform === "darwin" && input?.nativeMac === true);
 			return info();
 		}
 		if (

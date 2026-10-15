@@ -1,8 +1,11 @@
+import type { BrowserWindow } from "electron";
 import { afterEach, expect, test, vi } from "vitest";
 import { cameraPosition, DEFAULT_CAMERA_LAYOUT } from "../../src/lib/cameraLayout";
+const host = vi.hoisted(() => ({ cursor: { x: 0, y: 0 } }));
 const clock = vi.hoisted(() => ({ active: true, time: 0 }));
 vi.mock("electron", () => ({
 	app: { getAppPath: () => "/app" },
+	screen: { getCursorScreenPoint: () => host.cursor },
 	BrowserWindow: class {
 		rect = { x: 0, y: 0, width: 100, height: 100 };
 		listeners: Record<string, () => void> = {};
@@ -39,6 +42,7 @@ import { CaptureCamera } from "./camera";
 afterEach(() => {
 	clock.active = true;
 	clock.time = 0;
+	host.cursor = { x: 0, y: 0 };
 });
 test("long stationary gaps do not animate; same-time changes while paused replace the cue", () => {
 	const camera = new CaptureCamera(
@@ -90,4 +94,46 @@ test("camera uses the recorder's origin and ignores programmatic macOS window cl
 		vi.useRealTimers();
 		vi.unstubAllEnvs();
 	}
+});
+
+test("facecam dragging uses screen coordinates even as the overlay moves", () => {
+	const layout = { ...DEFAULT_CAMERA_LAYOUT };
+	const camera = new CaptureCamera(() => layout, vi.fn());
+	const setPosition = vi.fn();
+	camera.window = {
+		isDestroyed: () => false,
+		getBounds: () => ({ x: -500, y: 100, width: 200, height: 200 }),
+		setPosition,
+	} as unknown as BrowserWindow;
+	host.cursor = { x: -450, y: 150 };
+	camera.drag("start");
+	host.cursor = { x: -350, y: 200 };
+	camera.drag("move");
+	expect(setPosition).toHaveBeenLastCalledWith(-400, 150, false);
+	host.cursor = { x: -300, y: 225 };
+	camera.drag("move");
+	expect(setPosition).toHaveBeenLastCalledWith(-350, 175, false);
+	camera.drag("end");
+	setPosition.mockClear();
+	host.cursor = { x: 100, y: 300 };
+	camera.drag("move");
+	expect(setPosition).not.toHaveBeenCalled();
+});
+
+test("locking the facecam cancels a drag and prevents movement until a fresh gesture", () => {
+	const layout = { ...DEFAULT_CAMERA_LAYOUT };
+	const camera = new CaptureCamera(() => layout, vi.fn());
+	const setPosition = vi.fn();
+	camera.window = {
+		isDestroyed: () => false,
+		getBounds: () => ({ x: 50, y: 100, width: 200, height: 200 }),
+		setPosition,
+	} as unknown as BrowserWindow;
+	camera.drag("start");
+	layout.locked = true;
+	host.cursor = { x: 100, y: 100 };
+	camera.drag("move");
+	layout.locked = false;
+	camera.drag("move");
+	expect(setPosition).not.toHaveBeenCalled();
 });

@@ -419,7 +419,7 @@ export function registerRecordingHandlers(
 		async (_, source: SelectedSource, options?: NativeMacRecordingOptions) => {
 			assertBoardCaptureSource(source);
 			await prepareZoomOutline();
-			await prepareStudioCapture();
+			await prepareStudioCapture(true);
 			await prepareBoardCapture();
 			// Windows native capture path
 			if (process.platform === "win32") {
@@ -1877,7 +1877,7 @@ export function registerRecordingHandlers(
 		if (recording) {
 			await loadZoomSettings();
 			if (!nativeScreenRecordingActive) await prepareZoomOutline();
-			await prepareStudioCapture();
+			await prepareStudioCapture(nativeScreenRecordingActive);
 			stopCursorCapture();
 			stopInteractionCapture();
 			await startWindowBoundsCapture();

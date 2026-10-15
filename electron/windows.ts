@@ -1,19 +1,10 @@
 import fs from "node:fs";
 import { createRequire } from "node:module";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, ipcMain } from "electron";
-import {
-	shouldIgnoreHudMouse,
-	type HudInteractiveBounds,
-} from "../src/components/launch/hudMousePassthrough";
 import { USER_DATA_PATH } from "./appPaths";
-import {
-	getHudOverlayWindowBounds,
-	resizeHudOverlayFallbackBounds,
-	shouldExpandHudOverlayFallback,
-} from "./hudOverlayBounds";
+import { recordingStudioBounds } from "./recordingStudioBounds";
 import { getPackagedRendererBaseUrl } from "./rendererServer";
 
 const electronWindowsDir = path.dirname(fileURLToPath(import.meta.url));
@@ -30,21 +21,14 @@ const WINDOW_ICON_PATH = path.join(
 );
 
 let hudOverlayWindow: BrowserWindow | null = null;
-let hudOverlayHiddenFromCapture = true;
-let hudOverlayCaptureProtectionLoaded = false;
-let hudOverlayFallbackExpanded = false;
-let hudOverlayIgnoringMouse = true;
-let hudOverlaySourceSelectionActive = false;
-let hudOverlayMouseReassertTimer: NodeJS.Timeout | null = null;
-let hudOverlayRecordingActive = false;
-let hudInteractiveRegions: HudInteractiveBounds[] | null = null;
-let hudPointerCaptured = false;
-let hudAppliedIgnore: boolean | null = null;
-let hudOverlayWebcamPreviewVisible = false;
+let quittingStudio = false;
+app.on("before-quit", () => {
+	quittingStudio = true;
+});
 let countdownWindow: BrowserWindow | null = null;
 let updateToastWindow: BrowserWindow | null = null;
 
-const HUD_OVERLAY_SETTINGS_FILE = path.join(USER_DATA_PATH, "hud-overlay-settings.json");
+const STUDIO_BOUNDS_FILE = path.join(USER_DATA_PATH, "recording-studio-window.json");
 const HUD_EDGE_MARGIN_DIP = 16;
 const UPDATE_TOAST_WIDTH = 456;
 const UPDATE_TOAST_HEIGHT = 252;
@@ -120,377 +104,85 @@ function getEditorWindowQuery(): Record<string, string> {
 	return query;
 }
 
-function isHudOverlayCaptureProtectionSupported(): boolean {
-	return process.platform !== "linux";
-}
-
-function getWindowsBuildNumber(): number | null {
-	if (process.platform !== "win32") {
-		return null;
-	}
-
-	const build = Number.parseInt(os.release().split(".")[2] ?? "", 10);
-	return Number.isFinite(build) ? build : null;
-}
-
+// The recorder is now a normal, persistent window. Legacy HUD IPC remains
+// compatible, but never enables click-through or expands invisible hit regions.
 export function isHudOverlayMousePassthroughSupported(): boolean {
-	if (process.platform === "linux") {
-		return false;
-	}
-
-	const build = getWindowsBuildNumber();
-	if (build !== null && build < 22000) {
-		return false;
-	}
-
-	return true;
+	return false;
 }
-
-function loadHudOverlayCaptureProtectionSetting(): boolean {
-	if (hudOverlayCaptureProtectionLoaded) {
-		return hudOverlayHiddenFromCapture;
-	}
-
-	hudOverlayCaptureProtectionLoaded = true;
-
-	try {
-		if (!fs.existsSync(HUD_OVERLAY_SETTINGS_FILE)) {
-			return hudOverlayHiddenFromCapture;
-		}
-
-		const raw = fs.readFileSync(HUD_OVERLAY_SETTINGS_FILE, "utf-8");
-		const parsed = JSON.parse(raw) as { hiddenFromCapture?: unknown };
-		if (typeof parsed.hiddenFromCapture === "boolean") {
-			hudOverlayHiddenFromCapture = parsed.hiddenFromCapture;
-		}
-	} catch {
-		// Ignore settings read failures and fall back to defaults.
-	}
-
-	return hudOverlayHiddenFromCapture;
-}
-
-function persistHudOverlayCaptureProtectionSetting(enabled: boolean): void {
-	try {
-		fs.writeFileSync(
-			HUD_OVERLAY_SETTINGS_FILE,
-			JSON.stringify({ hiddenFromCapture: enabled }, null, 2),
-			"utf-8",
-		);
-	} catch {
-		// Ignore settings write failures and keep runtime state working.
-	}
-}
-
 function getScreen() {
-	if (!app.isReady()) {
-		throw new Error(
-			"getScreen() called before app is ready. Ensure all screen access happens after app.whenReady().",
-		);
-	}
 	return nodeRequire("electron").screen as typeof import("electron").screen;
 }
-
-function getHudOverlayDisplay() {
-	const hudWindow = getHudOverlayWindow();
-	if (hudWindow) {
-		return getScreen().getDisplayMatching(hudWindow.getBounds());
-	}
-	return getScreen().getPrimaryDisplay();
-}
-
 function getHudOverlayBounds() {
-	const { workArea } = getHudOverlayDisplay();
-	const fallbackExpanded = shouldExpandHudOverlayFallback({
-		fallbackExpanded: hudOverlayFallbackExpanded,
-		recordingActive: hudOverlayRecordingActive,
-		webcamPreviewVisible: hudOverlayWebcamPreviewVisible,
-	});
-	return getHudOverlayWindowBounds(
-		workArea,
-		isHudOverlayMousePassthroughSupported(),
-		fallbackExpanded,
-	);
+	const current = getHudOverlayWindow()?.getNormalBounds();
+	let saved = current;
+	if (!saved) {
+		try {
+			saved = JSON.parse(fs.readFileSync(STUDIO_BOUNDS_FILE, "utf8"));
+		} catch {
+			/* default placement */
+		}
+	}
+	const screen = getScreen();
+	const display =
+		saved && [saved.x, saved.y, saved.width, saved.height].every(Number.isFinite)
+			? screen.getDisplayMatching(saved)
+			: screen.getPrimaryDisplay();
+	return recordingStudioBounds(display.workArea, saved);
 }
-
 function applyHudOverlayBounds() {
-	if (!hudOverlayWindow || hudOverlayWindow.isDestroyed()) {
-		return;
-	}
-	hudOverlayWindow.setBounds(getHudOverlayBounds(), false);
-
+	const win = getHudOverlayWindow();
+	if (win && !win.isMaximized() && !win.isFullScreen())
+		win.setBounds(getHudOverlayBounds(), false);
 	positionUpdateToastWindow();
-	if (!hudOverlayWindow.isVisible()) {
-		return;
-	}
-	hudOverlayWindow.moveTop();
 }
-
 function getUpdateToastBounds() {
-	const hudWindow = getHudOverlayWindow();
-	if (hudWindow) {
-		const hudBounds = hudWindow.getBounds();
-		const display = getScreen().getDisplayMatching(hudBounds);
-		const x = Math.round(hudBounds.x + (hudBounds.width - UPDATE_TOAST_WIDTH) / 2);
-		const y = Math.max(
-			display.workArea.y + HUD_EDGE_MARGIN_DIP,
-			hudBounds.y - UPDATE_TOAST_HEIGHT - UPDATE_TOAST_GAP_DIP,
-		);
-
-		return {
-			x,
-			y,
-			width: UPDATE_TOAST_WIDTH,
-			height: UPDATE_TOAST_HEIGHT,
-		};
-	}
-
-	const primaryDisplay = getScreen().getPrimaryDisplay();
-	const { workArea } = primaryDisplay;
+	const win = getHudOverlayWindow();
+	const area = win
+		? getScreen().getDisplayMatching(win.getBounds()).workArea
+		: getScreen().getPrimaryDisplay().workArea;
+	const bounds = win?.getBounds() ?? area;
 	return {
-		x: Math.round(workArea.x + (workArea.width - UPDATE_TOAST_WIDTH) / 2),
-		y: workArea.y + HUD_EDGE_MARGIN_DIP,
+		x: Math.round(bounds.x + (bounds.width - UPDATE_TOAST_WIDTH) / 2),
+		y: Math.max(
+			area.y + HUD_EDGE_MARGIN_DIP,
+			bounds.y - UPDATE_TOAST_HEIGHT - UPDATE_TOAST_GAP_DIP,
+		),
 		width: UPDATE_TOAST_WIDTH,
 		height: UPDATE_TOAST_HEIGHT,
 	};
 }
-
 function positionUpdateToastWindow() {
-	if (!updateToastWindow || updateToastWindow.isDestroyed()) {
-		return;
-	}
-
-	updateToastWindow.setBounds(getUpdateToastBounds(), false);
-	updateToastWindow.moveTop();
+	if (updateToastWindow && !updateToastWindow.isDestroyed())
+		updateToastWindow.setBounds(getUpdateToastBounds(), false);
 }
-
-function setHudOverlayFallbackExpanded(expanded: boolean) {
-	if (hudOverlayRecordingActive) {
-		hudOverlayFallbackExpanded = false;
-		return;
-	}
-
-	hudOverlayFallbackExpanded = expanded;
-	if (
-		!hudOverlayWindow ||
-		hudOverlayWindow.isDestroyed() ||
-		isHudOverlayMousePassthroughSupported()
-	) {
-		return;
-	}
-
-	const { workArea } = getHudOverlayDisplay();
-	const nextBounds = resizeHudOverlayFallbackBounds(
-		workArea,
-		hudOverlayWindow.getBounds(),
-		expanded,
-	);
-	hudOverlayWindow.setBounds(nextBounds, false);
-	positionUpdateToastWindow();
-	if (hudOverlayWindow.isVisible()) {
-		hudOverlayWindow.moveTop();
-	}
-}
-
-function setHudOverlayMousePassthrough(ignore: boolean) {
-	if (!hudOverlayWindow || hudOverlayWindow.isDestroyed()) return;
-	const supported = isHudOverlayMousePassthroughSupported();
-	if (supported && hudInteractiveRegions !== null) {
-		const cursor = getScreen().getCursorScreenPoint();
-		const bounds = hudOverlayWindow.getContentBounds();
-		const zoom = hudOverlayWindow.webContents.getZoomFactor();
-		ignore = shouldIgnoreHudMouse(
-			hudInteractiveRegions,
-			{ x: (cursor.x - bounds.x) / zoom, y: (cursor.y - bounds.y) / zoom },
-			hudPointerCaptured,
-			hudOverlaySourceSelectionActive,
-		);
-	} else if (hudOverlaySourceSelectionActive) {
-		ignore = true;
-	}
-	hudOverlayIgnoringMouse = ignore;
-	if (hudOverlayMouseReassertTimer) {
-		clearTimeout(hudOverlayMouseReassertTimer);
-		hudOverlayMouseReassertTimer = null;
-	}
-	if (!supported) {
-		if (process.platform !== "linux") setHudOverlayFallbackExpanded(!ignore);
-		hudOverlayWindow.setIgnoreMouseEvents(false);
-		return;
-	}
-	// Recording uses the same visible hit regions as idle. Never turn the entire
-	// transparent window into a mouse blocker, including while a menu is open.
-	if (hudAppliedIgnore === ignore) return;
-	hudAppliedIgnore = ignore;
-	hudOverlayWindow.setIgnoreMouseEvents(ignore, { forward: true });
-}
-
-ipcMain.on("hud-overlay-interactive-regions", (event, regions: unknown, captured: unknown) => {
-	if (event.sender !== hudOverlayWindow?.webContents || !Array.isArray(regions)) return;
-	hudInteractiveRegions = regions
-		.slice(0, 64)
-		.filter(
-			(r): r is HudInteractiveBounds =>
-				r &&
-				[r.left, r.top, r.right, r.bottom].every(
-					(n) => typeof n === "number" && Number.isFinite(n),
-				) &&
-				r.right > r.left &&
-				r.bottom > r.top,
-		);
-	hudPointerCaptured = captured === true;
-	if (isHudOverlayMousePassthroughSupported()) setHudOverlayMousePassthrough(true);
-});
-
-ipcMain.on("hud-overlay-set-ignore-mouse", (_event, ignore: boolean) => {
-	setHudOverlayMousePassthrough(Boolean(ignore));
-});
-
-ipcMain.on("hud-overlay-set-source-selection-active", (_event, active: boolean) => {
-	hudOverlaySourceSelectionActive = Boolean(active);
-	if (hudOverlaySourceSelectionActive) {
-		hudPointerCaptured = false;
-		hudOverlayFallbackExpanded = false;
-		applyHudOverlayBounds();
-	}
-
-	setHudOverlayMousePassthrough(hudOverlayIgnoringMouse);
-});
-
-// Keep compatibility with existing drag IPC/state.
-let hudUserPosition: { x: number; y: number } | null = null;
-let hudDragOffset: { x: number; y: number } | null = null;
-let hudDragLastCursor: { x: number; y: number } | null = null;
-let hudDragFixedSize: { width: number; height: number } | null = null;
-
-ipcMain.on("hud-overlay-drag", (_event, phase: string, screenX: number, screenY: number) => {
-	if (!hudOverlayWindow || hudOverlayWindow.isDestroyed()) return;
-
-	// On Linux the compositor (especially Wayland) refuses programmatic window
-	// placement, so BrowserWindow.setBounds() with x/y is silently ignored and
-	// the HUD appears "stuck".  The renderer marks the drag handle as
-	// -webkit-app-region: drag on Linux, letting the OS move the window for us.
-	// The resulting position is captured by the win.on("moved", ...) listener
-	// below so `hudUserPosition` stays in sync.
-	if (process.platform === "linux") {
-		return;
-	}
-
-	if (phase === "start") {
-		const bounds = hudOverlayWindow.getBounds();
-		hudDragOffset = { x: screenX - bounds.x, y: screenY - bounds.y };
-		hudDragLastCursor = { x: screenX, y: screenY };
-		hudDragFixedSize = { width: bounds.width, height: bounds.height };
-	} else if (phase === "move" && hudDragOffset) {
-		if (
-			hudDragLastCursor &&
-			hudDragLastCursor.x === screenX &&
-			hudDragLastCursor.y === screenY
-		) {
-			return;
-		}
-
-		hudDragLastCursor = { x: screenX, y: screenY };
-		const targetX = Math.round(screenX - hudDragOffset.x);
-		const targetY = Math.round(screenY - hudDragOffset.y);
-		const fixedWidth = hudDragFixedSize?.width ?? hudOverlayWindow.getBounds().width;
-		const fixedHeight = hudDragFixedSize?.height ?? hudOverlayWindow.getBounds().height;
-		hudOverlayWindow.setBounds(
-			{
-				x: targetX,
-				y: targetY,
-				width: fixedWidth,
-				height: fixedHeight,
-			},
-			false,
-		);
-	} else if (phase === "end") {
-		const finalBounds = hudOverlayWindow.getBounds();
-		hudUserPosition = { x: finalBounds.x, y: finalBounds.y };
-
-		hudDragOffset = null;
-		hudDragLastCursor = null;
-		hudDragFixedSize = null;
-	}
-});
-
-ipcMain.on("hud-overlay-hide", () => {
-	if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
-		hudOverlayWindow.minimize();
-	}
-});
-
-ipcMain.handle("get-hud-overlay-capture-protection", () => {
-	const enabled = loadHudOverlayCaptureProtectionSetting();
-
-	return {
-		success: true,
-		enabled,
-	};
-});
-
-ipcMain.handle("get-hud-overlay-mouse-passthrough-supported", () => {
-	return {
-		success: true,
-		supported: isHudOverlayMousePassthroughSupported(),
-	};
-});
-
-ipcMain.on("hud-overlay-set-webcam-preview-visible", (_event, visible: boolean) => {
-	const nextVisible = Boolean(visible);
-	if (hudOverlayWebcamPreviewVisible === nextVisible) {
-		return;
-	}
-
-	hudOverlayWebcamPreviewVisible = nextVisible;
-	if (hudOverlayRecordingActive) {
-		applyHudOverlayBounds();
-	}
-});
-
-ipcMain.handle("set-hud-overlay-capture-protection", (_event, enabled: boolean) => {
-	loadHudOverlayCaptureProtectionSetting();
-	hudOverlayHiddenFromCapture = Boolean(enabled);
-	persistHudOverlayCaptureProtectionSetting(hudOverlayHiddenFromCapture);
-
-	if (
-		isHudOverlayCaptureProtectionSupported() &&
-		hudOverlayWindow &&
-		!hudOverlayWindow.isDestroyed()
-	) {
-		hudOverlayWindow.setContentProtection(hudOverlayHiddenFromCapture);
-	}
-
-	return {
-		success: true,
-		enabled: hudOverlayHiddenFromCapture,
-	};
-});
+ipcMain.on("hud-overlay-interactive-regions", () => {});
+ipcMain.on("hud-overlay-set-ignore-mouse", () => {});
+ipcMain.on("hud-overlay-set-source-selection-active", () => {});
+ipcMain.on("hud-overlay-set-webcam-preview-visible", () => {});
+ipcMain.on("hud-overlay-hide", () => getHudOverlayWindow()?.minimize());
+ipcMain.handle("get-hud-overlay-capture-protection", () => ({ success: true, enabled: true }));
+ipcMain.handle("set-hud-overlay-capture-protection", () => ({ success: true, enabled: true }));
+ipcMain.handle("get-hud-overlay-mouse-passthrough-supported", () => ({
+	success: true,
+	supported: false,
+}));
 
 export function createHudOverlayWindow(): BrowserWindow {
-	hudInteractiveRegions = null;
-	hudPointerCaptured = false;
-	hudAppliedIgnore = null;
-	loadHudOverlayCaptureProtectionSetting();
-	hudOverlayFallbackExpanded = false;
-	hudOverlayWebcamPreviewVisible = false;
-	const initialBounds = getHudOverlayBounds();
-	let hasShownHudWindow = false;
-
+	if (getHudOverlayWindow()) return getHudOverlayWindow()!;
 	const win = new BrowserWindow({
-		width: initialBounds.width,
-		height: initialBounds.height,
-		x: initialBounds.x,
-		y: initialBounds.y,
-		frame: false,
-		transparent: true,
-		backgroundColor: "#00000000",
-		resizable: false,
-		alwaysOnTop: true,
-		skipTaskbar: true,
-		hasShadow: false,
+		title: "MistaRecorda — Recording studio",
+		...getHudOverlayBounds(),
+		minWidth: 820,
+		minHeight: 600,
+		backgroundColor: "#28292d",
+		resizable: true,
+		minimizable: true,
+		maximizable: true,
 		show: false,
-		focusable: false,
+		hasShadow: true,
+		...(process.platform === "darwin"
+			? { titleBarStyle: "hiddenInset" as const, trafficLightPosition: { x: 14, y: 14 } }
+			: {}),
 		webPreferences: {
 			preload: path.join(electronWindowsDir, "preload.mjs"),
 			nodeIntegration: false,
@@ -499,198 +191,61 @@ export function createHudOverlayWindow(): BrowserWindow {
 			backgroundThrottling: false,
 		},
 	});
-
-	const showHudWindow = () => {
-		if (hasShownHudWindow || win.isDestroyed()) {
-			return;
-		}
-		hasShownHudWindow = true;
-		win.show();
-		win.moveTop();
-		if (process.platform === "win32" && isHudOverlayMousePassthroughSupported()) {
-			win.setIgnoreMouseEvents(false);
-			hudAppliedIgnore = null;
-			setTimeout(() => {
-				if (!win.isDestroyed()) {
-					setHudOverlayMousePassthrough(hudOverlayIgnoringMouse);
-				}
-			}, 50);
-		}
-	};
-
-	if (isHudOverlayCaptureProtectionSupported()) {
-		win.setContentProtection(hudOverlayHiddenFromCapture);
-	}
-
-	if (isHudOverlayMousePassthroughSupported()) {
-		hudOverlayIgnoringMouse = true;
-		hudAppliedIgnore = true;
-		win.setIgnoreMouseEvents(true, { forward: true });
-	}
-
-	// On Windows 11+, focus changes (e.g. showing a native notification) can break
-	// setIgnoreMouseEvents forwarding on a transparent always-on-top window, making
-	// it permanently click-through without hover detection.  Re-initialise the
-	// pass-through-with-forwarding state whenever the window gains focus by toggling
-	// the flag off then back on so the native WS_EX_TRANSPARENT flag is fully reset.
-	// On Windows 10 (build < 22000) passthrough is disabled entirely, so skip this.
-	if (process.platform === "win32" && isHudOverlayMousePassthroughSupported()) {
-		win.on("focus", () => {
-			if (!win.isDestroyed()) {
-				win.setIgnoreMouseEvents(false);
-				hudAppliedIgnore = null;
-				setTimeout(() => {
-					if (!win.isDestroyed()) {
-						setHudOverlayMousePassthrough(hudOverlayIgnoringMouse);
-					}
-				}, 50);
-			}
-		});
-	}
-
-	win.webContents.on("did-finish-load", () => {
-		win?.webContents.send("main-process-message", new Date().toLocaleString());
-		// Safety fallback if renderer-ready signal never arrives.
-		setTimeout(() => {
-			showHudWindow();
-		}, 1800);
-	});
-
-	// Safety net: on Linux the renderer may fail to fire did-finish-load
-	// (for example due to GPU/VAAPI startup issues). Show the window after
-	// ready-to-show as a fallback so the HUD still appears.
-	win.once("ready-to-show", () => {
-		setTimeout(() => {
-			if (!win.isDestroyed() && !win.isVisible()) {
-				showHudWindow();
-			}
-		}, 500);
-	});
-
-	const handleHudRendererReady = () => {
-		if (!win.isDestroyed()) {
-			showHudWindow();
-		}
-	};
-	ipcMain.on("hud-overlay-renderer-ready", handleHudRendererReady);
-
 	hudOverlayWindow = win;
-	// Native cursor polling also recovers when Chromium misses a mouseleave or
-	// stops forwarding moves. No renderer round-trip is needed for a hit test.
-	const hitTestTimer = isHudOverlayMousePassthroughSupported()
-		? setInterval(() => {
-				if (!win.isDestroyed() && win.isVisible()) setHudOverlayMousePassthrough(true);
-			}, 16)
-		: null;
-	win.on("blur", () => {
-		hudPointerCaptured = false;
+	if (process.platform !== "linux") win.setContentProtection(true);
+	let shown = false;
+	const show = () => {
+		if (!shown && !win.isDestroyed()) {
+			shown = true;
+			win.show();
+		}
+	};
+	const ready = (event: Electron.IpcMainEvent) => {
+		if (event.sender === win.webContents) show();
+	};
+	ipcMain.on("hud-overlay-renderer-ready", ready);
+	win.once("ready-to-show", () => setTimeout(show, 500));
+	win.webContents.on("did-finish-load", () => setTimeout(show, 1800));
+	const persist = () => {
+		if (win.isDestroyed() || win.isMinimized()) return;
+		try {
+			fs.writeFileSync(STUDIO_BOUNDS_FILE, JSON.stringify(win.getNormalBounds()));
+		} catch {
+			/* keep runtime placement */
+		}
+	};
+	win.on("resize", persist);
+	win.on("moved", persist);
+	win.on("close", (event) => {
+		if (!quittingStudio) {
+			event.preventDefault();
+			win.hide();
+		}
 	});
-	win.webContents.on("render-process-gone", () => {
-		hudInteractiveRegions = [];
-		hudPointerCaptured = false;
-		setHudOverlayMousePassthrough(true);
-	});
-
-	// On Linux the HUD is dragged by the OS via -webkit-app-region (Wayland
-	// forbids client-side positioning). Mirror moved bounds into drag state.
-	if (process.platform === "linux") {
-		win.on("moved", () => {
-			if (win.isDestroyed()) return;
-			const { x, y } = win.getBounds();
-			hudUserPosition = { x, y };
-		});
-	}
-
-	// Reset the user's saved HUD position when displays change so the bar
-	// doesn't end up stranded off-screen after a monitor is disconnected.
 	const screen = getScreen();
-	const handleDisplayRemoved = () => {
-		hudUserPosition = null;
-	};
-	const handleDisplayMetricsChanged = () => {
-		if (hudUserPosition) {
-			const displays = screen.getAllDisplays();
-			const onScreen = displays.some(
-				(d) =>
-					hudUserPosition!.x >= d.workArea.x &&
-					hudUserPosition!.x < d.workArea.x + d.workArea.width &&
-					hudUserPosition!.y >= d.workArea.y &&
-					hudUserPosition!.y < d.workArea.y + d.workArea.height,
-			);
-			if (!onScreen) {
-				hudUserPosition = null;
-			}
-		}
-		applyHudOverlayBounds();
-	};
-	screen.on("display-removed", handleDisplayRemoved);
-	screen.on("display-metrics-changed", handleDisplayMetricsChanged);
-
+	screen.on("display-removed", applyHudOverlayBounds);
+	screen.on("display-metrics-changed", applyHudOverlayBounds);
 	win.on("closed", () => {
-		if (hitTestTimer) clearInterval(hitTestTimer);
-		ipcMain.removeListener("hud-overlay-renderer-ready", handleHudRendererReady);
-		screen.removeListener("display-removed", handleDisplayRemoved);
-		screen.removeListener("display-metrics-changed", handleDisplayMetricsChanged);
-		if (hudOverlayWindow === win) {
-			hudOverlayWindow = null;
-		}
+		ipcMain.removeListener("hud-overlay-renderer-ready", ready);
+		screen.removeListener("display-removed", applyHudOverlayBounds);
+		screen.removeListener("display-metrics-changed", applyHudOverlayBounds);
+		if (hudOverlayWindow === win) hudOverlayWindow = null;
 	});
-
-	if (VITE_DEV_SERVER_URL) {
-		win.loadURL(VITE_DEV_SERVER_URL + "?windowType=hud-overlay");
-	} else {
-		win.loadFile(path.join(RENDERER_DIST, "index.html"), {
+	if (VITE_DEV_SERVER_URL) void win.loadURL(VITE_DEV_SERVER_URL + "?windowType=hud-overlay");
+	else
+		void win.loadFile(path.join(RENDERER_DIST, "index.html"), {
 			query: { windowType: "hud-overlay" },
 		});
-	}
-
 	return win;
 }
-
 export function getHudOverlayWindow(): BrowserWindow | null {
 	return hudOverlayWindow && !hudOverlayWindow.isDestroyed() ? hudOverlayWindow : null;
 }
-
-/**
- * Re-initialise the HUD overlay's mouse passthrough state.
- *
- * On Windows 11+, any new BrowserWindow appearing (even focusable:false ones
- * like the source highlight overlay) can silently corrupt the
- * WS_EX_TRANSPARENT flag that backs setIgnoreMouseEvents forwarding.  Call
- * this after any operation that creates or destroys a sibling window so that
- * hover detection on the HUD is immediately restored without requiring the
- * user to move their mouse over the bar.
- */
 export function reassertHudOverlayMousePassthrough(): void {
-	if (process.platform !== "win32" || !isHudOverlayMousePassthroughSupported()) {
-		return;
-	}
-
-	const hud = getHudOverlayWindow();
-	if (!hud) {
-		return;
-	}
-
-	// Toggle off then back on so the native WS_EX_TRANSPARENT flag is fully
-	// re-initialised rather than merely re-asserted in a potentially broken state.
-	hud.setIgnoreMouseEvents(false);
-	hudAppliedIgnore = null;
-	if (hudOverlayMouseReassertTimer) {
-		clearTimeout(hudOverlayMouseReassertTimer);
-	}
-	hudOverlayMouseReassertTimer = setTimeout(() => {
-		hudOverlayMouseReassertTimer = null;
-		if (!hud.isDestroyed()) {
-			setHudOverlayMousePassthrough(hudOverlayIgnoringMouse);
-		}
-	}, 50);
+	/* normal window */
 }
-
-export function setHudOverlayRecordingActive(recording: boolean): void {
-	hudOverlayRecordingActive = Boolean(recording);
-	hudOverlayFallbackExpanded = false;
-	applyHudOverlayBounds();
-	setHudOverlayMousePassthrough(true);
+export function setHudOverlayRecordingActive(_recording: boolean): void {
+	/* keep geometry and recorder alive */
 }
 
 export function createUpdateToastWindow(): BrowserWindow {

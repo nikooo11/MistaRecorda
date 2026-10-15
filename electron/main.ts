@@ -352,22 +352,7 @@ function focusOrCreateMainWindow() {
 	}
 
 	if (mainWindow && !mainWindow.isDestroyed()) {
-		// On Linux/Wayland, focus() often doesn't take effect (compositor ignores it). Apps like Telegram
-		// work because they receive an XDG activation token via StatusNotifierItem.ProvideXdgActivationToken;
-		// Electron's tray doesn't handle that yet. Workaround: destroy and recreate the HUD so the new
-		// window gets focus (creation path works). Only for HUD, not editor.
-		if (
-			process.platform === "linux" &&
-			!mainWindow.isFocused() &&
-			!isEditorWindow(mainWindow)
-		) {
-			const win = mainWindow;
-			mainWindow = null;
-			win.once("closed", () => createWindow());
-			win.destroy();
-			return;
-		}
-
+		// Keep the recorder renderer alive when restoring the normal studio window.
 		// On Win32 with mouse passthrough enabled (Win11+), calling
 		// show/moveTop/focus on the transparent HUD overlay permanently corrupts
 		// setIgnoreMouseEvents forwarding, making it click-through.  Only focus
