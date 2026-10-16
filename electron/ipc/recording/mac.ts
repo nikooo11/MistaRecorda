@@ -33,6 +33,7 @@ import {
 import { emitRecordingInterrupted } from "./events";
 import { getFinalMacCompanionAudioPath } from "./macCompanionAudio";
 import { pruneAutoRecordings } from "./prune";
+import { isWebcamRecordingPath } from "./storagePath";
 
 export function waitForNativeCaptureStart(process: ChildProcessWithoutNullStreams) {
 	return new Promise<void>((resolve, reject) => {
@@ -187,6 +188,13 @@ export function attachNativeCaptureLifecycle(process: ChildProcessWithoutNullStr
 }
 
 export async function finalizeStoredVideo(videoPath: string) {
+	// The facecam can finish before the screen (or be switched off mid-take).
+	// It is a companion layer, so it must not end a held zoom, consume take
+	// metadata, replace the editor's source, or prune the still-recording screen.
+	if (isWebcamRecordingPath(videoPath)) {
+		await validateRecordedVideo(videoPath);
+		return { success: true, path: videoPath, message: "Facecam stored successfully" };
+	}
 	await prepareRecordingAudio(videoPath);
 	console.log("[finalize] Optimization active: skipping safety-net muxing.");
 

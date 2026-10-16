@@ -2,6 +2,10 @@ import path from "node:path";
 
 const RECORDED_VIDEO_FILE_NAME = /^recording-[0-9]+(?:-webcam)?\.(?:webm|mp4)$/;
 
+export function isWebcamRecordingPath(videoPath: string): boolean {
+	return /^recording-[0-9]+-webcam\.(?:webm|mp4)$/.test(path.basename(videoPath));
+}
+
 export function resolveRecordedVideoStoragePath(recordingsDir: string, fileName: unknown): string {
 	if (typeof fileName !== "string" || RECORDED_VIDEO_FILE_NAME.exec(fileName)?.[0] !== fileName) {
 		throw new Error("Invalid recording file name");
