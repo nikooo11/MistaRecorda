@@ -1,3 +1,7 @@
+# Latest update
+
+See [Live studio validation, October 16](live-studio-validation.md) for the live preview, scene shortcuts, Sources dock and default scene that supersede the snapshot-only behavior below.
+
 # Recording Studio implementation and validation
 
 Validated October 15, 2026 on macOS arm64.

@@ -379,3 +379,63 @@
 .recording-studio .studio-controls {
 	gap: 8px;
 }
+
+.studio-capture-visibility {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 11px;
+	color: #b7bdc7;
+	padding: 8px 0;
+}
+.studio-capture-visibility input {
+	width: 14px;
+	height: 14px;
+	accent-color: #89b2c5;
+}
+.studio-url-presentation {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	padding: 12px;
+	background: #303b43;
+	border: 1px solid #566b76;
+	border-radius: 6px;
+}
+.studio-url-presentation small {
+	width: 100%;
+	color: #abb9c1;
+}
+
+/* Keep scene switching compact so Sources remain within easy reach. */
+.recording-studio .compact-scene-list {
+	max-height: 240px;
+	overflow-y: auto;
+	scrollbar-width: thin;
+}
+.recording-studio .compact-scene-row {
+	display: grid;
+	grid-template-columns: 1fr 30px 30px;
+	gap: 4px;
+	padding: 6px 0;
+}
+.recording-studio .compact-scene-row .scene-description {
+	grid-column: 1 / -1;
+	text-align: left;
+	align-items: start;
+	padding: 6px 8px;
+}
+.recording-studio .compact-scene-row .scene-description small {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	width: 100%;
+}
+.recording-studio .compact-scene-row .shortcut-input {
+	min-width: 0;
+}
+.recording-studio .compact-scene-row > button:not(.scene-description) {
+	padding: 4px;
+	min-height: 28px;
+}

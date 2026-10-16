@@ -21,6 +21,7 @@ struct CaptureConfig: Codable {
 	let cleanSurfaceTitle: String?
  let cleanSurfaceWindowId: UInt32?
  let drawingMode: String?
+ let studioWindowId: UInt32?
 }
 
 let targetCaptureFPS = 60
@@ -53,6 +54,10 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	private var outputURL: URL?
 	private var microphoneOutputURL: URL?
 	private var trackedWindowId: UInt32?
+ private var captureSettings: CaptureConfig?
+ private var currentDisplayId: UInt32?
+ private var visibleStudioId: UInt32?
+ private var currentDrawingId: UInt32?
 	private var windowValidationTask: Task<Void, Never>?
 	private var inlineAudioInput: AVAssetWriterInput?
 	private var firstInlineAudioSampleTime: CMTime?
@@ -91,7 +96,9 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	}
 
 	func setDrawing(windowID: UInt32, board: Bool) async throws {
-		guard trackedWindowId != nil else { return } // Display capture already includes the clean surface.
+		currentDrawingId = windowID
+        drawingIsBoard = board
+        guard trackedWindowId != nil else { return } // Display capture already includes the clean surface.
 		if drawingStream == nil {
 			var window: SCWindow?
 			// WindowServer can expose a newly created transparent window before its
@@ -169,6 +176,10 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 
 		let config = try JSONDecoder().decode(CaptureConfig.self, from: data)
+        captureSettings = config
+        visibleStudioId = config.studioWindowId
+        currentDrawingId = config.cleanSurfaceWindowId
+        currentDisplayId = config.windowId == nil ? (config.displayId ?? CGMainDisplayID()) : nil
 		// Include the pre-created, hidden target outline so it can be excluded before any frame is captured.
 		var availableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
         // WindowServer may publish a newly shown transparent window a little later
@@ -260,7 +271,8 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                     }
                     included = [cleanSurface]
                 }
-                // Exclude the entire control application, including menus opened after capture starts.
+                if let studioID = visibleStudioId, let studio = availableContent.windows.first(where: { $0.windowID == studioID && $0.owningApplication?.processID == ownerPID }) { included.append(studio) }
+                // Exclude controls except the explicitly opted-in studio window.
                 filter = SCContentFilter(display: display, excludingApplications: [owner], exceptingWindows: included)
             } else {
                 throw NSError(domain: "RecordlyCapture", code: 10, userInfo: [NSLocalizedDescriptionKey: "Could not exclude recorder controls. Reopen MistaRecorda and try again."])
@@ -434,7 +446,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	}
 
 	func switchWindow(_ windowID: UInt32) async throws {
-		guard isRecording, let stream, trackedWindowId != nil else {
+		guard isRecording, let stream else {
 			throw NSError(domain: "RecordlyCapture", code: 8, userInfo: [NSLocalizedDescriptionKey: "Window capture is not active"])
 		}
 		let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
@@ -444,11 +456,32 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		// Keep the writer, frame size, audio and media clock alive across source changes.
 		try await stream.updateContentFilter(SCContentFilter(desktopIndependentWindow: window))
 		trackedWindowId = windowID
+        currentDisplayId = nil
+        if let id = currentDrawingId { try await setDrawing(windowID: id, board: drawingIsBoard) }
 		queue.async { self.windowFrame = window.frame; self.windowImage = nil }
 		startWindowValidationIfNeeded()
 		print("SOURCE_SWITCHED \(windowID)")
 		fflush(stdout)
 	}
+
+    func switchDisplay(_ displayID: UInt32) async throws {
+        guard isRecording, let stream, let settings = captureSettings else { throw NSError(domain: "Capture", code: 1) }
+        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+        guard let display = content.displays.first(where: { $0.displayID == displayID }),
+              let owner = content.applications.first(where: { $0.processID == settings.zoomOverlayOwnerPID }) else { throw NSError(domain: "Capture", code: 2) }
+        let included = content.windows.filter { $0.owningApplication?.processID == owner.processID && ($0.windowID == currentDrawingId || $0.windowID == visibleStudioId) }
+        try await stream.updateContentFilter(SCContentFilter(display: display, excludingApplications: [owner], exceptingWindows: included))
+        trackedWindowId = nil
+        currentDisplayId = displayID
+        startWindowValidationIfNeeded()
+        if let overlay = drawingStream { try? await overlay.stopCapture() }
+        queue.sync { drawingStream = nil; drawingImage = nil; windowImage = nil; windowFrame = display.frame }
+        print("DISPLAY_SWITCHED \(displayID)"); fflush(stdout)
+    }
+    func showStudio(_ id: UInt32) async throws {
+        visibleStudioId = id == 0 ? nil : id
+        if let display = currentDisplayId { try await switchDisplay(display) }
+    }
 
 	func setAudio(microphone: Bool, system: Bool) {
 		queue.async {
@@ -773,6 +806,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		windowValidationTask?.cancel()
 		windowValidationTask = Task.detached(priority: .utility) { [weak self] in
 			guard let self else { return }
+            var missingCount = 0
 			while !Task.isCancelled {
 				try? await Task.sleep(nanoseconds: 500_000_000)
 				if Task.isCancelled { return }
@@ -784,7 +818,9 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 					let tracked = availableContent.windows.first(where: { $0.windowID == trackedWindowId })
 					if let tracked { self.queue.async { self.windowFrame = tracked.frame } }
 					let windowStillAvailable = tracked != nil
-					if !windowStillAvailable {
+					if windowStillAvailable { missingCount = 0 }
+                    else { missingCount += 1 }
+                    if !windowStillAvailable && missingCount >= 8 {
 						print("WINDOW_UNAVAILABLE")
 						fflush(stdout)
 						let outputPath = try await self.finishCapture()
@@ -878,6 +914,16 @@ final class RecorderService {
 		}
 	}
 
+    func switchDisplay(_ id: UInt32) {
+        queue.async { Task {
+            do { try await self.recorder.switchDisplay(id) }
+            catch { print("SOURCE_SWITCH_FAILED \(id)"); fflush(stdout) }
+        } }
+    }
+    func showStudio(_ id: UInt32) {
+        queue.async { Task { try? await self.recorder.showStudio(id) } }
+    }
+
 	func waitUntilFinished() {
 		completionGroup.wait()
 	}
@@ -943,6 +989,9 @@ DispatchQueue.global(qos: .utility).async {
 			}
 			continue
 		}
+        if input.hasPrefix("switch-display "), let id = UInt32(input.dropFirst(15)) { service.switchDisplay(id); continue }
+        if input.hasPrefix("show-studio "), let id = UInt32(input.dropFirst(12)) { service.showStudio(id); continue }
+
 		if input.hasPrefix("switch-window "), let id = UInt32(input.dropFirst(14)) {
 			service.switchWindow(id)
 			continue

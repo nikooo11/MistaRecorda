@@ -264,6 +264,8 @@ export class CompanionServer {
 								"removePresenterLink",
 								"saveObjectPreference",
 								"openPresenterLink",
+								"urlPresentation",
+								"endURLPresentation",
 								"importPresenterImage",
 								"updatePresenterSound",
 								"saveCanvasNote",

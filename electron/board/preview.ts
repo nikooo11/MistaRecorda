@@ -1,3 +1,4 @@
+import { studioCaptureWindowId } from "../studio/captureVisibility";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { getNativeArchTag, resolveUnpackedAppPath } from "../ipc/paths/binaries";
 export class CompanionPreview {
@@ -5,9 +6,17 @@ export class CompanionPreview {
 	private bytes = Buffer.alloc(0);
 	private heartbeat?: ReturnType<typeof setInterval>;
 	private clients = new Set<string>();
+	private displayId = 0;
+	restart() {
+		const ids = [...this.clients];
+		const display = this.displayId;
+		this.stop();
+		for (const id of ids) this.start(id, display);
+	}
 	lastFrame = "";
 	constructor(private deliver: (id: string, data: unknown) => void) {}
 	start(id: string, displayId: number) {
+		this.displayId = displayId;
 		this.clients.add(id);
 		if (this.lastFrame)
 			this.deliver(id, { type: "frame", dataURL: this.lastFrame, clean: true });
@@ -20,7 +29,7 @@ export class CompanionPreview {
 				getNativeArchTag(),
 				"mistarecorda-companion-preview",
 			),
-			[String(displayId), String(process.pid)],
+			[String(displayId), String(process.pid), String(studioCaptureWindowId() ?? 0)],
 			{ stdio: ["pipe", "pipe", "pipe"] },
 		);
 		this.process = child;

@@ -3,7 +3,7 @@ import type { StudioInfo, StudioSource } from "../../types/studio";
 import { CaptureLayers } from "./CaptureLayers";
 import { LayerSources } from "./LayerSources";
 import { RecordingScenes } from "./RecordingScenes";
-import { isSelectedSource } from "./sourceSwitching";
+import { LiveScenePreview } from "./LiveScenePreview";
 
 export function SceneWorkspace({
 	info,
@@ -33,7 +33,6 @@ export function SceneWorkspace({
 		}, 3000);
 		return () => clearInterval(timer);
 	}, [refresh]);
-	const source = sources.find((s) => isSelectedSource(s, info.selectedSource));
 	return (
 		<div className="scene-workspace">
 			<aside className="scene-bank" aria-label="Saved recording scenes">
@@ -53,14 +52,9 @@ export function SceneWorkspace({
 						{info.switching ? "Switching…" : info.recording ? "● REC" : "Ready"}
 					</span>
 				</header>
-				<div className="scene-source-preview">
-					{source?.thumbnail && source.thumbnail !== "data:image/png;base64," ? (
-						<img src={source.thumbnail} alt={`${info.selectedName} source preview`} />
-					) : (
-						<span>Choose a screen or window below</span>
-					)}
+				<div className="scene-live-preview">
+					<LiveScenePreview info={info} />
 				</div>
-				<p className="scene-preview-note">Source snapshot · refreshes every 3 seconds</p>
 				<ul className="scene-input-list">
 					<li>
 						<span>Screen / window</span>

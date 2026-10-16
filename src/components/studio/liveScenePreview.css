@@ -1,0 +1,243 @@
+.live-scene-preview {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	min-height: 180px;
+	gap: 8px;
+}
+.live-preview-stage {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #131519;
+	overflow: hidden;
+	border: 1px solid #4b505a;
+	border-radius: 7px;
+	container-type: size;
+}
+.live-preview-canvas {
+	position: relative;
+	max-height: 100%;
+	flex: none;
+}
+.live-preview-screen {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+.live-preview-camera {
+	position: absolute;
+	pointer-events: none;
+}
+.live-preview-status {
+	padding: 20px;
+	text-align: center;
+	color: #a9b4bf;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	align-items: center;
+}
+.live-preview-footer {
+	display: flex;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 8px;
+	font-size: 10px;
+	color: #aeb8c3;
+}
+.live-preview-footer i {
+	display: inline-block;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	margin-right: 6px;
+	background: #697782;
+}
+.live-preview-footer i[data-live="true"] {
+	background: #8fd8b6;
+}
+.live-preview-selection {
+	position: absolute;
+	border: 2px solid #8ac8ff;
+	touch-action: none;
+	cursor: move;
+}
+.live-preview-selection > span {
+	position: absolute;
+	left: -2px;
+	bottom: 100%;
+	padding: 3px 5px;
+	background: #203f60;
+	color: #fff;
+	font-size: 10px;
+	white-space: nowrap;
+}
+.live-preview-selection .live-resize-handle {
+	position: absolute;
+	width: 12px;
+	height: 12px;
+	min-height: 0;
+	padding: 0;
+	right: -6px;
+	bottom: -6px;
+	background: #cae8ff;
+	border: 1px solid #304b66;
+	border-radius: 2px;
+	cursor: nwse-resize;
+	touch-action: none;
+}
+.scene-live-preview {
+	height: 290px;
+	margin: 10px 0;
+}
+.scene-source-dock {
+	margin-top: 18px;
+	border-top: 1px solid #4b505a;
+	padding-top: 12px;
+}
+.scene-source-dock header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 10px;
+}
+.scene-source-dock h2 {
+	margin: 0;
+	font-size: 12px;
+}
+.scene-source-dock header > span {
+	font-size: 10px;
+	color: #9eabb6;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+}
+.source-add-buttons {
+	display: flex;
+	gap: 6px;
+}
+.source-add-buttons > button {
+	flex: 1;
+	background: #3c515f;
+	border-color: #6a8995;
+}
+.source-add-buttons details {
+	position: relative;
+}
+.source-add-buttons summary {
+	cursor: pointer;
+	padding: 6px 10px;
+	background: #333740;
+	border: 1px solid #4b505a;
+	border-radius: 4px;
+	list-style: none;
+}
+.source-add-buttons details > div {
+	position: absolute;
+	right: 0;
+	top: 100%;
+	z-index: 4;
+	padding: 6px;
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	width: 160px;
+	background: #292c32;
+	border: 1px solid #5b626c;
+	box-shadow: 0 4px 15px #0006;
+}
+.source-layer-fixed {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: #9ba6b2;
+	padding: 8px;
+	background: #26292e;
+}
+.source-layer-fixed span {
+	flex: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.source-layer-fixed small {
+	font-size: 9px;
+}
+.source-layer-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 3px 0;
+}
+.source-layer-row {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	padding: 3px;
+	border: 1px solid transparent;
+	background: #30333a;
+}
+.source-layer-row[data-selected="true"] {
+	background: #314657;
+	border-color: #7699b3;
+}
+.source-layer-row > .source-layer-name {
+	flex: 1;
+	min-width: 0;
+	justify-content: flex-start;
+	border: 0;
+	background: transparent;
+	padding: 6px 4px;
+}
+.source-layer-name span {
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+}
+.source-layer-name svg {
+	flex-shrink: 0;
+}
+.source-layer-row > button {
+	padding: 5px;
+}
+.source-layer-actions {
+	display: flex;
+	gap: 4px;
+	margin-top: 8px;
+}
+.source-layer-actions button {
+	padding: 5px 7px;
+}
+.source-layer-properties {
+	border: 0;
+	padding: 8px 0;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.source-layer-properties label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.source-layer-properties input:not([type="checkbox"]) {
+	margin-left: auto;
+	min-width: 0;
+	max-width: 65%;
+	padding: 4px;
+	background: #21242a;
+	border: 1px solid #4b505a;
+	border-radius: 3px;
+}
+.recording-studio .studio-preview {
+	border: 0;
+	background: transparent;
+	border-radius: 0;
+	overflow: visible;
+	min-height: 220px;
+}

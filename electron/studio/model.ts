@@ -69,6 +69,8 @@ export const studioSettingsSchema = z.object({
 		.max(100)
 		.default([]),
 	glow: z.boolean(),
+	showStudioInCapture: z.boolean().default(false),
+	starterSceneCreated: z.boolean().default(false),
 	includeSoundboardInRecording: z.boolean().default(true),
 	cameraLayout: cameraLayoutSchema.default({
 		x: 0.97,
@@ -92,7 +94,7 @@ export const studioSettingsSchema = z.object({
 				media: z.array(sceneMediaSchema).max(24).default([]),
 			}),
 		)
-		.max(6)
+		.max(100)
 		.default([]),
 	windows: z
 		.array(

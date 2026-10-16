@@ -1,17 +1,9 @@
 import { ApiSetup } from "./ApiSetup";
-import {
-	GearSixIcon,
-	KeyboardIcon,
-	MonitorIcon,
-	SpeakerHighIcon,
-	StackIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { GearSixIcon, KeyboardIcon, SpeakerHighIcon, StackIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { StudioInfo, StudioSource } from "../../types/studio";
 import { SceneWorkspace } from "./SceneWorkspace";
 import { SoundboardSettings, SoundRecordingOption } from "./SoundboardSettings";
-import { isSelectedSource, sourceSwitchUnavailable } from "./sourceSwitching";
 import "./studio.css";
 import { ShortcutInput } from "./ShortcutInput";
 import { SettingsGuideLink } from "../settings-guide/SettingsGuideLink";
@@ -32,6 +24,7 @@ export function StudioPanel() {
 	const [sources, setSources] = useState<StudioSource[]>([]);
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState(false);
+	const [resetMessage, setResetMessage] = useState("");
 	const [autoZoom, setAutoZoom] = useState(
 		() => loadEditorPreferences().autoApplyFreshRecordingAutoZooms,
 	);
@@ -93,8 +86,7 @@ export function StudioPanel() {
 							{ id: "setup", label: "Setup", Icon: GearSixIcon },
 							{ id: "controls", label: "Recording", Icon: KeyboardIcon },
 							{ id: "layers", label: "Layers", Icon: StackIcon },
-							{ id: "scenes", label: "Environments", Icon: StackIcon },
-							{ id: "windows", label: "Window shortcuts", Icon: MonitorIcon },
+							{ id: "scenes", label: "Scenes & shortcuts", Icon: StackIcon },
 							{ id: "sounds", label: "Sound effects", Icon: SpeakerHighIcon },
 						] as const
 					).map(({ id, label, Icon }) => (
@@ -125,7 +117,7 @@ export function StudioPanel() {
 				</nav>
 				<div className="capture-content" ref={content}>
 					{tab === "setup" && <ApiSetup />}
-					{(tab === "layers" || tab === "scenes") && (
+					{(tab === "layers" || tab === "scenes" || tab === "windows") && (
 						<SceneWorkspace
 							key={tab}
 							info={info}
@@ -136,143 +128,6 @@ export function StudioPanel() {
 							refresh={refresh}
 							showSources={tab === "layers"}
 						/>
-					)}
-					{tab === "windows" && (
-						<>
-							<div className="capture-section-heading">
-								<div>
-									<h2>Window shortcuts</h2>
-									<p>
-										Save up to six windows or screens. Click a shortcut to edit
-										it; click Switch to select its source.
-									</p>
-								</div>
-								<button
-									disabled={busy}
-									onClick={() => void refresh()}
-									title="Refresh the list of currently open application windows."
-								>
-									Refresh
-								</button>
-							</div>
-							<div className="capture-note">
-								{info.canSwitch
-									? "Use the Windows button on the recorder to switch saved targets. During a take, start with a window source to switch between windows. Display changes require stopping."
-									: "Click a saved source or press its shortcut before recording. Live window switching requires native macOS capture."}
-							</div>
-							<p className="shortcut-check-note">
-								Yellow indicates a known shortcut conflict. Some shortcuts in other
-								apps cannot be detected.
-							</p>
-							{[1, 2, 3, 4, 5, 6].map((slot) => {
-								const assigned = info.settings.windows.find((w) => w.slot === slot);
-								const selected =
-									assigned &&
-									isSelectedSource(assigned.source, info.selectedSource);
-								const unavailable = assigned
-									? sourceSwitchUnavailable(info, assigned.source)
-									: "";
-								return (
-									<div className="window-slot" key={slot}>
-										<span className="slot-number">{slot}</span>
-										<label>
-											Source {slot}
-											<select
-												aria-label={`Source ${slot}`}
-												disabled={busy || info.recording}
-												value={assigned?.source.id ?? ""}
-												onChange={(e) => {
-													const source = sources.find(
-														(s) => s.id === e.target.value,
-													);
-													if (source)
-														void run("assignWindow", {
-															slot,
-															source,
-															shortcut:
-																assigned?.shortcut ||
-																`CommandOrControl+Alt+${slot}`,
-														});
-												}}
-											>
-												<option value="">Choose a window or screen…</option>
-												{assigned &&
-													!sources.some(
-														(s) => s.id === assigned.source.id,
-													) && (
-														<option value={assigned.source.id}>
-															{assigned.source.name} (reopen window)
-														</option>
-													)}
-												{sources.map((s) => (
-													<option key={s.id} value={s.id}>
-														{s.name}
-													</option>
-												))}
-											</select>
-										</label>
-										<ShortcutInput
-											disabled={!assigned || busy || info.recording}
-											value={assigned?.shortcut ?? ""}
-											label={`Window ${slot} shortcut`}
-											assigned={[
-												{
-													shortcut: info.settings.cameraShortcut,
-													name: "Face camera",
-												},
-												...info.settings.scenes.map((s) => ({
-													shortcut: s.shortcut,
-													name: s.name,
-												})),
-												...info.settings.windows
-													.filter((w) => w.slot !== slot)
-													.map((w) => ({
-														shortcut: w.shortcut,
-														name: `Window ${w.slot}`,
-													})),
-												...info.settings.sounds.map((s) => ({
-													shortcut: s.shortcut,
-													name: s.name,
-												})),
-											]}
-											onChange={async (shortcut) => {
-												if (assigned)
-													await saveShortcut("assignWindow", {
-														...assigned,
-														shortcut,
-													});
-											}}
-										/>
-										<button
-											aria-label={`Switch to window ${slot}`}
-											title={
-												unavailable ||
-												"Switch the recorded source to this window or screen."
-											}
-											aria-pressed={!!selected}
-											disabled={
-												!assigned ||
-												busy ||
-												info.switching ||
-												selected ||
-												!!unavailable
-											}
-											onClick={() => void run("switch", slot)}
-										>
-											{selected ? "Selected" : "Switch"}
-										</button>
-										<button
-											aria-label={`Remove window ${slot}`}
-											title="Remove this window assignment and release its hotkey."
-											disabled={!assigned || busy || info.recording}
-											onClick={() => void run("removeWindow", slot)}
-										>
-											<TrashIcon size={16} />
-										</button>
-									</div>
-								);
-							})}
-						</>
 					)}
 					{tab === "sounds" && <SoundboardSettings info={info} busy={busy} run={run} />}
 					{tab === "controls" && (
@@ -296,6 +151,39 @@ export function StudioPanel() {
 									to send your voice and sounds to another app. This optional
 									route needs a virtual audio device; recording here does not.
 								</p>
+								<button
+									disabled={busy || info.recording}
+									onClick={async () => {
+										setBusy(true);
+										setError("");
+										setResetMessage("");
+										try {
+											const result =
+												await window.electronAPI.studio.request(
+													"resetRecordingDefaults",
+												);
+											saveEditorPreferences({
+												autoApplyFreshRecordingAutoZooms: false,
+											});
+											setInfo(result);
+											setAutoZoom(false);
+											setResetMessage("Default recording settings restored.");
+										} catch (e) {
+											setError(e instanceof Error ? e.message : String(e));
+										} finally {
+											setBusy(false);
+										}
+									}}
+								>
+									Reset to default settings
+								</button>
+								<p>
+									Restores microphone and computer audio on, a 3-second countdown,
+									soundboard audio included, capture glow on, and automatic click
+									zoom off, and the control window hidden from capture. Keeps your
+									scenes, media, shortcuts, API keys and existing projects.
+								</p>
+								{resetMessage && <p role="status">{resetMessage}</p>}
 							</details>
 							<SoundRecordingOption info={info} disabled={busy} run={run} />
 							<p>
@@ -304,8 +192,9 @@ export function StudioPanel() {
 							</p>
 							<div className="capture-note">
 								Quality adjusts automatically to your source. The countdown and
-								audio choices are remembered. The studio is excluded from native Mac
-								capture. Voice changes are available after recording, in the editor.
+								audio choices are remembered. The studio is hidden from native Mac
+								capture by default. Voice changes are available after recording, in
+								the editor.
 							</div>
 							<div className="shortcut-list">
 								{[

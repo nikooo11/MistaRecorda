@@ -132,6 +132,7 @@ vi.mock("../ipc/state", () => ({
 		host.selected = source;
 	},
 	setSelectedWindowBounds: vi.fn(),
+	selectedWindowBounds: null,
 	get nativeScreenRecordingActive() {
 		return host.native;
 	},
@@ -155,6 +156,7 @@ vi.mock("../ipc/project/manager", () => ({
 vi.mock("../screenCaptureAccess", () => ({ requireScreenRecordingAccess: vi.fn() }));
 vi.mock("../board/register", () => ({
 	assertBoardCaptureSource: vi.fn(),
+	refreshCompanionCapture: vi.fn(),
 	enableSceneMediaSurface: vi.fn(),
 	sendRecordingControl: host.control,
 	isDrawingSurfaceWindow: (w: TestWindow) =>
@@ -274,6 +276,8 @@ function window(kind: string, title = "MistaRecorda") {
 			send: vi.fn(),
 		},
 		getTitle: () => title,
+		setContentProtection: vi.fn(),
+		getMediaSourceId: () => "window:999:0",
 		isDestroyed: () => false,
 		hide: vi.fn(),
 	};
@@ -781,4 +785,76 @@ test("native persistence includes the last scene audio interval before the stopp
 	stopStudioTake();
 	await persistStudioTake(video);
 	expect(await fs.readFile(path.join(host.root, "native.system.m4a"))).toEqual(firstAudio);
+});
+
+test("current source overlays autosave without refocusing the desktop; reset preserves scenes and assets", async () => {
+	host.root = await fs.mkdtemp(path.join(os.tmpdir(), "studio-overlay-edit-"));
+	await fs.mkdir(path.join(host.root, "studio/media"), { recursive: true });
+	await fs.writeFile(
+		path.join(host.root, "studio/settings.json"),
+		JSON.stringify({
+			glow: false,
+			includeSoundboardInRecording: false,
+			windows: [],
+			sounds: [],
+			scenes: [],
+		}),
+	);
+	const source = { id: "screen:1:0", name: "Primary", sourceType: "screen" };
+	host.selected = source;
+	host.sources = [source];
+	host.active = false;
+	registerStudio();
+	const frame = { url: "http://127.0.0.1:9876/?windowType=studio" };
+	const request = (method: string, input?: unknown) =>
+		host.handlers.get("studio:request")!(
+			{ senderFrame: frame, sender: { mainFrame: frame } },
+			method,
+			input,
+		) as Promise<any>;
+	await request("info");
+	// Applying a saved scene first also clears any active ID from an earlier test.
+	const scene = {
+		id: crypto.randomUUID(),
+		name: "Overlay test",
+		source,
+		camera: false,
+		shortcut: "",
+		media: [],
+	};
+	await request("saveScene", scene);
+	await request("applyScene", scene.id);
+	const id = crypto.randomUUID();
+	const media = {
+		id,
+		name: "Logo",
+		file: `${id}.png`,
+		kind: "image",
+		enabled: true,
+		x: 0.1,
+		y: 0.1,
+		width: 0.3,
+		height: 0.3,
+		opacity: 1,
+		volume: 1,
+		loop: false,
+		hasAudio: false,
+	};
+	await fs.writeFile(path.join(host.root, "studio/media", media.file), "test image");
+	host.focus.mockClear();
+	let result = await request("setCurrentSceneMedia", { sceneId: scene.id, media: [media] });
+	expect(result.settings.scenes.find((s: any) => s.id === scene.id).media).toEqual([media]);
+	expect(host.focus).not.toHaveBeenCalled();
+	await expect(
+		request("setCurrentSceneMedia", { sceneId: crypto.randomUUID(), media: [] }),
+	).rejects.toThrow("scene changed");
+	result = await request("resetRecordingDefaults");
+	expect(result.settings).toMatchObject({ glow: true, includeSoundboardInRecording: true });
+	expect(result.settings.scenes.find((s: any) => s.id === scene.id).media).toEqual([media]);
+	expect(host.control).toHaveBeenCalledWith("recording-defaults");
+	host.active = true;
+	await expect(request("setCurrentSceneMedia", { sceneId: scene.id, media: [] })).rejects.toThrow(
+		"Stop recording",
+	);
+	await expect(request("resetRecordingDefaults")).rejects.toThrow("Stop recording");
 });

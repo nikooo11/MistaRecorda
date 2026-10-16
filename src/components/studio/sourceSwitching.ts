@@ -22,7 +22,5 @@ export function sourceSwitchUnavailable(
 ) {
 	if (!info.recording || isSelectedSource(target, info.selectedSource)) return "";
 	if (!info.canSwitch) return "Stop recording to change sources on this platform.";
-	if (target.sourceType !== "window" || info.selectedSource?.sourceType !== "window")
-		return "Stop recording to change displays. Window-to-window switching is available during a window recording.";
 	return "";
 }

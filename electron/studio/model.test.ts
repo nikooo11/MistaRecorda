@@ -6,6 +6,8 @@ test("existing settings gain a camera shortcut without changing user choices", (
 	const result = studioSettingsSchema.parse({ glow: false, windows: [], sounds: [] });
 	expect(result).toEqual({
 		glow: false,
+		showStudioInCapture: false,
+		starterSceneCreated: false,
 		includeSoundboardInRecording: true,
 		windows: [],
 		sounds: [],

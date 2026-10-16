@@ -154,6 +154,7 @@ type UseScreenRecorderReturn = {
 	webcamDeviceId: string | undefined;
 	setWebcamDeviceId: (deviceId: string | undefined) => void;
 	countdownDelay: number;
+	resetRecordingDefaults: () => void;
 	setCountdownDelay: (delay: number) => void;
 };
 
@@ -1305,6 +1306,17 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		})();
 	}, []);
 
+	const resetRecordingDefaults = useCallback(() => {
+		setMicrophoneEnabled(true);
+		setSystemAudioEnabled(true);
+		setCountdownDelayState(3);
+		void window.electronAPI.setRecordingPreferences({
+			microphoneEnabled: true,
+			systemAudioEnabled: true,
+		});
+		void window.electronAPI.setCountdownDelay(3);
+	}, []);
+
 	const setCountdownDelay = useCallback((delay: number) => {
 		setCountdownDelayState(delay);
 		void window.electronAPI.setCountdownDelay(delay);
@@ -2235,6 +2247,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		setWebcamEnabled,
 		webcamDeviceId,
 		setWebcamDeviceId,
+		resetRecordingDefaults,
 		countdownDelay,
 		setCountdownDelay,
 	};

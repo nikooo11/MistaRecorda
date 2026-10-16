@@ -24,6 +24,7 @@ function getTargetConfigs() {
 }
 
 const helpers = [
+ {source:"StudioPreview.swift",output:"mistarecorda-studio-preview"},
  {source:"ScreenCaptureKitPreview.swift",output:"mistarecorda-companion-preview"},
 	{
 		source: "ScreenCaptureKitRecorder.swift",

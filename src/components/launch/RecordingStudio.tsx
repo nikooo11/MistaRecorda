@@ -3,26 +3,29 @@ import {
 	GearSixIcon,
 	PencilSimpleIcon,
 	DeviceTabletIcon,
+	MonitorIcon,
 	MicrophoneIcon,
 	MicrophoneSlashIcon,
-	MonitorIcon,
 	TimerIcon,
 	VideoCameraIcon,
 	VideoCameraSlashIcon,
 	MinusIcon,
-	ArrowClockwiseIcon,
 	PauseIcon,
 	PlayIcon,
 	RecordIcon,
 	StopIcon,
 	FolderOpenIcon,
 	SpeakerHighIcon,
+	ImageIcon,
 } from "@phosphor-icons/react";
 import type { useScreenRecorder } from "../../hooks/useScreenRecorder";
 import type { useLaunchWindowActions } from "./hooks/useLaunchWindowActions";
 import { useMicrophoneDevices } from "../../hooks/useMicrophoneDevices";
 import { useVideoDevices } from "../../hooks/useVideoDevices";
 import type { StudioInfo, StudioSource } from "../../types/studio";
+import { LiveScenePreview } from "../studio/LiveScenePreview";
+import { SceneSourceDock } from "../studio/SceneSourceDock";
+import { useCurrentSceneMedia } from "../studio/useCurrentSceneMedia";
 import { WindowHeader } from "../ui/WindowHeader";
 import { RecordingScenes } from "../studio/RecordingScenes";
 import { LayerSources } from "../studio/LayerSources";
@@ -39,6 +42,8 @@ type Props = {
 };
 export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Props) {
 	const [info, setInfo] = useState<StudioInfo>();
+	const [selectedLayer, setSelectedLayer] = useState<string>();
+	const layers = useCurrentSceneMedia(info, setInfo);
 	const [sources, setSources] = useState<StudioSource[]>([]);
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -68,7 +73,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 		},
 		[save],
 	);
-	const refresh = useCallback(async () => {
+	const refresh = useCallback(async (initialize = false) => {
 		try {
 			const all = await window.electronAPI.getSources({
 				types: ["window", "screen"],
@@ -76,13 +81,14 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 				fetchWindowIcons: true,
 			});
 			setSources(all as StudioSource[]);
+			if (initialize) setInfo(await window.electronAPI.studio.request("initializeStudio"));
 		} catch (e) {
 			setError(String(e));
 		}
 	}, []);
 	useEffect(() => {
 		void run("info");
-		void refresh();
+		void refresh(true);
 		const stop = window.electronAPI.studio.onChanged(setInfo);
 		const changed = window.electronAPI.onSelectedSourceChanged(() => {
 			void run("info");
@@ -145,6 +151,12 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 					<DeviceTabletIcon size={18} /> iPad
 				</button>
 				<button
+					title="Open memes and presentation objects"
+					onClick={() => void window.electronAPI.board.request("openMemes")}
+				>
+					<ImageIcon size={18} /> Memes
+				</button>
+				<button
 					data-help="Open sound effects and voice cues in a separate window. Click again to close it. Sounds can be included in the recording or kept as editable clips."
 					onClick={() => void run("togglePanel", "sounds")}
 				>
@@ -191,7 +203,13 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 							<RecordingScenes
 								info={info}
 								sources={sources}
-								busy={busy || r.starting || r.countdownActive || r.finalizing}
+								busy={
+									busy ||
+									layers.saving ||
+									r.starting ||
+									r.countdownActive ||
+									r.finalizing
+								}
 								run={run}
 								saveShortcut={save}
 								compact
@@ -200,13 +218,30 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 							<LayerSources
 								info={info}
 								sources={sources}
-								busy={busy || r.starting || r.countdownActive || r.finalizing}
+								busy={
+									busy ||
+									layers.saving ||
+									r.starting ||
+									r.countdownActive ||
+									r.finalizing
+								}
 								run={run}
 								saveShortcut={save}
 								refresh={refresh}
 							/>
 						))}
 					{!info && <p>{error || "Loading your setup…"}</p>}
+					{info && (
+						<SceneSourceDock
+							info={info}
+							media={layers.media}
+							change={layers.change}
+							selected={selectedLayer}
+							select={setSelectedLayer}
+							busy={busy || r.starting || r.countdownActive || r.finalizing}
+							error={layers.error}
+						/>
+					)}
 				</div>
 			</aside>
 			<section className="studio-preview-area" aria-label="Selected recording source">
@@ -217,24 +252,19 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 						</span>
 						<h2>{info?.selectedName || actions.selectedSource || "Choose a source"}</h2>
 					</div>
-					<button
-						aria-label="Refresh source preview"
-						title="Refresh source snapshot"
-						onClick={() => void refresh()}
-					>
-						<ArrowClockwiseIcon size={16} />
-					</button>
 				</div>
 				<div className="studio-preview" data-recording={r.recording}>
-					{source?.thumbnail ? (
-						<img src={source.thumbnail} alt={`Snapshot of ${source.name}`} />
-					) : (
-						<div className="studio-preview-empty">
-							<MonitorIcon size={44} />
-							<h2>Start with your screen</h2>
-							<p>Choose a screen or window from Sources.</p>
-						</div>
-					)}
+					<LiveScenePreview
+						info={info}
+						selected={layers.media.find((s) => s.id === selectedLayer)}
+						onTransform={(patch) =>
+							void layers.change(
+								layers.media.map((s) =>
+									s.id === selectedLayer ? { ...s, ...patch } : s,
+								),
+							)
+						}
+					/>
 					{r.countdownActive && (
 						<div className="studio-countdown" role="status">
 							<strong>{countdown ?? r.countdownDelay}</strong>
@@ -246,7 +276,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 					)}
 				</div>
 				<div className="studio-preview-caption">
-					<span>Source snapshot · refresh to update</span>
+					<span>Your recording composition</span>
 					<span>
 						{source?.sourceType === "window"
 							? "Window capture"
@@ -266,9 +296,33 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 					</button>
 					<p>
 						Use Board or your iPad to present. The capture glow shows the active window.
-						This studio stays out of your recording.
+						Choose whether this studio appears in display captures below.
 					</p>
 				</div>
+				<label
+					className="studio-capture-visibility"
+					data-help="Off by default: hides this control window from MistaRecorda display recordings and screen stills. Turn on to demonstrate the app. Other apps using macOS ScreenCaptureKit may ignore screenshot protection. This does not add the studio over a different captured application window."
+				>
+					<input
+						type="checkbox"
+						checked={info?.settings.showStudioInCapture ?? false}
+						disabled={busy}
+						onChange={(e) => void run("showStudioInCapture", e.target.checked)}
+					/>{" "}
+					Show window in recording
+				</label>
+				{info?.urlPresentation && (
+					<div className="studio-url-presentation" role="status">
+						<span>
+							Presenting Chrome · return to {info.urlPresentation.previousName}
+						</span>
+						<button disabled={busy} onClick={() => void run("endURLPresentation")}>
+							Return to scene
+						</button>
+						<small>The Chrome tab stays open.</small>
+					</div>
+				)}
+
 				{library && (
 					<section className="studio-projects" aria-label="Recent projects">
 						<h2>Recent projects</h2>

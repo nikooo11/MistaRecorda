@@ -1,3 +1,4 @@
+import { studioCaptureWindowId } from "../../studio/captureVisibility";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { execFile, spawn } from "node:child_process";
 import fs from "node:fs/promises";
@@ -745,6 +746,7 @@ export function registerRecordingHandlers(
 					: null;
 				const config: Record<string, unknown> = {
 					fps: 60,
+					studioWindowId: studioCaptureWindowId(),
 					zoomOverlayOwnerPID: process.pid,
 					zoomOverlayTitle: ZOOM_OVERLAY_TITLE,
 					presenterWindowTitles: boardCaptureExclusions().titles,

@@ -28,10 +28,8 @@ test("only supported live switches are offered; idle source recall works on ever
 	expect(
 		sourceSwitchUnavailable(state, { ...window, id: "window:7:0", windowTitle: "Other" }),
 	).toBe("");
-	expect(sourceSwitchUnavailable(state, screen)).toContain("Stop recording");
-	expect(sourceSwitchUnavailable({ ...state, selectedSource: screen }, window)).toContain(
-		"Stop recording",
-	);
+	expect(sourceSwitchUnavailable(state, screen)).toBe("");
+	expect(sourceSwitchUnavailable({ ...state, selectedSource: screen }, window)).toBe("");
 	expect(sourceSwitchUnavailable({ ...state, canSwitch: false }, screen)).toContain("platform");
 	expect(sourceSwitchUnavailable({ ...state, canSwitch: false, recording: false }, screen)).toBe(
 		"",

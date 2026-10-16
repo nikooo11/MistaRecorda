@@ -28,6 +28,8 @@ export interface WindowSlot {
 export interface StudioSettings {
 	sourceAliases?: Array<{ source: StudioSource; name: string }>;
 	glow: boolean;
+	showStudioInCapture?: boolean;
+	starterSceneCreated?: boolean;
 	includeSoundboardInRecording?: boolean;
 	windows: WindowSlot[];
 	sounds: SoundEffect[];
@@ -71,6 +73,7 @@ export interface SceneMediaPlayback {
 export type StudioTab = "windows" | "sounds" | "controls" | "scenes" | "layers" | "setup";
 export interface StudioInfo {
 	activeSceneId?: string;
+	urlPresentation?: { url: string; previousName: string };
 	audio?: { microphone: boolean; system: boolean };
 	guideTour?: import("../components/settings-guide/settingHelpContent").SettingsTourRequest;
 	panelTab?: StudioTab;

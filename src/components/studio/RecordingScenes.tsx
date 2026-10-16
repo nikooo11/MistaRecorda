@@ -1,3 +1,4 @@
+import { GearSixIcon, TrashIcon } from "@phosphor-icons/react";
 import { CameraFrameSettings, SOFT_CAMERA_FRAME } from "./CameraFrameSettings";
 import { SceneSources } from "./SceneSources";
 import { HelpTarget, SettingHelp } from "../settings-guide/SettingHelp";
@@ -33,7 +34,7 @@ export function RecordingScenes({
 			<div className="capture-section-heading">
 				<div>
 					<h2>
-						{compact ? "Scenes" : "Environments"} <SettingHelp id="environments" />
+						Scenes & shortcuts <SettingHelp id="environments" />
 					</h2>
 					<p>
 						{compact
@@ -43,7 +44,7 @@ export function RecordingScenes({
 				</div>
 				<button
 					title="Save a screen or window, camera layout, and audio on/off."
-					disabled={busy || importing || saving || info.recording || scenes.length >= 6}
+					disabled={busy || importing || saving || info.recording || scenes.length >= 100}
 					onClick={() => {
 						setError("");
 						setDraft({
@@ -64,10 +65,10 @@ export function RecordingScenes({
 			<details className="scene-help">
 				<summary>How scenes work</summary>
 				<div className="capture-note">
-					Choose a display for drawing or iPad annotations. Window scenes can switch
-					during native macOS window recording. New environments start with microphone and
-					computer audio on. Start a take with both inputs enabled to mute and restore
-					either while switching.
+					Choose a display for drawing or iPad annotations. Scenes can switch during
+					native macOS recording. New scenes start with microphone and computer audio on.
+					Start a take with both inputs enabled to mute and restore either while
+					switching.
 				</div>
 			</details>
 			{draft && (
@@ -232,76 +233,87 @@ export function RecordingScenes({
 					</p>
 				</div>
 			)}
-			{scenes.map((scene) => {
-				const active = isCurrentScene(scene, info);
-				const unavailable = sourceSwitchUnavailable(info, scene.source);
-				return (
-					<div className="recording-scene-row" key={scene.id}>
-						<button
-							className="scene-description"
-							aria-label={`Switch to ${scene.name}`}
-							aria-pressed={active}
-							disabled={busy || info.switching || !!unavailable}
-							title={
-								unavailable ||
-								"Switch to this source, camera layout and audio setup"
-							}
-							onClick={() => void run("applyScene", scene.id)}
+			<div className={compact ? "compact-scene-list" : undefined}>
+				{scenes.map((scene) => {
+					const active = isCurrentScene(scene, info);
+					const unavailable = sourceSwitchUnavailable(info, scene.source);
+					return (
+						<div
+							className={`recording-scene-row${compact ? " compact-scene-row" : ""}`}
+							key={scene.id}
 						>
-							<strong>
-								{active && (
-									<span className="scene-live-dot" aria-label="Current setup" />
-								)}{" "}
-								{scene.name}
-							</strong>
-							<small>
-								{scene.source.name} · {scene.media?.length ?? 0} media · Camera{" "}
-								{scene.camera ? "on" : "off"}
-								{scene.audio
-									? ` · Mic ${scene.audio.microphone ? "on" : "off"} · Computer ${scene.audio.system ? "on" : "off"}`
-									: " · Audio unchanged"}
-							</small>
-						</button>
-						<ShortcutInput
-							value={scene.shortcut}
-							label={`${scene.name} shortcut`}
-							disabled={busy || info.recording}
-							assigned={[
-								{ shortcut: info.settings.cameraShortcut, name: "Face camera" },
-								...info.settings.windows.map((w) => ({
-									shortcut: w.shortcut,
-									name: `Window ${w.slot}`,
-								})),
-								...info.settings.sounds.map((s) => ({
-									shortcut: s.shortcut,
-									name: s.name,
-								})),
-								...scenes
-									.filter((s) => s.id !== scene.id)
-									.map((s) => ({ shortcut: s.shortcut, name: s.name })),
-							]}
-							onChange={(shortcut) =>
-								saveShortcut("saveScene", { ...scene, shortcut })
-							}
-						/>
-						<button
-							disabled={busy || importing || saving || info.recording}
-							title="Edit this environment’s source, camera layout, and audio settings."
-							onClick={() => setDraft(scene)}
-						>
-							Sources & layout
-						</button>
-						<button
-							disabled={busy || info.recording}
-							aria-label={`Remove scene ${scene.name}`}
-							title="Remove this saved setup and release its shortcut. Recordings are kept."
-							onClick={() => void run("removeScene", scene.id)}
-						>
-							Remove
-						</button>
-					</div>
-				);
-			})}
+							<button
+								className="scene-description"
+								aria-label={`Switch to ${scene.name}`}
+								aria-pressed={active}
+								disabled={busy || info.switching || !!unavailable}
+								title={
+									unavailable ||
+									"Switch to this source, camera layout and audio setup"
+								}
+								onClick={() => void run("applyScene", scene.id)}
+							>
+								<strong>
+									{active && (
+										<span
+											className="scene-live-dot"
+											aria-label="Current setup"
+										/>
+									)}{" "}
+									{scene.name}
+								</strong>
+								<small
+									title={`${scene.source.name} · Camera ${scene.camera ? "on" : "off"} · Microphone ${scene.audio?.microphone ? "on" : "off"} · Computer audio ${scene.audio?.system ? "on" : "off"}`}
+								>
+									{scene.source.name} · {scene.media?.length ?? 0} media · Camera{" "}
+									{scene.camera ? "on" : "off"}
+									{scene.audio
+										? ` · Mic ${scene.audio.microphone ? "on" : "off"} · Computer ${scene.audio.system ? "on" : "off"}`
+										: " · Audio unchanged"}
+								</small>
+							</button>
+							<ShortcutInput
+								value={scene.shortcut}
+								label={`${scene.name} shortcut`}
+								disabled={busy || info.recording}
+								assigned={[
+									{ shortcut: info.settings.cameraShortcut, name: "Face camera" },
+									...info.settings.windows.map((w) => ({
+										shortcut: w.shortcut,
+										name: `Window ${w.slot}`,
+									})),
+									...info.settings.sounds.map((s) => ({
+										shortcut: s.shortcut,
+										name: s.name,
+									})),
+									...scenes
+										.filter((s) => s.id !== scene.id)
+										.map((s) => ({ shortcut: s.shortcut, name: s.name })),
+								]}
+								onChange={(shortcut) =>
+									saveShortcut("saveScene", { ...scene, shortcut })
+								}
+							/>
+							<button
+								disabled={busy || importing || saving || info.recording}
+								aria-label={`Edit ${scene.name} sources and layout`}
+								title="Edit this scene’s source, camera layout, and audio settings."
+								onClick={() => setDraft(scene)}
+							>
+								{compact ? <GearSixIcon size={15} /> : "Sources & layout"}
+							</button>
+							<button
+								disabled={busy || info.recording}
+								aria-label={`Remove scene ${scene.name}`}
+								title="Remove this saved setup and release its shortcut. Recordings are kept."
+								onClick={() => void run("removeScene", scene.id)}
+							>
+								{compact ? <TrashIcon size={15} /> : "Remove"}
+							</button>
+						</div>
+					);
+				})}
+			</div>
 		</HelpTarget>
 	);
 }

@@ -66,11 +66,13 @@ export function BoardWindow({ kind }: { kind: string }) {
 			setInfo((i) => (i ? { ...i, status } : i)),
 		);
 		const fail = transport.on("error", setError);
+		const showMemes = transport.on("openMemes", () => setMemes(true));
 		return () => {
 			navigate();
 			off();
 			status();
 			fail();
+			showMemes();
 		};
 	}, [transport, run]);
 	const preferredUrl = info?.pairing?.urls[0] ?? "";

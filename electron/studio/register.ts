@@ -1,4 +1,9 @@
+import { BrowserPresentation } from "./browserPresentation";
+import { migrateWindowShortcuts } from "./sceneMigration";
+import { withStarterScene } from "./starterScene";
+import { setStudioCaptureVisibility, studioCaptureWindowId } from "./captureVisibility";
 import { importSceneMedia, sceneMediaPath, SceneMediaTake } from "./sceneMedia";
+import { StudioLivePreview } from "./livePreview";
 import { buildMediaUrl, ensureMediaServer } from "../mediaServer";
 import type { SceneMediaPlayback } from "../../src/types/studio";
 import { execFile } from "node:child_process";
@@ -15,6 +20,7 @@ import {
 	globalShortcut,
 	ipcMain,
 	Menu,
+	screen,
 } from "electron";
 import { z } from "zod";
 import {
@@ -30,7 +36,9 @@ import {
 import type { AudioRegion } from "../../src/components/video-editor/types";
 import type { StudioInfo, StudioSettings, StudioSource } from "../../src/types/studio";
 import {
+	refreshCompanionCapture,
 	assertBoardCaptureSource,
+	boardCaptureExclusions,
 	enableSceneMediaSurface,
 	isDrawingSurfaceWindow,
 	sendRecordingControl,
@@ -68,9 +76,10 @@ import { bakeSounds } from "./bakeSounds";
 import { CaptureCamera } from "./camera";
 import { seedDefaultSounds } from "./defaultSounds";
 import { focusRecordingWindow } from "./focusWindow";
-import { setCaptureCanvasAspect } from "./geometry";
+import { getCaptureCanvasAspect, setCaptureCanvasAspect } from "./geometry";
 import {
 	cameraLayoutSchema,
+	sceneMediaSchema,
 	SoundTake,
 	shortcutSchema,
 	sourceSchema,
@@ -97,6 +106,19 @@ import {
 } from "./voiceCues";
 
 const exec = promisify(execFile);
+const livePreview = new StudioLivePreview();
+const browserPresentation = new BrowserPresentation({
+	current: () => info().selectedSource,
+	switch: (source) => switchWindow(source, true),
+	changed: () => publish(),
+	error: (error) => {
+		message = error;
+		publish();
+	},
+});
+export const presentChromeURL = (url: string) => browserPresentation.start(url);
+export const endChromePresentation = () => browserPresentation.finish();
+export const chromePresentationState = () => browserPresentation.state;
 let settings: StudioSettings = studioSettingsSchema.parse({ glow: true, windows: [], sounds: [] });
 let cameraSaveTimer: ReturnType<typeof setTimeout> | undefined;
 const camera = new CaptureCamera(
@@ -177,13 +199,14 @@ const bindings = new Set<string>();
 const root = () => path.join(app.getPath("userData"), "studio");
 const info = (): StudioInfo => ({
 	settings,
+	urlPresentation: browserPresentation.state,
 	activeSceneId,
 	camera: camera.status,
 	panelTab,
 	guideTour,
 	recording: isCursorCaptureActive,
 	switching,
-	canSwitch: process.platform === "darwin",
+	canSwitch: process.platform === "darwin" && (!isCursorCaptureActive || !!nativeCaptureProcess),
 	selectedName: selectedSource?.name ?? "Choose a source",
 	selectedSource: selectedSource?.id
 		? {
@@ -470,6 +493,7 @@ function bindAll(next: StudioSettings) {
 	}
 }
 async function applyScene(id: string) {
+	browserPresentation.cancel();
 	const scene = settings.scenes.find((s) => s.id === id);
 	if (!scene) throw Error("Choose a saved scene.");
 	if (switching) throw Error("A source switch is already in progress.");
@@ -491,10 +515,6 @@ async function applyScene(id: string) {
 	if (isCursorCaptureActive) {
 		// Never change the camera if the source switch fails.
 		if (scene.source.id !== selectedSource?.id) {
-			if (scene.source.sourceType !== "window" || !selectedSource?.id?.startsWith("window:"))
-				throw Error(
-					"Stop recording to switch displays. Window scenes can switch during a window recording.",
-				);
 			focusWarning = (await switchWindow(scene.source)) ?? "";
 		} else if (scene.source.sourceType === "window") {
 			// Recalling the current environment should also restore desktop focus.
@@ -550,7 +570,42 @@ function leaveScene() {
 	if (isCursorCaptureActive) mediaTake.switch([], getCursorCaptureElapsedMs());
 	activeSceneId = undefined;
 }
-export async function switchWindow(input: StudioSource) {
+async function switchNativeSource(kind: "window" | "display", id: number) {
+	const child = nativeCaptureProcess;
+	if (!child?.stdin.writable || !nativeScreenRecordingActive)
+		throw Error("Live scene switching requires native Mac capture.");
+	await new Promise<void>((resolve, reject) => {
+		let buffer = "";
+		const clean = () => {
+			clearTimeout(timer);
+			child.stdout.off("data", read);
+			child.off("exit", exited);
+		};
+		const read = (chunk: Buffer) => {
+			buffer += chunk.toString();
+			if (buffer.includes(`${kind === "window" ? "SOURCE" : "DISPLAY"}_SWITCHED ${id}\n`)) {
+				clean();
+				resolve();
+			} else if (buffer.includes("SOURCE_SWITCH_FAILED")) {
+				clean();
+				reject(Error("Could not switch sources. The current recording continues."));
+			}
+		};
+		const exited = () => {
+			clean();
+			reject(Error("Recording ended before the source changed."));
+		};
+		const timer = setTimeout(() => {
+			clean();
+			reject(Error("The recorder did not confirm the switch."));
+		}, 5000);
+		child.stdout.on("data", read);
+		child.once("exit", exited);
+		child.stdin.write(`switch-${kind} ${id}\n`);
+	});
+}
+export async function switchWindow(input: StudioSource, preserveScene = false) {
+	if (!preserveScene) browserPresentation.cancel();
 	if (switching) throw Error("A source switch is already in progress.");
 	const target = sourceSchema.parse(input);
 	const unavailable = sourceSwitchUnavailable(info(), target);
@@ -578,12 +633,16 @@ export async function switchWindow(input: StudioSource) {
 					: source.id === target.id,
 			);
 			if (!found) throw Error("That source is unavailable. Reassign it in Capture settings.");
+			if (isCursorCaptureActive && target.sourceType === "screen") {
+				await switchNativeSource("display", Number(found.display_id));
+				closeHeldZoom(getCursorCaptureElapsedMs());
+			}
 			const next = { ...target, id: found.id, name: found.name || target.name };
 			setSelectedSource(next);
 			setSelectedWindowBounds(null);
 			for (const w of BrowserWindow.getAllWindows())
 				w.webContents.send("selected-source-changed", next);
-			leaveScene();
+			if (!preserveScene) leaveScene();
 			message = `Recording source: ${next.name}`;
 			return;
 		}
@@ -603,49 +662,13 @@ export async function switchWindow(input: StudioSource) {
 		if (!bounds) throw Error("That window is not currently available.");
 		if (isCursorCaptureActive && next.id !== selectedSource?.id) {
 			const child = nativeCaptureProcess;
-			if (
-				!nativeScreenRecordingActive ||
-				!child ||
-				!selectedSource?.id?.startsWith("window:")
-			)
-				throw Error("Start a native window recording before switching windows.");
+			if (!nativeScreenRecordingActive || !child)
+				throw Error("Start a native Mac recording before switching scenes.");
 			const id = Number(next.id.split(":")[1]);
-			await new Promise<void>((resolve, reject) => {
-				let buffer = "";
-				const clean = () => {
-					clearTimeout(timer);
-					child.stdout.off("data", read);
-					child.off("exit", exited);
-				};
-				const read = (chunk: Buffer) => {
-					buffer += chunk.toString();
-					if (buffer.includes(`SOURCE_SWITCHED ${id}\n`)) {
-						clean();
-						resolve();
-					} else if (buffer.includes("SOURCE_SWITCH_FAILED")) {
-						clean();
-						reject(
-							Error(
-								"Could not switch to that window. The current recording continues.",
-							),
-						);
-					}
-				};
-				const exited = () => {
-					clean();
-					reject(Error("Recording ended before the window changed."));
-				};
-				const timer = setTimeout(() => {
-					clean();
-					reject(Error("The recorder did not confirm the switch."));
-				}, 5000);
-				child.stdout.on("data", read);
-				child.once("exit", exited);
-				child.stdin.write(`switch-window ${id}\n`);
-			});
+			await switchNativeSource("window", id);
 			closeHeldZoom(getCursorCaptureElapsedMs());
 		}
-		leaveScene();
+		if (!preserveScene) leaveScene();
 		setSelectedSource({ ...next });
 		glowPulse = isCursorCaptureActive;
 		await startWindowBoundsCapture();
@@ -668,12 +691,12 @@ export function startStudioTake() {
 	mediaTake.start(currentMedia());
 	startVoiceCues();
 	camera.start();
+	const captureBounds = selectedSource?.id?.startsWith("window:")
+		? selectedWindowBounds
+		: getRecordingBoundsInDips();
 	setCaptureCanvasAspect(
-		process.platform === "darwin" &&
-			nativeScreenRecordingActive &&
-			selectedSource?.id?.startsWith("window:") &&
-			selectedWindowBounds
-			? selectedWindowBounds.width / selectedWindowBounds.height
+		nativeScreenRecordingActive && captureBounds
+			? captureBounds.width / captureBounds.height
 			: null,
 	);
 	take = new SoundTake();
@@ -856,6 +879,7 @@ const defaultSoundAssets = () =>
 	path.join(app.getAppPath(), app.isPackaged ? "dist" : "public", "sounds/starter-v1");
 
 export function registerStudio() {
+	let settingsReadable = true;
 	app.on("browser-window-created", (_, window) => {
 		if (process.platform === "win32" && window.getTitle() !== "MistaRecorda Drawing Surface")
 			window.setContentProtection(true);
@@ -867,11 +891,18 @@ export function registerStudio() {
 			);
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+				settingsReadable = false;
 				message = "Some saved shortcuts could not be restored. Review Capture settings.";
 				return; // Never replace an unreadable settings file with seeded defaults.
 			}
 		}
 		try {
+			const migrated = migrateWindowShortcuts(settings);
+			if (migrated !== settings) {
+				settings = migrated;
+				await save();
+			}
+			setStudioCaptureVisibility(settings.showStudioInCapture === true);
 			const next = await seedDefaultSounds(settings, root(), defaultSoundAssets());
 			if (next !== settings) {
 				settings = next;
@@ -899,6 +930,50 @@ export function registerStudio() {
 		if (!trusted || e.senderFrame !== e.sender.mainFrame)
 			throw Error("Untrusted studio request");
 		await ready;
+		if (method === "livePreview") {
+			const kind = new URL(e.sender.getURL()).searchParams.get("windowType");
+			if (!["hud-overlay", "studio"].includes(kind ?? ""))
+				throw Error("Open the studio to preview capture.");
+			const win = BrowserWindow.fromWebContents(e.sender);
+			if (!win?.isVisible() || win.isMinimized())
+				return { dataURL: "", error: "", cameraFrame: "" };
+			if (!selectedSource?.id)
+				return { dataURL: "", error: "Choose a screen or window.", cameraFrame: "" };
+			requireScreenRecordingAccess();
+			if (process.platform !== "darwin")
+				return {
+					dataURL: "",
+					error: "Live composition preview is currently available on macOS.",
+					cameraFrame: "",
+				};
+			const drawing = boardCaptureExclusions();
+			return livePreview.read({
+				...(selectedSource.id.startsWith("window:")
+					? { windowId: Number(selectedSource.id.split(":")[1]) }
+					: {
+							displayId: Number(
+								selectedSource.display_id ?? selectedSource.id.split(":")[1],
+							),
+						}),
+				drawingId: drawing.cleanSurfaceWindowId,
+				studioId: studioCaptureWindowId(),
+				board: drawing.drawingMode === "board",
+				aspect: getCaptureCanvasAspect() ?? undefined,
+			});
+		}
+		if (method === "cameraPreviewFrame") {
+			if (!isCameraPreviewWebContents(e.sender))
+				throw Error("Camera preview frames are owned by the camera window.");
+			if (input && camera.status.enabled)
+				livePreview.setCameraFrame(
+					z
+						.string()
+						.max(1024 * 1024)
+						.regex(/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/)
+						.parse(input),
+				);
+			return livePreview.cameraNeeded && camera.status.enabled;
+		}
 		if (method === "openSettingsGuide") return openSettingsGuide();
 		if (method === "endSettingsHelp") {
 			if (guideTour?.token === input) guideTour = undefined;
@@ -967,7 +1042,54 @@ export function registerStudio() {
 		if (method === "streamDevices") return streamDevices();
 		if (method === "streamStart") return startStream(input);
 		if (method === "streamStop") return stopStream();
+		if (method === "showStudioInCapture") {
+			const show = z.boolean().parse(input);
+			settings = { ...settings, showStudioInCapture: show };
+			setStudioCaptureVisibility(show);
+			refreshCompanionCapture();
+			nativeCaptureProcess?.stdin?.write(`show-studio ${studioCaptureWindowId() ?? 0}\n`);
+			await save();
+			return info();
+		}
 		if (method === "info") return info();
+		if (method === "initializeStudio") {
+			if (!settingsReadable) return info();
+			if (
+				isCursorCaptureActive ||
+				switching ||
+				(settings.starterSceneCreated && selectedSource)
+			)
+				return info();
+			requireScreenRecordingAccess();
+			const displays = await desktopCapturer.getSources({
+				types: ["screen"],
+				thumbnailSize: { width: 0, height: 0 },
+			});
+			if (isCursorCaptureActive || switching) return info();
+			const primary =
+				displays.find((s) => s.display_id === String(screen.getPrimaryDisplay().id)) ??
+				displays[0];
+			if (!primary) return info();
+			const source = sourceSchema.parse({
+				id: primary.id,
+				name: primary.name || "Main screen",
+				display_id: primary.display_id,
+				sourceType: "screen",
+			});
+			const wasEmpty = !settings.scenes.length && !settings.starterSceneCreated;
+			const next = withStarterScene(settings, source);
+			if (next !== settings) {
+				settings = next;
+				await save();
+			}
+			if (wasEmpty) await applyScene(settings.scenes[0].id);
+			else if (!selectedSource) await switchWindow(source);
+			return info();
+		}
+		if (method === "endURLPresentation") {
+			await browserPresentation.finish();
+			return info();
+		}
 		if (method === "setSoundPreference") return setSoundPreference(input);
 		if (method === "recordingVoices") return recordingVoiceList(input === true);
 		if (method === "selectRecordingVoice")
@@ -1008,6 +1130,7 @@ export function registerStudio() {
 		if (method === "cameraStatus") {
 			if (!e.sender.getURL().includes("windowType=hud-overlay"))
 				throw Error("Camera status is owned by the recorder.");
+			livePreview.clearCamera();
 			await camera.update({
 				enabled: input?.enabled === true,
 				deviceId: typeof input?.deviceId === "string" ? input.deviceId : undefined,
@@ -1131,6 +1254,19 @@ export function registerStudio() {
 			await save();
 			return info();
 		}
+		if (method === "resetRecordingDefaults") {
+			settings = {
+				...settings,
+				glow: true,
+				includeSoundboardInRecording: true,
+				showStudioInCapture: false,
+			};
+			setStudioCaptureVisibility(false);
+			refreshCompanionCapture();
+			await save();
+			await sendRecordingControl("recording-defaults");
+			return info();
+		}
 		if (method === "includeSoundboardInRecording") {
 			settings.includeSoundboardInRecording = z.boolean().parse(input);
 			await save();
@@ -1138,6 +1274,39 @@ export function registerStudio() {
 		}
 		if (method === "importSceneMedia")
 			return importSceneMedia(z.enum(["image", "video", "audio"]).parse(input));
+		if (method === "setCurrentSceneMedia") {
+			const media = z.array(sceneMediaSchema).max(24).parse(input?.media);
+			if ((input?.sceneId ?? null) !== (activeSceneId ?? null))
+				throw Error("The scene changed. Select the current scene and try again.");
+			if (!selectedSource) throw Error("Choose a screen or window first.");
+			await Promise.all(media.map(sceneMediaPath));
+			if (input?.sceneId !== activeSceneId)
+				throw Error("The active scene changed. Retry the layer edit.");
+			const existing = settings.scenes.find((s) => s.id === activeSceneId);
+			const scene = existing ?? {
+				id: crypto.randomUUID(),
+				name: `Scene ${settings.scenes.length + 1}`,
+				source: info().selectedSource!,
+				camera: camera.status.enabled,
+				cameraLayout: settings.cameraLayout,
+				audio: { ...audioState },
+				shortcut: "",
+				media: [],
+			};
+			const next = studioSettingsSchema.parse({
+				...settings,
+				scenes: existing
+					? settings.scenes.map((s) => (s.id === scene.id ? { ...s, media } : s))
+					: [...settings.scenes, { ...scene, media }],
+			});
+			if (media.some((s) => s.enabled)) await enableSceneMediaSurface();
+			if (input?.sceneId !== activeSceneId)
+				throw Error("The active scene changed. Retry the layer edit.");
+			settings = next;
+			activeSceneId = scene.id;
+			await save();
+			return info();
+		}
 		if (method === "cameraShortcut" || method === "saveScene" || method === "removeScene") {
 			const next = studioSettingsSchema.parse({
 				...settings,
@@ -1306,6 +1475,8 @@ export function registerStudio() {
 		throw Error("Unknown studio action.");
 	});
 	app.on("will-quit", () => {
+		browserPresentation.cancel();
+		livePreview.stop();
 		for (const key of bindings) globalShortcut.unregister(key);
 		clearInterval(glowTimer);
 		clearTimeout(cameraSaveTimer);

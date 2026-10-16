@@ -21,10 +21,10 @@ final class Preview: NSObject, SCStreamOutput, SCStreamDelegate {
   }
  }
  func stream(_ stream: SCStream, didStopWithError error: Error) { fputs("Companion preview stopped.\n", stderr); exit(1) }
- func start(displayID: UInt32, ownerPID: Int32) async throws {
+ func start(displayID: UInt32, ownerPID: Int32, studioID: UInt32) async throws {
   let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
   guard let display = content.displays.first(where: {$0.displayID == displayID}), let owner = content.applications.first(where: {$0.processID == ownerPID}) else { throw NSError(domain:"Companion",code:1) }
-  let filter = SCContentFilter(display: display, excludingApplications: [owner], exceptingWindows: [])
+  let filter = SCContentFilter(display: display, excludingApplications: [owner], exceptingWindows: content.windows.filter { $0.windowID == studioID && $0.owningApplication?.processID == ownerPID })
   let config = SCStreamConfiguration()
   config.width = min(1600, display.width); config.height = Int(Double(config.width) * Double(display.height) / Double(display.width))
   config.minimumFrameInterval = CMTime(value: 1, timescale: 30); config.queueDepth = 3
@@ -35,9 +35,9 @@ final class Preview: NSObject, SCStreamOutput, SCStreamDelegate {
  }
 }
 let _ = CGMainDisplayID()
-guard CommandLine.arguments.count == 3, let display = UInt32(CommandLine.arguments[1]), let pid = Int32(CommandLine.arguments[2]), CGPreflightScreenCaptureAccess() else { fputs("Screen permission is required for companion preview.\n",stderr); exit(1) }
+guard CommandLine.arguments.count >= 3, let display = UInt32(CommandLine.arguments[1]), let pid = Int32(CommandLine.arguments[2]), CGPreflightScreenCaptureAccess() else { fputs("Screen permission is required for companion preview.\n",stderr); exit(1) }
 let preview = Preview()
-Task { do { try await preview.start(displayID:display,ownerPID:pid) } catch { fputs("Could not start clean companion preview.\n",stderr); exit(1) } }
+Task { do { try await preview.start(displayID:display,ownerPID:pid,studioID: CommandLine.arguments.count > 3 ? UInt32(CommandLine.arguments[3]) ?? 0 : 0) } catch { fputs("Could not start clean companion preview.\n",stderr); exit(1) } }
 // Exit when the owning Electron process closes stdin.
 DispatchQueue.global().async { while !FileHandle.standardInput.readData(ofLength:1).isEmpty {} ; exit(0) }
 dispatchMain()

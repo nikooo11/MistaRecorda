@@ -23,6 +23,7 @@ export function LaunchWindow() {
 		setMicrophoneEnabled,
 		systemAudioEnabled,
 		setSystemAudioEnabled,
+		resetRecordingDefaults,
 	} = recorder;
 	const { elapsed, formatTime } = useRecordingTimer(recording, paused);
 	const actions = useLaunchWindowActions();
@@ -64,6 +65,7 @@ export function LaunchWindow() {
 	useEffect(
 		() =>
 			window.electronAPI.board.on("control", (action) => {
+				if (action === "recording-defaults" && !recording) resetRecordingDefaults();
 				if (action === "record") void toggleRecording();
 				if (action === "pause" && recording) {
 					if (paused) resumeRecording();
@@ -87,6 +89,7 @@ export function LaunchWindow() {
 			setWebcamEnabled,
 			setMicrophoneEnabled,
 			setSystemAudioEnabled,
+			resetRecordingDefaults,
 		],
 	);
 	useEffect(() => {

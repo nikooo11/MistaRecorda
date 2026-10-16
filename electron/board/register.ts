@@ -1,3 +1,5 @@
+import { captureDisplayStill } from "../studio/livePreview";
+import { studioCaptureWindowId } from "../studio/captureVisibility";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -38,6 +40,9 @@ import { getPackagedRendererBaseUrl } from "../rendererServer";
 import { requireScreenRecordingAccess } from "../screenCaptureAccess";
 import { recorderCommand } from "../studio/nativeCommand";
 import {
+	presentChromeURL,
+	endChromePresentation,
+	chromePresentationState,
 	boardSoundList,
 	setSoundPreference,
 	sceneMediaPlayback,
@@ -71,7 +76,6 @@ import { seedDefaultMemes } from "./defaultMemes";
 import { bundledMemeFromURL } from "../../src/lib/bundledMemes";
 import { finishMemeTake, mergeMemeLibraries } from "../../src/components/board/memePreferences";
 import { PresenterStore } from "./presenter";
-import { openChrome } from "./openChrome";
 import { CompanionPreview } from "./preview";
 import { CompanionServer } from "./server";
 import { BoardStore, makeElement, validateScene } from "./store";
@@ -404,6 +408,10 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			return editorWorkArea();
 		case "tabletInfo":
 			return tabletInfo();
+		case "openMemes":
+			await openDrawingStudio("draw");
+			panel?.webContents.send("board:openMemes");
+			return info();
 		case "panelTab":
 			panelTab = z.enum(["draw", "ipad", "scenes", "settings"]).parse(input);
 			return info();
@@ -697,7 +705,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 					.parse(input),
 			);
 		case "aiOpen":
-			await openChrome(publicURL(figures.result(z.string().parse(input)).url).href);
+			await presentChromeURL(publicURL(figures.result(z.string().parse(input)).url).href);
 			return true;
 		case "presenterInfo":
 			return presenter.state;
@@ -890,7 +898,10 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 						const current = await charts.exportBundle();
 						const ids = new Set(bundle.charts.charts.map((c) => c.id));
 						oldCharts = await charts.replace({
-							charts: [...current.charts.filter((c) => !ids.has(c.id)), ...bundle.charts.charts],
+							charts: [
+								...current.charts.filter((c) => !ids.has(c.id)),
+								...bundle.charts.charts,
+							],
 							sources: { ...current.sources, ...bundle.charts.sources },
 						});
 					}
@@ -927,8 +938,13 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				loadingPresentation = false;
 			}
 		}
+		case "urlPresentation":
+			return chromePresentationState() ?? null;
+		case "endURLPresentation":
+			await endChromePresentation();
+			return true;
 		case "openPresenterLink":
-			await openChrome(presenter.link(input));
+			await presentChromeURL(presenter.link(input));
 			if (store.state.enabled && store.state.mode === "board")
 				await action("mode", { mode: "screen" }, actor);
 			return true;
@@ -1029,10 +1045,16 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				thumbnailSize: { width: 2560, height: Math.round((2560 * b.height) / b.width) },
 			});
 			const source = sources.find((s) => s.display_id === String(displayId));
-			if (!source || source.thumbnail.isEmpty()) throw Error("Could not capture this display.");
-			const still = preview.lastFrame ? nativeImage.createFromDataURL(preview.lastFrame) : source.thumbnail;
+			if (!source || source.thumbnail.isEmpty())
+				throw Error("Could not capture this display.");
+			const still = preview.lastFrame
+				? nativeImage.createFromDataURL(preview.lastFrame)
+				: source.thumbnail;
 			const jpeg = still.toJPEG(90);
-			return { dataURL: `data:image/jpeg;base64,${jpeg.toString("base64")}`, name: `Screen ${new Date().toLocaleTimeString()}` };
+			return {
+				dataURL: `data:image/jpeg;base64,${jpeg.toString("base64")}`,
+				name: `Screen ${new Date().toLocaleTimeString()}`,
+			};
 		}
 		case "aiChartSource": {
 			const id = z.string().max(50).parse(input);
@@ -1043,7 +1065,11 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			if (image.isEmpty()) throw Error("No valid image to import.");
 			return {
 				dataURL: `data:image/png;base64,${image.toPNG().toString("base64")}`,
-				source: { url: publicURL(result.url).href, publisher: result.source.slice(0, 120), notes: result.summary.slice(0, 1000) },
+				source: {
+					url: publicURL(result.url).href,
+					publisher: result.source.slice(0, 120),
+					notes: result.summary.slice(0, 1000),
+				},
 				title: result.title,
 			};
 		}
@@ -1186,9 +1212,14 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			const id = randomUUID();
 			const file = {
 				id,
-				dataURL: preview.lastFrame
-					? nativeImage.createFromDataURL(preview.lastFrame).toDataURL()
-					: source.thumbnail.toDataURL(),
+				dataURL:
+					process.platform === "darwin"
+						? nativeImage
+								.createFromDataURL(
+									await captureDisplayStill(displayId, studioCaptureWindowId()),
+								)
+								.toDataURL()
+						: source.thumbnail.toDataURL(),
 				mimeType: "image/png",
 				created: Date.now(),
 				name: `Screen still ${new Date().toLocaleTimeString()}`,
@@ -1403,6 +1434,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 					"microphone-off",
 					"system-audio-on",
 					"system-audio-off",
+					"recording-defaults",
 				].includes(String(input))
 			)
 				throw Error("Unknown recording control");
@@ -1465,6 +1497,9 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		default:
 			throw Error("Unknown board operation");
 	}
+}
+export function refreshCompanionCapture() {
+	preview?.restart();
 }
 export function boardCaptureExclusions() {
 	return {
@@ -1534,7 +1569,8 @@ export async function registerBoard() {
 				companion?.broadcast("chartPlayback", p);
 			},
 		},
-		async () => new OpenAI({ apiKey: await figures.settings.key(), maxRetries: 0, timeout: 120000 }),
+		async () =>
+			new OpenAI({ apiKey: await figures.settings.key(), maxRetries: 0, timeout: 120000 }),
 		() => figures.settings.hasKey(),
 	);
 	await charts.load().catch((e) => console.error("[charts] Could not load charts", e));
@@ -1603,7 +1639,8 @@ export function sendRecordingControl(
 		| "microphone-on"
 		| "microphone-off"
 		| "system-audio-on"
-		| "system-audio-off",
+		| "system-audio-off"
+		| "recording-defaults",
 ) {
 	return action("control", control);
 }

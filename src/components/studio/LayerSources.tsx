@@ -2,7 +2,6 @@ import { HelpTarget, SettingHelp } from "../settings-guide/SettingHelp";
 import { useEffect, useRef, useState } from "react";
 import { MonitorIcon, AppWindowIcon, PencilSimpleIcon } from "@phosphor-icons/react";
 import type { StudioInfo, StudioSource } from "@/types/studio";
-import { ShortcutInput } from "./ShortcutInput";
 import { isSelectedSource, sourceSwitchUnavailable } from "./sourceSwitching";
 export function LayerSources({
 	info,
@@ -19,9 +18,6 @@ export function LayerSources({
 	saveShortcut: (method: string, input: unknown) => Promise<void>;
 	refresh: () => Promise<void>;
 }) {
-	const nextSlot = Array.from({ length: 64 }, (_, i) => i + 1).find(
-		(n) => !info.settings.windows.some((w) => w.slot === n),
-	);
 	return (
 		<HelpTarget id="sources">
 			<section className="layer-sources" aria-label="Open screens and windows">
@@ -31,8 +27,8 @@ export function LayerSources({
 							Screens & windows <SettingHelp id="sources" />
 						</h3>
 						<p>
-							Click a preview to use it. Rename a source or release keys in its
-							shortcut box to save.
+							Choose a screen or window for your scene. Assign shortcuts to complete
+							scenes in the Scenes list.
 						</p>
 					</div>
 					<button type="button" disabled={busy} onClick={() => void refresh()}>
@@ -41,9 +37,6 @@ export function LayerSources({
 				</div>
 				<div className="layer-source-list">
 					{sources.map((source) => {
-						const slot = info.settings.windows.find((w) =>
-							isSelectedSource(w.source, source),
-						);
 						const label =
 							info.settings.sourceAliases?.find((entry) =>
 								isSelectedSource(entry.source, source),
@@ -103,44 +96,6 @@ export function LayerSources({
 										}
 									/>
 								</div>
-								<ShortcutInput
-									label={`${label} shortcut`}
-									value={slot?.shortcut ?? ""}
-									disabled={busy || info.recording || (!slot && !nextSlot)}
-									assigned={[
-										{
-											shortcut: info.settings.cameraShortcut,
-											name: "Face camera",
-										},
-										...info.settings.windows
-											.filter((w) => w.slot !== slot?.slot)
-											.map((w) => ({
-												shortcut: w.shortcut,
-												name:
-													info.settings.sourceAliases?.find((entry) =>
-														isSelectedSource(entry.source, w.source),
-													)?.name ?? w.source.name,
-											})),
-										...info.settings.scenes.map((s) => ({
-											shortcut: s.shortcut,
-											name: s.name,
-										})),
-										...info.settings.sounds.map((s) => ({
-											shortcut: s.shortcut,
-											name: s.name,
-										})),
-									]}
-									onChange={async (shortcut) => {
-										if (!shortcut && slot)
-											await saveShortcut("removeWindow", slot.slot);
-										else if (shortcut)
-											await saveShortcut("assignWindow", {
-												slot: slot?.slot ?? nextSlot,
-												source,
-												shortcut,
-											});
-									}}
-								/>
 							</div>
 						);
 					})}
@@ -151,8 +106,7 @@ export function LayerSources({
 					</p>
 				)}
 				<p className="shortcut-check-note">
-					Previews update with Refresh. Yellow explains known conflicts. Other apps may
-					reserve additional keys.
+					Use Scenes for shortcuts that recall the source, facecam, overlays and audio.
 					{info.recording && " Stop recording to edit shortcuts or change displays."}
 				</p>
 			</section>

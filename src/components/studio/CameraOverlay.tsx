@@ -21,6 +21,51 @@ export function CameraOverlay() {
 	const enabled = info?.camera?.enabled && info?.camera?.preview;
 	const deviceId = info?.camera?.deviceId;
 	useEffect(() => {
+		if (!enabled) return;
+		let disposed = false;
+		let needed = false;
+		let timer: ReturnType<typeof setTimeout>;
+		const canvas = document.createElement("canvas");
+		canvas.width = 360;
+		canvas.height = 360;
+		const tick = async () => {
+			const element = video.current;
+			let frame: string | undefined;
+			if (needed && element && element.readyState >= 2) {
+				const context = canvas.getContext("2d");
+				const edge = Math.min(element.videoWidth, element.videoHeight);
+				if (context && edge > 0) {
+					context.drawImage(
+						element,
+						(element.videoWidth - edge) / 2,
+						(element.videoHeight - edge) / 2,
+						edge,
+						edge,
+						0,
+						0,
+						360,
+						360,
+					);
+					frame = canvas.toDataURL("image/jpeg", 0.8);
+				}
+			}
+			try {
+				needed = await window.electronAPI.studio.request<boolean>(
+					"cameraPreviewFrame",
+					frame,
+				);
+			} catch {
+				needed = false;
+			}
+			if (!disposed) timer = setTimeout(tick, needed ? 80 : 800);
+		};
+		void tick();
+		return () => {
+			disposed = true;
+			clearTimeout(timer);
+		};
+	}, [enabled, deviceId]);
+	useEffect(() => {
 		let disposed = false;
 		let stream: MediaStream | undefined;
 		setError("");

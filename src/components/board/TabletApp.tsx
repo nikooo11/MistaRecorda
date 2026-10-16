@@ -215,6 +215,26 @@ export function TabletApp() {
 			if (frame) player.cancelVideoFrameCallback(frame);
 		};
 	}, [hasState, transport]);
+	const [urlPresentation, setURLPresentation] = useState<{
+		url: string;
+		previousName: string;
+	} | null>(null);
+	useEffect(() => {
+		let disposed = false;
+		const poll = () =>
+			void transport
+				.request<{ url: string; previousName: string } | null>("urlPresentation")
+				.then((value) => {
+					if (!disposed) setURLPresentation(value);
+				})
+				.catch(() => {});
+		const timer = setInterval(poll, 1000);
+		return () => {
+			disposed = true;
+			clearInterval(timer);
+		};
+	}, [transport]);
+
 	return (
 		<main className="companion-shell">
 			<header className="companion-header">
@@ -252,6 +272,18 @@ export function TabletApp() {
 				<button disabled={!state} onClick={startScreen}>
 					{streamed ? "Refresh screen" : "Start screen"}
 				</button>
+				{urlPresentation && (
+					<button
+						title={`Return to ${urlPresentation.previousName}; keep Chrome tab open`}
+						onClick={() =>
+							void transport
+								.request("endURLPresentation")
+								.then(() => setURLPresentation(null))
+						}
+					>
+						Return to scene
+					</button>
+				)}
 			</header>
 			{streamError && <p role="alert">{streamError}</p>}
 			<div className="companion-main">
