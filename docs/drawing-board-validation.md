@@ -74,4 +74,4 @@ On a Mac or Windows PC and an iPad on the same private Wi-Fi:
 - Pan mode publishes navigation while preserving committed elements. Fit screen resets the shared board viewport. Activating a whiteboard returns the companion to Follow Mac, so subsequent Mac mode changes reach the iPad.
 - Suppress incidental app activation during whiteboard dismissal instead of bringing the studio forward over the presentation.
 - Validation: TypeScript and all 1,410 tests pass, including coordinate round trips at fit scales 0.59, 0.77, and 1.2.
-- Physical iPad presentation and native close-window acceptance checks remain pending. The installed application was recording during this update; its take was left running and facecam stayed off.
+- Signed build installed and relaunched after the user stopped recording; Save & Close preserved the take. Studio reports Ready to record with facecam off. Native Board / Put board away controls open and close successfully. Physical iPad alignment and dismissal over an external foreground application still need device confirmation; automation could not reliably trigger the global board shortcut from another application.
