@@ -1,3 +1,4 @@
+import { launchScene, presentationScene } from "./launchScene";
 import { importSceneMedia, sceneMediaPath, SceneMediaTake } from "./sceneMedia";
 import { buildMediaUrl, ensureMediaServer } from "../mediaServer";
 import type { SceneMediaPlayback } from "../../src/types/studio";
@@ -31,6 +32,7 @@ import type { AudioRegion } from "../../src/components/video-editor/types";
 import type { StudioInfo, StudioSettings, StudioSource } from "../../src/types/studio";
 import {
 	assertBoardCaptureSource,
+	boardDisplayId,
 	enableSceneMediaSurface,
 	isDrawingSurfaceWindow,
 	sendRecordingControl,
@@ -546,6 +548,52 @@ async function applyScene(id: string) {
 	message = `Scene: ${scene.name}${focusWarning ? `. ${focusWarning}` : ""}`;
 	publish();
 }
+let launchPrepared = false;
+// Runs once per launch so the studio opens on a recordable screen scene.
+async function prepareLaunchScene() {
+	if (launchPrepared || isCursorCaptureActive || switching || selectedSource?.id) return info();
+	launchPrepared = true;
+	try {
+		requireScreenRecordingAccess();
+		const displayId = String(boardDisplayId());
+		const displays = await desktopCapturer.getSources({
+			types: ["screen"],
+			thumbnailSize: { width: 0, height: 0 },
+		});
+		const display = displays.find((s) => s.display_id === displayId) ?? displays[0];
+		if (!settings.scenes.length && display) {
+			settings = studioSettingsSchema.parse({
+				...settings,
+				scenes: [presentationScene(display, settings.cameraLayout)],
+			});
+			await save();
+		}
+		const scene = launchScene(settings.scenes, displayId);
+		try {
+			if (!scene) throw Error("No screen is available.");
+			await applyScene(scene.id);
+		} catch (e) {
+			// A saved scene can point at a closed window; still open on the full screen.
+			if (!display) throw e;
+			const next = {
+				id: display.id,
+				name: display.name || "Entire screen",
+				display_id: display.display_id || undefined,
+				sourceType: "screen" as const,
+			};
+			assertBoardCaptureSource(next);
+			setSelectedSource(next);
+			for (const w of BrowserWindow.getAllWindows())
+				w.webContents.send("selected-source-changed", next);
+			message = `Sharing ${next.name}. ${(e as Error).message}`;
+			publish();
+		}
+	} catch (e) {
+		message = `Choose a screen to record. ${(e as Error).message}`;
+		publish();
+	}
+	return info();
+}
 function leaveScene() {
 	if (isCursorCaptureActive) mediaTake.switch([], getCursorCaptureElapsedMs());
 	activeSceneId = undefined;
@@ -900,6 +948,7 @@ export function registerStudio() {
 			throw Error("Untrusted studio request");
 		await ready;
 		if (method === "openSettingsGuide") return openSettingsGuide();
+		if (method === "prepareLaunch") return prepareLaunchScene();
 		if (method === "endSettingsHelp") {
 			if (guideTour?.token === input) guideTour = undefined;
 			publish();

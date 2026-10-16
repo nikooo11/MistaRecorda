@@ -64,10 +64,12 @@ export function RecordingScenes({
 			<details className="scene-help">
 				<summary>How scenes work</summary>
 				<div className="capture-note">
-					Choose a display for drawing or iPad annotations. Window scenes can switch
-					during native macOS window recording. New environments start with microphone and
-					computer audio on. Start a take with both inputs enabled to mute and restore
-					either while switching.
+					MistaRecorda opens on a scene that shares your drawing display, with a blank
+					whiteboard (the previous board is kept as board.previous.json). Choose a display
+					for drawing or iPad annotations. Window scenes can switch during native macOS
+					window recording. New environments start with microphone and computer audio on.
+					Start a take with both inputs enabled to mute and restore either while
+					switching.
 				</div>
 			</details>
 			{draft && (

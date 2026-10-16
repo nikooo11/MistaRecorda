@@ -206,3 +206,34 @@ test("drawing visibility defaults on, persists an explicit off choice and never 
 	expect(next.state.enabled).toBe(false);
 	expect(next.state.mode).toBe("screen");
 });
+test("launch starts with blank drawings and one whiteboard, keeping a backup", async () => {
+	const s = await store();
+	s.updateScene(
+		"screen",
+		{ ...emptyBoardScene(), elements: [makeElement({ type: "arrow", id: "b" })] },
+		0,
+	);
+	s.state.whiteboards = [
+		{ id: "one", name: "Lesson", scene: emptyBoardScene(), memes: [] },
+		{ id: "two", name: "Whiteboard 2", scene: emptyBoardScene(), memes: [] },
+	];
+	s.state.activeWhiteboardId = "one";
+	s.updateScene(
+		"board",
+		{ ...emptyBoardScene(), elements: [makeElement({ type: "rectangle", id: "a" })] },
+		1,
+	);
+	await s.save();
+	const reopened = new BoardStore(s.root);
+	await reopened.load();
+	expect(await reopened.startClean()).toBe(true);
+	expect(reopened.state.scenes.screen.elements).toEqual([]);
+	expect(reopened.state.scenes.board.elements).toEqual([]);
+	expect(reopened.state.whiteboards).toMatchObject([{ id: "default", name: "Whiteboard 1" }]);
+	const backup = JSON.parse(await fs.readFile(path.join(s.root, "board.previous.json"), "utf8"));
+	expect(backup.scenes.screen.elements[0].id).toBe("b");
+	const again = new BoardStore(s.root);
+	await again.load();
+	expect(again.state.scenes.screen.elements).toEqual([]);
+	expect(await again.startClean()).toBe(false);
+});

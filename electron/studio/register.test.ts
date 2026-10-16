@@ -155,6 +155,7 @@ vi.mock("../ipc/project/manager", () => ({
 vi.mock("../screenCaptureAccess", () => ({ requireScreenRecordingAccess: vi.fn() }));
 vi.mock("../board/register", () => ({
 	assertBoardCaptureSource: vi.fn(),
+	boardDisplayId: () => 7,
 	enableSceneMediaSurface: vi.fn(),
 	sendRecordingControl: host.control,
 	isDrawingSurfaceWindow: (w: TestWindow) =>
@@ -781,4 +782,46 @@ test("native persistence includes the last scene audio interval before the stopp
 	stopStudioTake();
 	await persistStudioTake(video);
 	expect(await fs.readFile(path.join(host.root, "native.system.m4a"))).toEqual(firstAudio);
+});
+test("launch creates and applies a screen-sharing presentation scene once", async () => {
+	host.root = await fs.mkdtemp(path.join(os.tmpdir(), "studio-launch-"));
+	await fs.mkdir(path.join(host.root, "studio"));
+	await fs.writeFile(
+		path.join(host.root, "studio/settings.json"),
+		JSON.stringify({ glow: true, windows: [], sounds: [] }),
+	);
+	host.selected = null;
+	host.control.mockClear();
+	registerStudio();
+	const frame = { url: "http://127.0.0.1:9876/?windowType=studio" };
+	const event = { senderFrame: frame, sender: { mainFrame: frame } };
+	const request = (method: string, input?: unknown) =>
+		host.handlers.get("studio:request")!(event, method, input);
+	host.sources = [
+		{ id: "screen:3:0", name: "Screen 2", display_id: "3" },
+		{ id: "screen:7:0", name: "Built-in Display", display_id: "7" },
+	];
+	const ready = await request("prepareLaunch");
+	expect(ready.settings.scenes).toMatchObject([
+		{
+			name: "Presentation",
+			camera: false,
+			audio: { microphone: true, system: true },
+			source: { id: "screen:7:0", display_id: "7", sourceType: "screen" },
+		},
+	]);
+	expect(ready.activeSceneId).toBe(ready.settings.scenes[0].id);
+	expect(host.selected).toMatchObject({ id: "screen:7:0" });
+	expect(host.control).toHaveBeenCalledWith("microphone-on");
+	expect(host.control).toHaveBeenCalledWith("system-audio-on");
+	expect(host.control).toHaveBeenLastCalledWith("webcam-off");
+	const saved = JSON.parse(
+		await fs.readFile(path.join(host.root, "studio/settings.json"), "utf8"),
+	);
+	expect(saved.scenes).toHaveLength(1);
+	host.selected = null;
+	host.control.mockClear();
+	await request("prepareLaunch");
+	expect(host.selected).toBeNull();
+	expect(host.control).not.toHaveBeenCalled();
 });

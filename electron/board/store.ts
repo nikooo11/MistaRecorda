@@ -176,6 +176,36 @@ export class BoardStore {
 			if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
 		}
 	}
+	/** Launch with blank drawings and one blank whiteboard; the prior board is kept as a backup. */
+	async startClean() {
+		const pages = whiteboardPages(this.state);
+		const dirty =
+			pages.length > 1 ||
+			pages[0].name !== "Whiteboard 1" ||
+			[this.state.scenes.screen, ...pages.map((p) => p.scene)].some((s) =>
+				s.elements.some((e) => !e.isDeleted),
+			) ||
+			pages.some((p) => p.memes.length) ||
+			!!this.state.placedMemes?.screen.length;
+		if (!dirty) return false;
+		await fs
+			.copyFile(path.join(this.root, "board.json"), path.join(this.root, "board.previous.json"))
+			.catch((e) => {
+				if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+			});
+		const page = { id: "default", name: "Whiteboard 1", scene: emptyBoardScene(), memes: [] };
+		this.state = {
+			...this.state,
+			revision: this.state.revision + 1,
+			mode: "screen",
+			scenes: { screen: emptyBoardScene(), board: page.scene },
+			placedMemes: { screen: [], board: [] },
+			whiteboards: [page],
+			activeWhiteboardId: page.id,
+		};
+		await this.save();
+		return true;
+	}
 	async save() {
 		this.state.whiteboards = whiteboardPages(this.state);
 		this.state.activeWhiteboardId ??= this.state.whiteboards[0].id;

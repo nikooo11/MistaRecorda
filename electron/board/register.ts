@@ -1480,6 +1480,10 @@ export function boardCaptureExclusions() {
 			.map((w) => w.getTitle()),
 	};
 }
+/** The full display that drawing-board recording must capture. */
+export function boardDisplayId() {
+	return displayId;
+}
 export function assertBoardCaptureSource(source: { sourceType?: string; display_id?: string }) {
 	if (store?.state.enabled && process.platform === "linux")
 		throw Error(
@@ -1514,6 +1518,7 @@ export async function registerBoard() {
 	);
 	try {
 		await store.load();
+		await store.startClean();
 		const next = await seedDefaultMemes(store.state, defaultMemeAssets());
 		if (next !== store.state) {
 			store.state = next;
