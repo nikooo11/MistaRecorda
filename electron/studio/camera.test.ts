@@ -71,6 +71,7 @@ test("camera uses the recorder's origin and ignores programmatic macOS window cl
 	const changed = vi.fn();
 	const camera = new CaptureCamera(() => ({ ...DEFAULT_CAMERA_LAYOUT, x: 0, y: 0 }), changed);
 	try {
+		clock.active = false;
 		await camera.update({ enabled: true });
 		const win = camera.window!;
 		expect(win.loadURL).toHaveBeenCalledWith(
