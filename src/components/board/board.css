@@ -1080,41 +1080,59 @@ html[data-window-type^="board-"] #root {
 }
 .meme-grid {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
+	/* Each card needs room for three separate touch controls. */
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 120px), 1fr));
 	gap: 8px;
 	max-height: 280px;
 	overflow: auto;
-	margin: 12px 0;
+	margin: 8px 0;
+	padding: 2px;
 }
 .meme-grid > div {
 	position: relative;
+	min-width: 0;
+	display: grid;
+	grid-template-rows: 1fr auto;
+	gap: 4px;
 }
-.meme-grid > div > button:first-child {
+.meme-grid .meme-preview-button {
+	box-sizing: border-box;
 	width: 100%;
+	min-width: 0;
+	display: grid;
+	grid-template-rows: 58px 28px;
+	gap: 4px;
+	padding: 6px;
 }
 .meme-grid img {
 	width: 100%;
-	height: 65px;
+	height: 58px;
 	object-fit: contain;
 }
-.meme-grid span {
-	display: block;
+.meme-grid .meme-preview-button > span:last-child {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
 	overflow: hidden;
-	text-overflow: ellipsis;
+	overflow-wrap: anywhere;
 	font-size: 11px;
+	line-height: 14px;
 }
 .meme-card-actions {
-	display: flex;
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 4px;
-	justify-content: space-between;
-	margin-top: 4px;
+	min-width: 0;
 }
 .meme-card-actions button {
+	box-sizing: border-box;
+	width: 100%;
 	min-height: 36px;
-	min-width: 32px;
+	min-width: 0;
+	margin: 0;
 	display: grid;
 	place-items: center;
-	padding: 5px;
+	padding: 4px;
 }
 .meme-card-actions button[aria-pressed="true"] {
 	color: #f5c46b;
