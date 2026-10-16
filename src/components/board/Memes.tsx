@@ -341,10 +341,12 @@ function MemeImage({
 	clean,
 	onRemove,
 	onShadow,
+	interactive,
 }: {
 	item: PlacedMeme;
 	asset: MemeAsset;
 	clean: boolean;
+	interactive: boolean;
 	onRemove: () => void;
 	onShadow?: (shadow: boolean) => Promise<void>;
 }) {
@@ -379,12 +381,12 @@ function MemeImage({
 				top: item.y,
 				width: item.width,
 				height: item.height,
-				pointerEvents: clean ? "none" : "auto",
+				pointerEvents: interactive ? "auto" : "none",
 			}}
 		>
 			<button
 				tabIndex={clean ? -1 : 0}
-				disabled={clean}
+				disabled={!interactive}
 				aria-label={`${item.shadow ? "Shadow options for" : "Dismiss"} ${asset.name}`}
 				onClick={(e) => {
 					e.stopPropagation();
@@ -440,6 +442,7 @@ export function MemeLayer({
 	view,
 	clean,
 	tablet = false,
+	interactive = !clean,
 	transport,
 }: {
 	state: BoardState;
@@ -448,6 +451,7 @@ export function MemeLayer({
 	clean: boolean;
 	transport: BoardAPI;
 	tablet?: boolean;
+	interactive?: boolean;
 }) {
 	return (
 		<div
@@ -462,6 +466,7 @@ export function MemeLayer({
 						item={item}
 						asset={asset}
 						clean={clean}
+						interactive={interactive}
 						onRemove={() => void transport.request("removeMeme", item.id)}
 						onShadow={
 							tablet

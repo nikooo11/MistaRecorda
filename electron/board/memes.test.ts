@@ -1,6 +1,13 @@
 import { expect, test } from "vitest";
 import { emptyBoardState } from "../../src/types/board";
-import { clearMemes, memeSchema, placeMeme, validateMemes } from "./memes";
+import {
+	clearMemes,
+	dismissMeme,
+	memeAtPoint,
+	memeSchema,
+	placeMeme,
+	validateMemes,
+} from "./memes";
 
 const asset = () =>
 	memeSchema.parse({
@@ -87,4 +94,71 @@ test("shadow placements never expire or trigger audio before reveal", () => {
 	placeMeme(state, args);
 	expect(state.placedMemes!.board).toHaveLength(2);
 	expect(state.placedMemes!.board.every((m) => m.shadow)).toBe(true);
+});
+
+function placed() {
+	const state = emptyBoardState();
+	const a = asset();
+	state.memes = [a];
+	placeMeme(state, { assetId: a.id, mode: "screen", x: 100, y: 50, width: 200 });
+	const item = state.placedMemes!.screen[0];
+	item.placedAt = 1000;
+	return { state, item };
+}
+
+test("native input is confined to a visible meme at the rendered zoom and scroll", () => {
+	const { state, item } = placed();
+	state.scenes.screen = { ...state.scenes.screen, zoom: 2, scrollX: -40, scrollY: 10 };
+	expect(memeAtPoint(state, 121, 121, 2000)).toBe(item);
+	expect(memeAtPoint(state, 519, 319, 2000)).toBe(item);
+	expect(memeAtPoint(state, 119, 121, 2000)).toBeUndefined();
+	expect(memeAtPoint(state, 521, 121, 2000)).toBeUndefined();
+	expect(memeAtPoint(state, 121, 119, 2000)).toBeUndefined();
+	expect(memeAtPoint(state, 121, 321, 2000)).toBeUndefined();
+});
+
+test("hidden, private, removed and expired memes never block desktop clicks", () => {
+	const { state, item } = placed();
+	expect(memeAtPoint(state, 150, 80, 3999)).toBe(item);
+	expect(memeAtPoint(state, 150, 80, 4000)).toBeUndefined();
+	item.stayUntilClicked = true;
+	expect(memeAtPoint(state, 150, 80, 90000)).toBe(item);
+	item.shadow = true;
+	expect(memeAtPoint(state, 150, 80, 2000)).toBeUndefined();
+	item.shadow = false;
+	item.removedAt = 0;
+	expect(memeAtPoint(state, 150, 80, 2000)).toBeUndefined();
+	delete item.removedAt;
+	state.enabled = false;
+	expect(memeAtPoint(state, 150, 80, 2000)).toBeUndefined();
+	state.enabled = true;
+	state.output = "screen";
+	expect(memeAtPoint(state, 150, 80, 2000)).toBeUndefined();
+	state.output = "screen-board";
+	state.memes = [];
+	expect(memeAtPoint(state, 150, 80, 2000)).toBeUndefined();
+});
+
+test("hit testing follows the displayed scene and its topmost meme", () => {
+	const { state, item } = placed();
+	const top = { ...item, id: crypto.randomUUID() };
+	state.placedMemes!.screen.push(top);
+	expect(memeAtPoint(state, 150, 80, 2000)).toBe(top);
+	state.output = "board";
+	expect(memeAtPoint(state, 150, 80, 2000)).toBeUndefined();
+	state.placedMemes!.board = [item];
+	expect(memeAtPoint(state, 150, 80, 2000)).toBe(item);
+});
+
+test("dismissal finds placements across scene switches and private whiteboards without restarting exit", () => {
+	const { state, item } = placed();
+	state.mode = "board";
+	const saved = { ...item };
+	state.whiteboards = [{ id: "page", name: "Notes", scene: state.scenes.board, memes: [saved] }];
+	expect(dismissMeme(state, item.id, 2000)).toBe(true);
+	expect(item.removedAt).toBe(2000);
+	expect(saved.removedAt).toBe(2000);
+	expect(dismissMeme(state, item.id, 2500)).toBe(false);
+	expect(item.removedAt).toBe(2000);
+	expect(dismissMeme(state, "missing", 3000)).toBe(false);
 });

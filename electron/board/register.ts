@@ -71,7 +71,7 @@ import { captureWindowId, ensureDrawingSurfaceReady } from "./captureReady";
 import { EdgeBoardTrigger } from "./edgeTrigger";
 import { gifSize } from "./gifSize";
 import { DrawingMcpServer } from "./mcp";
-import { clearMemes, memeSchema, placeMeme, validateMemes } from "./memes";
+import { clearMemes, dismissMeme, memeAtPoint, memeSchema, placeMeme, validateMemes } from "./memes";
 import { seedDefaultMemes } from "./defaultMemes";
 import { bundledMemeFromURL } from "../../src/lib/bundledMemes";
 import { finishMemeTake, mergeMemeLibraries } from "../../src/components/board/memePreferences";
@@ -102,6 +102,8 @@ let displayId = 0;
 let panelTab: BoardInfo["panelTab"] = "draw";
 let pendingPresenterTool: "ai" | "voices" | "sounds" | "memes" | null = null;
 let edgeTimer: ReturnType<typeof setInterval> | undefined;
+let memeInputTimer: ReturnType<typeof setInterval> | undefined;
+let memeInputEnabled = false;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 const edgeTrigger = new EdgeBoardTrigger();
 let closing = false;
@@ -252,6 +254,7 @@ async function prepare() {
 	if ([panel, surface, editor, hint, stream].every((w) => w && !w.isDestroyed())) return;
 	// Rebuild a partial window set without touching saved drawing state.
 	if (edgeTimer) clearInterval(edgeTimer);
+	if (memeInputTimer) clearInterval(memeInputTimer);
 	for (const w of windows()) w.destroy();
 	displayId = screen.getAllDisplays().some((d) => d.id === displayId)
 		? displayId
@@ -260,6 +263,7 @@ async function prepare() {
 	store.state.width = b.width;
 	store.state.height = b.height;
 	surface = makeWindow("MistaRecorda Drawing Surface", "board-surface", {
+		acceptFirstMouse: true,
 		...b,
 		// Frameless canvases must use the full display origin. Otherwise macOS
 		// pushes them below the menu bar while the iPad preview starts at y=0.
@@ -268,6 +272,20 @@ async function prepare() {
 	});
 	surface.setBounds(b);
 	surface.setIgnoreMouseEvents(true);
+	memeInputEnabled = false;
+	// Do not capture the whole desktop: only enable input while the pointer is
+	// inside a live meme. Polling also releases input when a timed meme disappears
+	// under a stationary pointer, without depending on a mouse-leave event.
+	memeInputTimer = setInterval(() => {
+		if (!surface || surface.isDestroyed()) return;
+		const p = screen.getCursorScreenPoint();
+		const b = surface.getBounds();
+		const enabled = surface.isVisible() && !!memeAtPoint(store.state, p.x - b.x, p.y - b.y);
+		if (enabled !== memeInputEnabled) {
+			memeInputEnabled = enabled;
+			surface.setIgnoreMouseEvents(!enabled);
+		}
+	}, 16);
 	editor = makeWindow(BOARD_CONTROL_TITLES[0], "board-editor", {
 		...b,
 		enableLargerThanScreen: true,
@@ -1188,10 +1206,10 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		}
 		case "removeMeme": {
 			const id = z.string().uuid().parse(input);
-			const item = store.state.placedMemes?.[store.state.mode].find((m) => m.id === id);
-			if (item) item.removedAt ??= Date.now();
-			store.state.revision++;
-			publish(actor);
+			if (dismissMeme(store.state, id)) {
+				store.state.revision++;
+				publish(actor);
+			}
 			return store.state;
 		}
 		case "laser": {
@@ -1635,6 +1653,7 @@ export async function registerBoard() {
 		event.preventDefault();
 		closing = true;
 		if (edgeTimer) clearInterval(edgeTimer);
+		if (memeInputTimer) clearInterval(memeInputTimer);
 		if (saveTimer) clearTimeout(saveTimer);
 		disarm();
 		preview.stop();

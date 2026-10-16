@@ -120,3 +120,47 @@ export function clearMemes(state: BoardState, mode: BoardMode) {
 	state.placedMemes ??= { screen: [], board: [] };
 	state.placedMemes[mode] = [];
 }
+
+/** Only a visible meme may intercept input on the otherwise click-through surface. */
+export function memeAtPoint(state: BoardState, x: number, y: number, now = Date.now()) {
+	if (!state.enabled || state.output === "screen") return undefined;
+	const mode = state.output === "board" ? "board" : state.mode;
+	const scene = state.scenes[mode];
+	const sceneX = x / scene.zoom - scene.scrollX;
+	const sceneY = y / scene.zoom - scene.scrollY;
+	const items = state.placedMemes?.[mode] ?? [];
+	for (let i = items.length - 1; i >= 0; i--) {
+		const m = items[i];
+		if (
+			!m.shadow &&
+			m.removedAt === undefined &&
+			(m.stayUntilClicked || now < m.placedAt + m.durationSeconds * 1000) &&
+			state.memes?.some((a) => a.id === m.assetId) &&
+			sceneX >= m.x &&
+			sceneX <= m.x + m.width &&
+			sceneY >= m.y &&
+			sceneY <= m.y + m.height
+		)
+			return m;
+	}
+	return undefined;
+}
+
+export function dismissMeme(state: BoardState, id: string, now = Date.now()) {
+	// Resolve the actual placement, including a whiteboard viewed privately on the
+	// iPad. The active Mac scene may have changed since the pointer went down.
+	const lists = [
+		state.placedMemes?.screen ?? [],
+		state.placedMemes?.board ?? [],
+		...(state.whiteboards ?? []).map((p) => p.memes),
+	];
+	let changed = false;
+	for (const list of lists) {
+		const item = list.find((m) => m.id === id);
+		if (item && item.removedAt === undefined) {
+			item.removedAt = now;
+			changed = true;
+		}
+	}
+	return changed;
+}

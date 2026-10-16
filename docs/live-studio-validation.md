@@ -77,3 +77,21 @@ preserved. The installed library confirmed three seconds, Spin out, and Stay
 until clicked off. Browser playtest observed automatic spin-out at 3007 ms and
 click-triggered spin-out at 266 ms. Typecheck and 26 focused meme, bundle and
 board-store tests passed. The studio visibility checkbox remains off by default.
+
+## Desktop meme dismissal — 2026-10-16
+
+The clean Mac drawing surface ignored all mouse events, and its meme buttons were
+disabled outside drawing mode. It now accepts the first click only while the
+pointer is inside a visible, live meme, using the scene zoom/scroll and actual
+window origin. All other desktop space remains click-through; removed, expired,
+hidden and shadow memes do not capture input. The clean renderer and iPad Pan &
+zoom view allow meme dismissal without enabling drawing or showing editor tools.
+Dismissal resolves the placement across scene changes and saved whiteboards, and
+repeated clicks do not restart its exit.
+
+Validation: typecheck, 30 focused meme/default/bundle/store tests, production
+build, Electron CommonJS smoke check, and strict signed-app verification passed.
+The idle app was updated in /Applications. The user confirmed that clicking the
+existing stuck desktop meme directly, without opening drawing tools, removes it.
+This physical check covers the native transparent-window input path that browser
+playtesting had missed. Facecam was restored to on and studio capture remains off.

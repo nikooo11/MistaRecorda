@@ -1444,6 +1444,7 @@ export function BoardCanvas({
 					mode={boardClosing ? "board" : cleanMode}
 					view={memeView}
 					clean={clean || !drawing}
+					interactive={!boardClosing}
 					tablet={tablet}
 					transport={transport}
 				/>
