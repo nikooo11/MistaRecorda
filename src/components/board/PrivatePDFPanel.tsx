@@ -100,7 +100,10 @@ export function PrivatePDFPanel({
 	const [job, setJob] = useState<PresentationJob>({ id: "", phase: "idle", message: "" });
 	const [draft, setDraft] = useState<PresentationDraft>();
 	const [excluded, setExcluded] = useState<string[]>([]);
+	const viewer = useRef<HTMLDivElement>(null);
+	const [viewerWidth, setViewerWidth] = useState(0);
 	const canvas = useRef<HTMLCanvasElement>(null);
+	const renderedPage = useRef("");
 	const loadedID = useRef("");
 	const generation = useRef(0);
 
@@ -162,7 +165,18 @@ export function PrivatePDFPanel({
 		};
 	}, [pdfId, transport]);
 	useEffect(() => {
-		if (!pdf || !canvas.current || loadedID.current !== selected) return;
+		const container = viewer.current;
+		if (!pdf || !container) return;
+		const observer = new ResizeObserver(() => {
+			// Zero means a hidden tab/minimized panel. Keep the last readable canvas.
+			const width = container.clientWidth;
+			if (width > 0) setViewerWidth(width);
+		});
+		observer.observe(container);
+		return () => observer.disconnect();
+	}, [pdf]);
+	useEffect(() => {
+		if (!pdf || !canvas.current || !viewerWidth || loadedID.current !== selected) return;
 		let cancelled = false,
 			task:
 				| ReturnType<Awaited<ReturnType<PDFDocumentProxy["getPage"]>>["render"]>
@@ -178,13 +192,22 @@ export function PrivatePDFPanel({
 			.then((p) => {
 				if (cancelled) return;
 				const base = p.getViewport({ scale: 1 });
-				const width = Math.max(250, target.parentElement?.clientWidth ?? 340) * zoom;
+				const width = viewerWidth * zoom;
 				const viewport = p.getViewport({ scale: width / base.width });
 				const dpr = Math.min(window.devicePixelRatio || 1, 2);
+				const container = viewer.current;
+				const samePage = renderedPage.current === `${selected}:${page}`;
+				const ratio = viewport.width / (parseFloat(target.style.width) || viewport.width);
+				const scroll = {
+					left: samePage ? (container?.scrollLeft ?? 0) * ratio : 0,
+					top: samePage ? (container?.scrollTop ?? 0) * ratio : 0,
+				};
+				renderedPage.current = `${selected}:${page}`;
 				target.width = Math.ceil(viewport.width * dpr);
 				target.height = Math.ceil(viewport.height * dpr);
 				target.style.width = `${viewport.width}px`;
 				target.style.height = `${viewport.height}px`;
+				container?.scrollTo(scroll);
 				task = p.render({ canvas: target, viewport, transform: [dpr, 0, 0, dpr, 0, 0] });
 				return task.promise;
 			})
@@ -195,7 +218,7 @@ export function PrivatePDFPanel({
 			cancelled = true;
 			task?.cancel();
 		};
-	}, [pdf, page, zoom, selected]);
+	}, [pdf, page, zoom, selected, viewerWidth]);
 	useEffect(
 		() => () => {
 			generation.current++;
@@ -441,7 +464,7 @@ export function PrivatePDFPanel({
 							/>
 						))}
 					</div>
-					<div className="private-pdf-canvas">
+					<div className="private-pdf-canvas" ref={viewer}>
 						<canvas ref={canvas} aria-label={`Private PDF page ${page}`} />
 					</div>
 					<button aria-expanded={setup} onClick={() => setSetup(!setup)}>
