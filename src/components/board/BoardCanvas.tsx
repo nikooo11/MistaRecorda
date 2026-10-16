@@ -58,6 +58,7 @@ import { Soundboard } from "./Soundboard";
 import { mergeScenePatch, newSceneFiles, type ScenePatch, sceneSignature } from "./sceneSync";
 import {
 	fittedTabletView,
+	publishedViewport,
 	readTabletView,
 	tabletSceneMode,
 	tabletViewport,
@@ -345,7 +346,7 @@ export function BoardCanvas({
 			const viewport = tabletViewport(
 				scene,
 				fit.scale,
-				tablet ? localView.current : fittedTabletView(),
+				tablet && mode === "screen" ? localView.current : fittedTabletView(),
 			);
 			const signature = sceneSignature(scene);
 			const actual = api.getAppState();
@@ -942,6 +943,17 @@ export function BoardCanvas({
 		}
 	}
 	function fitScreen() {
+		if (tablet && modeRef.current === "board" && api) {
+			interacted.current = true;
+			api.updateScene({
+				appState: {
+					scrollX: 0,
+					scrollY: 0,
+					zoom: { value: fit.scale as AppState["zoom"]["value"] },
+				},
+			});
+			return;
+		}
 		localView.current = fittedTabletView();
 		setTabletView(localView.current);
 		last.current = "";
@@ -1456,7 +1468,7 @@ export function BoardCanvas({
 							});
 							return;
 						}
-						if (tablet) {
+						if (tablet && modeRef.current === "screen") {
 							const next = readTabletView(shared, fit.scale, {
 								scrollX: view.scrollX,
 								scrollY: view.scrollY,
@@ -1469,22 +1481,30 @@ export function BoardCanvas({
 							if (!drawing || draftRef.current) return;
 						}
 						const scene: BoardScene = {
-							elements: tablet
-								? withoutTextDraft(
-										elements as unknown as BoardElement[],
-										shared.elements,
-										view.editingTextElement?.id ?? draftRef.current?.id,
-									)
-								: preserveShadows(
-										elements as unknown as BoardElement[],
-										shared.elements,
-									),
+							elements:
+								tablet && !drawing
+									? shared.elements
+									: tablet
+										? withoutTextDraft(
+												elements as unknown as BoardElement[],
+												shared.elements,
+												view.editingTextElement?.id ?? draftRef.current?.id,
+											)
+										: preserveShadows(
+												elements as unknown as BoardElement[],
+												shared.elements,
+											),
 							files: files as BoardScene["files"],
-							scrollX: tablet ? shared.scrollX : view.scrollX,
-							scrollY: tablet ? shared.scrollY : view.scrollY,
-							zoom: tablet
-								? shared.zoom
-								: Math.max(0.1, Math.min(10, view.zoom.value / fit.scale)),
+							...publishedViewport(
+								shared,
+								fit.scale,
+								{
+									scrollX: view.scrollX,
+									scrollY: view.scrollY,
+									zoom: view.zoom.value,
+								},
+								tablet && modeRef.current === "screen",
+							),
 						};
 						scene.elements = scene.elements.map((e) =>
 							isShadow(e) ? { ...e, opacity: 50 } : e,

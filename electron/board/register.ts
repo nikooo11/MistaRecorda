@@ -105,6 +105,12 @@ let figures: FigureService;
 let preview: CompanionPreview;
 let escapeReady = false;
 let lastEscape = 0;
+// Hiding the key whiteboard window can generate a macOS app activation event.
+// It is not a request to open the studio over the presentation.
+let boardDismissalUntil = 0;
+export function isDismissingWhiteboard() {
+	return Date.now() < boardDismissalUntil;
+}
 let panel: BrowserWindow | undefined,
 	editor: BrowserWindow | undefined,
 	surface: BrowserWindow | undefined,
@@ -617,10 +623,12 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				panel?.hide();
 				if (actor.startsWith("desktop") || actor === "codex") editor?.show();
 				else editor?.hide();
-			} else if (previousMode === "board")
+			} else if (previousMode === "board") {
+				boardDismissalUntil = Date.now() + 1200;
 				setTimeout(() => {
 					if (store.state.mode === "screen") editor?.hide();
 				}, 460);
+			}
 			if (store.state.mode === "screen" && store.state.output === "board")
 				store.state.output = "screen-board";
 			store.state.enabled = true;

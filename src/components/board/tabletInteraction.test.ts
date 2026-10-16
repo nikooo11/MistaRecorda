@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { emptyBoardState, type BoardElement } from "../../types/board";
 import {
 	tabletSceneMode,
+	publishedViewport,
 	tabletViewport,
 	readTabletView,
 	withoutTextDraft,
@@ -65,5 +66,35 @@ describe("tablet screen annotations", () => {
 			expect((x + scene.scrollX) * scene.zoom).toBeCloseTo(screenX);
 			expect((y + scene.scrollY) * scene.zoom).toBeCloseTo(screenY);
 		}
+	});
+});
+
+describe("shared whiteboard presentation", () => {
+	it.each([
+		0.59, 0.77, 1.2,
+	])("shares drawing position and navigation at fit scale %s", (scale) => {
+		const scene = emptyBoardState().scenes.board;
+		const ipad = { scrollX: 430, scrollY: 220, zoom: scale * 1.8 };
+		const shared = { ...scene, ...publishedViewport(scene, scale, ipad, false) };
+		const mac = tabletViewport(shared, 1, { zoom: 1, x: 0, y: 0 });
+		const refreshed = tabletViewport(shared, scale, { zoom: 1, x: 0, y: 0 });
+		expect(refreshed.zoom).toBeCloseTo(ipad.zoom);
+		for (const [x, y] of [
+			[-400, -200],
+			[500, 300],
+		]) {
+			expect(((x + ipad.scrollX) * ipad.zoom) / scale).toBeCloseTo(
+				(x + mac.scrollX) * mac.zoom,
+			);
+			expect(((y + ipad.scrollY) * ipad.zoom) / scale).toBeCloseTo(
+				(y + mac.scrollY) * mac.zoom,
+			);
+		}
+	});
+	it("keeps screen magnification private", () => {
+		const scene = emptyBoardState().scenes.screen;
+		expect(
+			publishedViewport(scene, 0.77, { scrollX: 500, scrollY: -300, zoom: 2 }, true),
+		).toEqual({ scrollX: scene.scrollX, scrollY: scene.scrollY, zoom: scene.zoom });
 	});
 });

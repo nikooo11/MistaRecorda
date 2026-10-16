@@ -62,7 +62,16 @@ A production-only WebSocket optional-dependency failure and an initial tablet zo
 On a Mac or Windows PC and an iPad on the same private Wi-Fi:
 
 1. Select the same full display in the recorder and board panel. Enable drawing, pair and approve the iPad, then tap Start screen. Confirm the live preview. Draw with finger and Pencil, add arrows/text and import a transparent PNG.
-2. Deploy the board using its left-edge handle or configured shortcut. Turn Draw off on the iPad and pinch/pan; confirm only its preview moves. Tap Fit screen. Hide the board on the Mac and confirm the iPad returns to the live screen. Reopen it and confirm both scenes persist. Add a text draft and verify it remains absent on the Mac until Done; Cancel should publish nothing.
+2. Deploy the board using its left-edge handle or configured shortcut. Turn Draw off on the iPad and pinch/pan; confirm the whiteboard view moves on both devices. In Mac screen mode, confirm pinch/pan magnifies only the iPad preview. Tap Fit screen. Hide the board on the Mac and confirm the iPad returns to the live screen. Reopen it and confirm both scenes persist. Add a text draft and verify it remains absent on the Mac until Done; Cancel should publish nothing.
 3. Record a short take. Use compact controls, pause/resume, webcam show/hide, transparent annotations and the opaque board. Open/close the editor while recording. Inspect the exported video: drawings and chosen webcam state should appear; toolbars, hint, presenter panel and zoom target outline should not.
 4. Disconnect the iPad and confirm its live preview stops. Revoke pairing and verify reconnect requires approval again. Restart the app and load the saved scene.
 5. Enable MCP, configure a local Codex client with the displayed session token, ask it to read the drawing guide and prepare a scene, inspect its screenshot, and save it. Disable MCP afterward and verify the old connection stops working.
+
+
+## 2026-10-16: shared presentation viewport and board dismissal
+
+- Whiteboard pan/zoom is published in Mac logical coordinates, removing the iPad fit scale. Screen-mode pan/zoom remains local so desktop annotations stay anchored to the captured screen.
+- Pan mode publishes navigation while preserving committed elements. Fit screen resets the shared board viewport. Activating a whiteboard returns the companion to Follow Mac, so subsequent Mac mode changes reach the iPad.
+- Suppress incidental app activation during whiteboard dismissal instead of bringing the studio forward over the presentation.
+- Validation: TypeScript and all 1,410 tests pass, including coordinate round trips at fit scales 0.59, 0.77, and 1.2.
+- Physical iPad presentation and native close-window acceptance checks remain pending. The installed application was recording during this update; its take was left running and facecam stayed off.

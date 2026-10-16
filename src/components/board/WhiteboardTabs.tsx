@@ -65,7 +65,7 @@ export function WhiteboardTabs({
 									disabled={busy}
 									onClick={() =>
 										void run(async () => {
-											onSelect(page.id);
+											onSelect(page.id === active ? null : page.id);
 											setName(page.name);
 										})
 									}
@@ -90,7 +90,7 @@ export function WhiteboardTabs({
 											await transport.request("activateWhiteboard", {
 												whiteboardId: page.id,
 											});
-											onSelect(page.id);
+											onSelect(null);
 											setName(page.name);
 										})
 									}

@@ -7,7 +7,7 @@ export type TabletView = { zoom: number; x: number; y: number };
 export const fittedTabletView = (): TabletView => ({ zoom: 1, x: 0, y: 0 });
 
 // Tablet navigation magnifies the screen and ink together. It never moves the
-// Mac's drawing viewport or changes the position of recorded annotations.
+// Mac's screen drawing viewport. Whiteboards instead share their navigation.
 export function tabletViewport(scene: BoardScene, scale: number, view: TabletView) {
 	return {
 		scrollX: scene.scrollX + view.x / scene.zoom,
@@ -40,4 +40,20 @@ export function withoutTextDraft(
 	return elements.flatMap((element) =>
 		element.id === draftId ? (previous ? [previous] : []) : [element],
 	);
+}
+
+// Convert the fitted iPad canvas back to the Mac's logical presentation size.
+export function publishedViewport(
+	scene: BoardScene,
+	scale: number,
+	viewport: { scrollX: number; scrollY: number; zoom: number },
+	privateScreenView: boolean,
+) {
+	return privateScreenView
+		? { scrollX: scene.scrollX, scrollY: scene.scrollY, zoom: scene.zoom }
+		: {
+				scrollX: viewport.scrollX,
+				scrollY: viewport.scrollY,
+				zoom: Math.max(0.1, Math.min(10, viewport.zoom / scale)),
+			};
 }
