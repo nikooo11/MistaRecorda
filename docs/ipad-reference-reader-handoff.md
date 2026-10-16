@@ -88,3 +88,29 @@ and that facecam remains OFF. No installation on the user's Mac was attempted in
   after the MIME fix, a live recording privacy check, and the new controls on physical
   iPad/Apple Pencil remain unverified. The earlier physical iPad confirmation applies
   to the reference-panel layout, not the newly added image controls.
+
+## Installed-app follow-up after Keychain approval
+
+- Paired a browser companion to the installed Mac app. Screen preview autostarted
+  in Pan & zoom, and facecam stayed off throughout testing.
+- Imported a synthetic two-page PDF through the real companion server. Both pages
+  rendered; page navigation, full-screen reference view, minimize/restore, and
+  switching between PDFs and Talking points passed. Screenshot: local
+  `.tmp/pdf-installed-verified.png`.
+- In the real paired session, imported an app-icon image, selected it in Pan & zoom,
+  opened its action menu, copied, duplicated, and removed it with the outro. Existing
+  user drawings and screenshots were retained. One disposable duplicate icon remains
+  on the whiteboard pending final cleanup.
+- First deployment exposed a placeholder-image issue: decode started before elements
+  were installed, and duplicate application of the acknowledged scene could replace
+  elements during decode. Apply elements before files, finish pending edits before
+  placement, mark imported files saved, and avoid forcibly reapplying the same scene.
+  An isolated browser import now renders on its first deployment; its Pan & zoom
+  action menu also passed (`.tmp/image-import-verified.png`).
+- A 26-second QA recording saved successfully with facecam off. Its inspected frame
+  captured macOS's “ChatGPT is Using Your Mac” automation screen, so it does NOT
+  establish that private PDF controls are excluded from real presentation footage.
+  That physical recording check and the new image controls with Apple Pencil remain
+  unverified. The synthetic recording was saved as “QA private PDF automation check”.
+- The follow-up package encountered another Keychain wait at startup. User approval
+  is needed to finish testing the final import correction in the installed app.

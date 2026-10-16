@@ -384,7 +384,6 @@ export function BoardCanvas({
 			if (changedSurface) clearCanvas(api);
 			surfaceRef.current = surface;
 			last.current = signature;
-			api.addFiles(Object.values(scene.files) as BinaryFileData[]);
 			api.updateScene({
 				captureUpdate:
 					origin === "codex"
@@ -405,6 +404,10 @@ export function BoardCanvas({
 					viewBackgroundColor: "transparent",
 				},
 			});
+
+			// addFiles decodes images referenced by the current scene, so install
+			// new elements first (including remote imports on the clean Mac surface).
+			api.addFiles(Object.values(scene.files) as BinaryFileData[]);
 
 			requestAnimationFrame(() => {
 				applying.current = false;
@@ -785,6 +788,7 @@ export function BoardCanvas({
 			return;
 		}
 		if (!api) return;
+		await flush();
 		const file = current.current.assets[fileId];
 		if (file) api.addFiles([file] as BinaryFileData[]);
 		interacted.current = true;
@@ -801,11 +805,12 @@ export function BoardCanvas({
 				angle: point?.angle ?? 0,
 			},
 		] as Parameters<typeof convertToExcalidrawElements>[0]);
-		const additions = element.map((e) =>
-			object
-				? setShadow(e as unknown as BoardElement, !!object.shadow, object.enter)
-				: (e as unknown as BoardElement),
-		);
+		// The file is already local and decoded. Excalidraw skeletons default to
+		// pending; this placement has already completed the import.
+		const additions = element.map((e) => {
+			const saved = { ...e, status: "saved" } as unknown as BoardElement;
+			return object ? setShadow(saved, !!object.shadow, object.enter) : saved;
+		});
 		const scene: BoardScene = {
 			...current.current.scenes[modeRef.current],
 			elements: [...current.current.scenes[modeRef.current].elements, ...additions],
@@ -819,7 +824,6 @@ export function BoardCanvas({
 			scene: { ...scene, files: newSceneFiles(scene, current.current.scenes[mode].files) },
 			revision: current.current.revision,
 		});
-		last.current = "";
 		apply(mergeScenePatch(current.current, { mode, scene, revision: reply.revision }));
 	}
 	async function usePresenterObject(object: PresenterObject, client?: PlacementPoint) {
