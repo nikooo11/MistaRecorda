@@ -11,13 +11,15 @@ export function MemePreviewButton({
 	disabled = false,
 	onDragPreview,
 	onDrop,
+	onDragCancel,
 }: {
-	asset: MemeAsset;
+	asset: Pick<MemeAsset, "name" | "dataURL" | "soundId">;
 	soundName?: string;
 	onClick: () => void;
 	disabled?: boolean;
 	onDragPreview?: (point: { x: number; y: number }) => void;
 	onDrop?: (point: { x: number; y: number }) => void;
+	onDragCancel?: () => void;
 }) {
 	const drag = useRef<{ id: number; x: number; y: number; moved: boolean }>();
 	const suppressClick = useRef(false);
@@ -68,6 +70,7 @@ export function MemePreviewButton({
 				}}
 				onPointerCancelCapture={() => {
 					drag.current = undefined;
+					onDragCancel?.();
 				}}
 				onContextMenu={(e) => e.preventDefault()}
 				style={onDragPreview ? { touchAction: "none" } : undefined}

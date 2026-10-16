@@ -18,6 +18,24 @@ const asset = () =>
 		width: 200,
 		height: 100,
 	});
+test("meme tilt survives placement, movement and save/load", () => {
+	const state = emptyBoardState();
+	const a = asset();
+	state.memes = [a];
+	placeMeme(state, {
+		assetId: a.id,
+		mode: "screen",
+		x: 100,
+		y: 100,
+		width: 200,
+		angle: Math.PI / 2,
+	});
+	const item = state.placedMemes!.screen[0];
+	updatePlacedMeme(state, { id: item.id, mode: "screen", x: 200 });
+	expect(validateMemes(JSON.parse(JSON.stringify(state))).placedMemes.screen[0].angle).toBe(
+		Math.PI / 2,
+	);
+});
 test("uploaded meme appears immediately, stays three seconds and spins out without sound", () => {
 	const a = asset();
 	expect(a).toMatchObject({

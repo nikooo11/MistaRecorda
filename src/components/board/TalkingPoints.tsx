@@ -156,6 +156,7 @@ export function TalkingPoints({
 			setDirty(false);
 			dirtyRef.current = false;
 			setEditing(false);
+			setNotice("Saved on your Mac and synced to connected iPads.");
 		} catch (e) {
 			setNotice(String(e));
 		} finally {
@@ -256,9 +257,11 @@ export function TalkingPoints({
 						) : (
 							<>
 								<p className="presenter-help">
-									Use @object name to reference images, memes, sounds, notes or
-									links. Tap a reference to use it. Hold and drag to place on the
-									screen or whiteboard. These notes stay off the recording.
+									Edit here or on your Mac. Save points to sync the same notes
+									across devices. Use @object name to reference images, memes,
+									sounds, notes or links. Tap a reference to use it. Hold and drag
+									to place on the screen or whiteboard. These notes stay off the
+									recording.
 								</p>
 								<div className="talking-mode">
 									<button

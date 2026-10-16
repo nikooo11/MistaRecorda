@@ -37,12 +37,21 @@ function KeyCard({ provider }: { provider: Provider }) {
 			off?.();
 		};
 	}, [provider]);
-	async function run(action: "save" | "remove" | "test") {
+	async function run(action: "save" | "remove" | "test" | "import") {
 		setBusy(true);
 		setError(false);
 		setMessage("");
 		try {
-			if (action === "test") {
+			if (action === "import") {
+				const state = await window.electronAPI.board.request<FigureState | null>(
+					"aiImportKey",
+				);
+				if (state) {
+					setSaved(state.hasKey);
+					setKey("");
+					setMessage("Key imported securely on this computer.");
+				}
+			} else if (action === "test") {
 				if (provider === "OpenAI") await window.electronAPI.board.request("aiTestKey");
 				else unwrapVoice(await window.electronAPI.voice.request("testKey", undefined));
 				setMessage("Connection verified.");
@@ -64,11 +73,13 @@ function KeyCard({ provider }: { provider: Provider }) {
 			setError(true);
 			const raw = e instanceof Error ? e.message : String(e);
 			setMessage(
-				/401|unauthorized|invalid.*key|invalidKey/i.test(raw)
-					? "Key rejected. It may be expired or revoked. Enter a replacement key."
-					: /secureStorageUnavailable|Secure.*storage/i.test(raw)
-						? "Secure storage is unavailable. Unlock your computer’s key storage and try again."
-						: "Could not complete this action. Check your connection, key permissions and provider billing, then try again.",
+				/Choose an env file containing a valid OPENAI_API_KEY/.test(raw)
+					? "Choose an env file containing OPENAI_API_KEY (under 64 KB)."
+					: /401|unauthorized|invalid.*key|invalidKey/i.test(raw)
+						? "Key rejected. It may be expired or revoked. Enter a replacement key."
+						: /secureStorageUnavailable|Secure.*storage/i.test(raw)
+							? "Secure storage is unavailable. Unlock your computer’s key storage and try again."
+							: "Could not complete this action. Check your connection, key permissions and provider billing, then try again.",
 			);
 		} finally {
 			setBusy(false);
@@ -101,6 +112,15 @@ function KeyCard({ provider }: { provider: Provider }) {
 				/>
 			</label>
 			<div className="api-key-actions">
+				{provider === "OpenAI" && (
+					<button
+						disabled={busy}
+						onClick={() => void run("import")}
+						data-help="Choose a local .env file containing OPENAI_API_KEY. The key is imported directly into encrypted storage on this Mac; it is never sent to the iPad or included in a project."
+					>
+						Import env file
+					</button>
+				)}
 				<button
 					data-help="Save this key securely on this computer. If a key is already saved, this replaces it."
 					disabled={busy || !key.trim()}

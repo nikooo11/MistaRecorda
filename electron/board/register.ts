@@ -8,6 +8,7 @@ import {
 	app,
 	BrowserWindow,
 	desktopCapturer,
+	dialog,
 	globalShortcut,
 	type IpcMainInvokeEvent,
 	ipcMain,
@@ -34,6 +35,7 @@ import {
 } from "../../src/components/board/whiteboards";
 import { FigureService } from "../figures/service";
 import { FigureSettings } from "../figures/settings";
+import { readOpenAIEnvFile } from "../figures/importKey";
 import { publicURL } from "../figures/sources";
 import { nativeCaptureProcess, selectedSource } from "../ipc/state";
 import { shouldHidePanel, showCapturePanel } from "../panelToggle";
@@ -120,6 +122,7 @@ let companion: CompanionServer, mcp: DrawingMcpServer;
 let displayId = 0;
 let panelTab: BoardInfo["panelTab"] = "draw";
 let pendingPresenterTool: "ai" | "voices" | "sounds" | "memes" | null = null;
+let pendingNotes = false;
 let edgeTimer: ReturnType<typeof setInterval> | undefined;
 let memeInputTimer: ReturnType<typeof setInterval> | undefined;
 let memeInputEnabled = false;
@@ -474,6 +477,16 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			panel?.webContents.send("board:openPresenter", tool);
 			return info();
 		}
+		case "openNotes":
+			pendingNotes = true;
+			await action("edit", undefined, actor);
+			editor?.webContents.send("board:openNotes");
+			return true;
+		case "takeNotesRequest": {
+			const requested = pendingNotes;
+			pendingNotes = false;
+			return requested;
+		}
 		case "takePresenterTool": {
 			const tool = pendingPresenterTool;
 			pendingPresenterTool = null;
@@ -735,6 +748,16 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			return figures.info();
 		case "aiSetKey":
 			return figures.setKey(input);
+		case "aiImportKey": {
+			if (actor !== "desktop") throw Error("Import keys on the Mac in Settings → Setup.");
+			const selection = await dialog.showOpenDialog({
+				title: "Import OpenAI key from an env file",
+				buttonLabel: "Import key",
+				properties: ["openFile", "showHiddenFiles"],
+			});
+			if (selection.canceled || !selection.filePaths[0]) return null;
+			return figures.setKey(await readOpenAIEnvFile(selection.filePaths[0]));
+		}
 		case "aiTestKey":
 			return figures.testKey();
 		case "aiCleanup":
@@ -789,11 +812,13 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		case "saveObjectPreference": {
 			const next = await presenter.update(method, input);
 			// Notes and object settings never enter the recorded scene or bump its revision.
+			send("presenterChanged", next);
 			companion.broadcast("presenterChanged", next);
 			return next;
 		}
 		case "saveCanvasNote": {
 			const next = await presenter.update(method, input);
+			send("presenterChanged", next);
 			companion.broadcast("presenterChanged", next);
 			return next;
 		}
@@ -996,6 +1021,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 					]);
 					send("sceneReset", store.state);
 					companion.broadcast("sceneReset", store.state);
+					send("presenterChanged", presenter.state);
 					companion.broadcast("presenterChanged", presenter.state);
 					publish(actor);
 					if (restored.some((r) => r.status === "rejected"))
@@ -1009,6 +1035,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				}
 				send("sceneReset", store.state);
 				companion.broadcast("sceneReset", store.state);
+				send("presenterChanged", presenter.state);
 				companion.broadcast("presenterChanged", presenter.state);
 				publish(actor);
 				return { state: store.state, presenter: presenter.state, name: bundle.name };
@@ -1294,6 +1321,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				y: item.y,
 				width: item.width,
 				height: item.height,
+				angle: item.angle,
 				stayUntilClicked: item.stayUntilClicked,
 			};
 			send("memeTransform", patch);

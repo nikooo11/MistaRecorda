@@ -289,6 +289,7 @@ export function TabletApp() {
 			<div className="companion-main">
 				{state ? (
 					<BoardCanvas
+						connected={connection === "Connected"}
 						transport={canvasTransport}
 						viewedWhiteboardId={selectedBoard ?? undefined}
 						initial={canvasState!}

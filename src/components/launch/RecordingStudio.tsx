@@ -22,6 +22,7 @@ import {
 	FolderOpenIcon,
 	SpeakerHighIcon,
 	ImageIcon,
+	ListBulletsIcon,
 } from "@phosphor-icons/react";
 import { useAudioLevelMeter } from "../../hooks/useAudioLevelMeter";
 import type { useScreenRecorder } from "../../hooks/useScreenRecorder";
@@ -174,6 +175,12 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 				</h2>
 				<div className="studio-tool-grid">
 					<RecordingZoomControl />
+					<button
+						data-help="Edit talking points on your Mac, then Save points to sync them to your connected iPad. Notes stay off the recording."
+						onClick={() => void window.electronAPI.board.request("openNotes")}
+					>
+						<ListBulletsIcon size={18} /> Notes
+					</button>
 					<button
 						data-help="Open the AI figure assistant. Choose Listen to ask for links, images and presentation ideas from what you say. Nothing is sent to OpenAI until you request it."
 						onClick={() => void window.electronAPI.board.request("openPresenter", "ai")}

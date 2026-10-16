@@ -99,3 +99,16 @@ References:
 - Editing a note retains its group, bindings, rotation and opacity. Changing Shadow in the text draft uses the same group command as the object settings. The private draft takes over focus from the drawing engine's inline editor before typing.
 - TypeScript, scoped Biome lint and 17 targeted tests passed. Simulated iPad playtest edited two grouped notes, revealed both by changing one note, hid both through the other note, then revealed the group through a single selected member's Show on screen button. Clean output displayed the two updated notes while an unrelated private note remained hidden.
 - Production build and Electron main smoke passed. Installed the signed package while the app was closed; strict signature verification passed and installed/package `app.asar` hashes matched. No physical iPad check was performed for this follow-up.
+
+## Shared Mac/iPad editing follow-up — 2026-10-16
+
+- Recording studio → Notes opens the Mac talking-points editor. The same component is available on the Mac drawing surface and iPad.
+- Saved notes, object preferences and imported environments now publish `presenterChanged` to desktop windows as well as connected companions. Notes remain separate from recorded scenes.
+- Save points synchronizes both directions. A newer remote save preserves an unsaved local draft; Use saved version explicitly replaces that draft with the latest saved version.
+- Browser playtest using two real TalkingPoints instances verified Mac-to-iPad and iPad-to-Mac updates, bold bullets and versioned saves. Backend persistence/concurrent-save regressions passed. Screenshots are retained locally in `.tmp/notes-sync-verified.png` and `.tmp/private-placement-verified.png`.
+
+## OpenAI test setup — 2026-10-16
+
+- Setup offers Import env file. A native Mac file picker passes the chosen file to the main process, validates OPENAI_API_KEY and saves it using the existing encrypted storage. The plaintext key is never returned to a renderer, companion or project. Companion requests cannot invoke key import.
+- Env import accepts standard quoted/export syntax, bounds file size, performs no shell evaluation and uses fixed errors that do not echo file contents. Regression tests cover valid import and rejected values.
+- The authorized seven-day test key was written to the confirmed Git-ignored `.env.local`. An authenticated model lookup and a minimal synthetic generation succeeded. In-app import awaits the signed installation and unlocked Mac; the key is not embedded in source or packaged assets.

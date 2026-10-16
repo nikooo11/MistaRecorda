@@ -152,7 +152,7 @@ test("companion may request visuals and sounds but never read/write API credenti
 	const approved = message();
 	await server.approve(p.deviceId);
 	await approved;
-	for (const method of ["aiSetKey", "aiTestKey", "aiAudio"]) {
+	for (const method of ["aiSetKey", "aiImportKey", "aiTestKey", "aiAudio"]) {
 		const rejected = message("error");
 		socket.send(JSON.stringify({ id: 90, method, input: "secret" }));
 		expect(await rejected).toMatchObject({ type: "error", id: 90 });

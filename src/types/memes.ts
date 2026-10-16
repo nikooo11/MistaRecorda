@@ -29,6 +29,7 @@ export interface MemeAsset {
 	soundId: string;
 }
 export interface PlacedMeme {
+	angle?: number;
 	shake?: MemeShake;
 	shakeAt?: number;
 	shadow?: boolean;

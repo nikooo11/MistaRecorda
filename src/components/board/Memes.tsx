@@ -563,7 +563,7 @@ function MemeImage({
 	useEffect(() => {
 		setPosition(item);
 		setKeep(item.stayUntilClicked);
-	}, [item.x, item.y, item.width, item.height, item.stayUntilClicked]);
+	}, [item.x, item.y, item.width, item.height, item.angle, item.stayUntilClicked]);
 	useEffect(
 		() =>
 			transport.on<{
@@ -572,6 +572,7 @@ function MemeImage({
 				y: number;
 				width: number;
 				height: number;
+				angle?: number;
 				stayUntilClicked: boolean;
 			}>("memeTransform", (patch) => {
 				if (patch.id === item.id && !gesture.current?.moved) {
@@ -640,6 +641,7 @@ function MemeImage({
 				top: position.y,
 				width: position.width,
 				height: position.height,
+				transform: `rotate(${position.angle ?? 0}rad)`,
 				pointerEvents: interactive ? "auto" : "none",
 			}}
 		>

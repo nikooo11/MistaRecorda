@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { draftRect, dragObject, scenePoint } from "./objectPlacement";
+import { draftRect, dragObject, scenePoint, objectContainsPoint } from "./objectPlacement";
 import { mergeMemeLibraries } from "./memePreferences";
 import { DEFAULT_MEME_PLAYBACK } from "../../types/memes";
 
@@ -38,6 +38,30 @@ test("fresh canvas origin overrides a moved window without affecting scene coord
 			zoom: 2,
 		}),
 	).toEqual({ x: 140, y: 145 });
+});
+for (const corner of ["nw", "ne", "sw", "se", "n", "s", "e", "w"])
+	test(`tilted ${corner} resize holds its opposite anchor at every zoom`, () => {
+		const angle = Math.PI / 3;
+		const rect = { x: 140, y: 90, width: 240, height: 120, angle };
+		const anchor = (r: typeof rect) => {
+			const dx = ((corner.includes("w") ? 1 : corner.includes("e") ? -1 : 0) * r.width) / 2;
+			const dy = ((corner.includes("n") ? 1 : corner.includes("s") ? -1 : 0) * r.height) / 2;
+			return [
+				r.x + r.width / 2 + dx * Math.cos(angle) - dy * Math.sin(angle),
+				r.y + r.height / 2 + dx * Math.sin(angle) + dy * Math.cos(angle),
+			];
+		};
+		for (const zoom of [0.25, 1, 2.56]) {
+			const result = dragObject(rect, 60 * zoom, 35 * zoom, zoom, corner);
+			expect(result.angle).toBe(angle);
+			expect(result.width / result.height).toBeCloseTo(2);
+			anchor(result as typeof rect).forEach((v, i) => expect(v).toBeCloseTo(anchor(rect)[i]));
+		}
+	});
+test("tilted hit testing ignores empty bounding-box corners and includes rotated edges", () => {
+	const rect = { x: 100, y: 100, width: 200, height: 40, angle: Math.PI / 2 };
+	expect(objectContainsPoint(rect, 200, 30)).toBe(true);
+	expect(objectContainsPoint(rect, 110, 120)).toBe(false);
 });
 test("loading an old project preserves shared sound and effect preferences", () => {
 	const a = {

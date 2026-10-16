@@ -1733,11 +1733,13 @@ html[data-window-type^="board-"] #root {
 }
 .object-deploy-bar {
 	position: absolute;
-	z-index: 45;
+	z-index: 1100;
 	bottom: 76px;
 	left: 50%;
 	transform: translateX(-50%);
 	display: flex;
+	flex-wrap: wrap;
+	width: max-content;
 	gap: 8px;
 	align-items: center;
 	background: #26303e;
@@ -1769,6 +1771,51 @@ html[data-window-type^="board-"] #root {
 	background: #3565db;
 	border-color: #6689f1;
 	font-weight: 600;
+}
+.draft-handle.n {
+	left: calc(50% - 14px);
+	top: -14px;
+	cursor: ns-resize;
+}
+.draft-handle.s {
+	left: calc(50% - 14px);
+	bottom: -14px;
+	cursor: ns-resize;
+}
+.draft-handle.e {
+	right: -14px;
+	top: calc(50% - 14px);
+	cursor: ew-resize;
+}
+.draft-handle.w {
+	left: -14px;
+	top: calc(50% - 14px);
+	cursor: ew-resize;
+}
+.object-draft .draft-handle.rotate {
+	left: calc(50% - 18px);
+	top: -56px;
+	width: 36px;
+	height: 36px;
+	color: white;
+	font-size: 24px;
+	cursor: grab;
+}
+.draft-handle::after {
+	content: "";
+	position: absolute;
+	inset: -8px;
+}
+.draft-tilt {
+	display: grid;
+	gap: 3px;
+	font-size: 12px;
+	width: 120px;
+}
+.draft-tilt input {
+	width: 100%;
+	min-height: 28px;
+	accent-color: #8daaff;
 }
 .meme-live-menu {
 	position: fixed;

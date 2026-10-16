@@ -18,3 +18,12 @@
 - Signed package and installed signature verified with the existing persistent local identity. No new privacy permissions or drivers required.
 - Physical Apple Pencil gestures and Mac transparent-overlay drag/right-click are not covered by the browser test and remain unverified. Single-window screen shake compiles through the shared compositor but was not separately recorded in this playtest.
 - User requested facecam remain off during testing. Launch scene preparation now explicitly leaves the camera off; manually recalling a scene still honors its camera setting. The startup regression test verifies no `webcam-on` command is emitted. The test recording is saved as `QA meme staging and shake`.
+
+## Private image placement follow-up — 2026-10-16
+
+- Clicking/tapping outside a private draft or pressing Escape cancels locally, including while disconnected. A canvas cancellation consumes the pointer-down so it cannot start an ink stroke. Offline deployment is disabled while move, resize, tilt and Cancel remain available.
+- Eight edge/corner handles preserve aspect ratio. The rotation handle and Tilt slider use radians internally; rotated resizing keeps the opposite anchor fixed. Native desktop hit-testing follows the rotated shape, and saved meme geometry retains tilt.
+- Standby images now use the same drag-from-tray, private preview and Deploy workflow. Imported images also preview before deployment. Starting width stays around 240 CSS pixels regardless of canvas zoom. Deployment explicitly waits for the Mac save acknowledgement, including in Pan & Zoom mode, without enabling freehand drawing.
+- Placement controls sit above floating menus so Actions cannot hide Cancel/Deploy.
+- Validation: TypeScript passed; full suite 184 files / 1,424 tests passed. Real browser pointer drags tested moving, resizing before/after tilt, dragging a meme and standby image out of their trays, offline cancellation, and saved tilted image placement in Pan & Zoom at 155% zoom. Geometry regressions cover zoom 0.25–5 and all eight tilted resize anchors. This is browser companion validation, not physical Apple Pencil verification.
+- Production renderer/main build and Electron startup smoke passed. The local signed package attempt was blocked by macOS Keychain (`errSecInternalComponent`) while the Mac was locked; installation awaits an unlocked Mac. Facecam was kept off.

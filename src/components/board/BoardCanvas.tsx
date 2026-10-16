@@ -31,6 +31,7 @@ import type { MemeTransition } from "../../types/memes";
 import type { MemeAsset } from "../../types/memes";
 import { MemeLayer, MemeLibrary } from "./Memes";
 import { ObjectDraft } from "./ObjectDraft";
+import { MemePreviewButton } from "./MemePreviewButton";
 import { draftRect, scenePoint, type ObjectRect } from "./objectPlacement";
 import "@excalidraw/excalidraw/index.css";
 import "./board.css";
@@ -77,7 +78,9 @@ export function BoardCanvas({
 	onEnableDrawing,
 	extraControls,
 	viewedWhiteboardId,
+	connected = true,
 }: {
+	connected?: boolean;
 	viewedWhiteboardId?: string;
 	extraControls?: (flush: () => Promise<void>) => React.ReactNode;
 	transport: BoardAPI;
@@ -120,6 +123,19 @@ export function BoardCanvas({
 	}, [tablet, drawing, api]);
 	const [error, setError] = useState("");
 	const [notesRequest, setNotesRequest] = useState(0);
+	useEffect(() => {
+		if (tablet || clean) return;
+		const read = () =>
+			void transport
+				.request<boolean>("takeNotesRequest")
+				.then((requested) => {
+					if (requested) setNotesRequest((n) => n + 1);
+				})
+				.catch(() => undefined);
+		const off = transport.on("openNotes", read);
+		read();
+		return off;
+	}, [transport, tablet, clean]);
 	const [assets, setAssets] = useState(false);
 	const [ai, setAi] = useState(false);
 	const [sounds, setSounds] = useState(false);
@@ -533,9 +549,10 @@ export function BoardCanvas({
 					x: objectDraft.x,
 					y: objectDraft.y,
 					width: objectDraft.width,
+					angle: objectDraft.angle,
 				});
 			else if (pendingImage) {
-				placeImage(
+				await placeImage(
 					pendingImage.object.id,
 					pendingImage.width,
 					pendingImage.height,
@@ -543,7 +560,6 @@ export function BoardCanvas({
 					objectDraft.width,
 					pendingImage.object,
 				);
-				await flush();
 			}
 			setPendingMeme(undefined);
 			setPendingImage(undefined);
@@ -637,13 +653,56 @@ export function BoardCanvas({
 		api.addFiles([
 			{ id, dataURL, mimeType: file.type, created: Date.now() },
 		] as BinaryFileData[]);
-		placeImage(id, image.width, image.height);
+		await startImageDraft(id, dataURL, {
+			id,
+			kind: "image",
+			name: file.name,
+			preview: dataURL,
+			detail: "Imported image",
+		});
 	}
-	function placeImage(
+	async function startImageDraft(
+		fileId: string,
+		dataURL: string,
+		object?: PresenterObject,
+		client?: PlacementPoint,
+	) {
+		if (!api) return;
+		const image = new Image();
+		image.src = dataURL;
+		await image.decode();
+		const box = stage.current!.getBoundingClientRect();
+		setPendingMeme(undefined);
+		setPendingCard(undefined);
+		setPendingChart(undefined);
+		setObjectDraft(
+			draftRect(
+				client?.x ?? box.left + box.width / 2,
+				client?.y ?? box.top + box.height / 2,
+				image.width / image.height,
+				canvasView(),
+				Math.min(240, box.width * 0.3),
+			),
+		);
+		setPendingImage({
+			object: object ?? {
+				id: fileId,
+				kind: "image",
+				name: "Standby image",
+				preview: dataURL,
+				detail: "Saved image",
+			},
+			width: image.width,
+			height: image.height,
+		});
+		setAssets(false);
+		setError("");
+	}
+	async function placeImage(
 		fileId: string,
 		width = 320,
 		height = 240,
-		point?: { x: number; y: number },
+		point?: { x: number; y: number; angle?: number },
 		placedWidth?: number,
 		object?: PresenterObject,
 	) {
@@ -665,26 +724,29 @@ export function BoardCanvas({
 				y: point?.y ?? -view.scrollY + 120 / view.zoom.value,
 				width: w,
 				height: (w * height) / width,
+				angle: point?.angle ?? 0,
 			},
 		] as Parameters<typeof convertToExcalidrawElements>[0]);
-		api.updateScene({
-			elements: restoreElements(
-				[
-					...api.getSceneElements(),
-					...element.map((e) =>
-						object
-							? setShadow(e as unknown as BoardElement, !!object.shadow, object.enter)
-							: e,
-					),
-				] as Parameters<typeof restoreElements>[0],
-				null,
-			),
-			appState: {
-				selectedElementIds: Object.fromEntries(element.map((e) => [e.id, true])),
-				selectedGroupIds: {},
-			},
-			captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+		const additions = element.map((e) =>
+			object
+				? setShadow(e as unknown as BoardElement, !!object.shadow, object.enter)
+				: (e as unknown as BoardElement),
+		);
+		const scene: BoardScene = {
+			...current.current.scenes[modeRef.current],
+			elements: [...current.current.scenes[modeRef.current].elements, ...additions],
+			files: api.getFiles() as BoardScene["files"],
+		};
+		// Explicit placement works in Pan & zoom without allowing pencil strokes.
+		// Keep the private draft until the Mac acknowledges the saved image.
+		const mode = modeRef.current;
+		const reply = await transport.request<{ revision: number }>("scene", {
+			mode,
+			scene: { ...scene, files: newSceneFiles(scene, current.current.scenes[mode].files) },
+			revision: current.current.revision,
 		});
+		last.current = "";
+		apply(mergeScenePatch(current.current, { mode, scene, revision: reply.revision }));
 	}
 	async function usePresenterObject(object: PresenterObject, client?: PlacementPoint) {
 		if (!api) throw Error("The canvas is still loading. Try again in a moment.");
@@ -713,20 +775,7 @@ export function BoardCanvas({
 		} else if (object.kind === "image") {
 			const file = current.current.assets[object.id];
 			if (!file) throw Error("This image is no longer available.");
-			const image = new Image();
-			image.src = file.dataURL;
-			await image.decode();
-			const box = stage.current!.getBoundingClientRect();
-			setObjectDraft(
-				draftRect(
-					client?.x ?? box.left + box.width / 2,
-					client?.y ?? box.top + box.height / 2,
-					image.width / image.height,
-					canvasView(),
-					Math.min(240, box.width * 0.3),
-				),
-			);
-			setPendingImage({ object, width: image.width, height: image.height });
+			await startImageDraft(file.id, file.dataURL, object, client);
 		} else {
 			if (point) placeCard(object, point);
 			else setPendingCard(object);
@@ -1049,22 +1098,6 @@ export function BoardCanvas({
 			ref={stage}
 			data-board-ready={clean && api ? "true" : undefined}
 			onPointerDownCapture={(event) => {
-				if (
-					(pendingMeme || pendingImage) &&
-					objectDraft &&
-					api &&
-					event.target instanceof HTMLCanvasElement
-				) {
-					event.preventDefault();
-					event.stopPropagation();
-					const point = memeCoordinates(event.clientX, event.clientY);
-					setObjectDraft({
-						...objectDraft,
-						x: point.x - objectDraft.width / 2,
-						y: point.y - objectDraft.height / 2,
-					});
-					return;
-				}
 				if (pendingChart && api && event.target instanceof HTMLCanvasElement) {
 					event.preventDefault();
 					event.stopPropagation();
@@ -1569,6 +1602,7 @@ export function BoardCanvas({
 					top={fit.top + (objectDraft.y + memeView.y) * memeView.zoom}
 					onChange={setObjectDraft}
 					busy={deploying}
+					connected={connected}
 					onDeploy={() => void deployDraft()}
 					onCancel={() => {
 						setPendingMeme(undefined);
@@ -1596,9 +1630,9 @@ export function BoardCanvas({
 					· Cancel
 				</button>
 			)}
-			{!clean && tablet && (
+			{!clean && (
 				<TalkingPoints
-					dock
+					dock={tablet}
 					openRequest={notesRequest}
 					transport={transport}
 					state={state}
@@ -1627,9 +1661,7 @@ export function BoardCanvas({
 						style={{
 							left: dragGhost.point.x,
 							top: dragGhost.point.y,
-							width:
-								((state.width * (dragGhost.object.widthPercent ?? 30)) / 100) *
-								memeView.zoom,
+							width: Math.min(240, (stage.current?.clientWidth ?? 800) * 0.3),
 						}}
 					/>
 				) : (
@@ -2090,21 +2122,42 @@ export function BoardCanvas({
 			{!clean && assets && (
 				<aside className="board-assets" aria-label="Standby images">
 					<p>
-						Tap an image to place another copy. Use Excalidraw’s Library for reusable
-						shapes and grouped drawings.
+						Tap or drag an image onto the canvas. Move, resize and tilt the private
+						preview, then Deploy.
 					</p>
-					{Object.values(state.assets).map((f) => (
-						<button
+					{Object.values(state.assets).map((f, index) => (
+						<MemePreviewButton
 							key={f.id}
-							title="Place image"
-							onClick={() => {
-								const image = new Image();
-								image.onload = () => placeImage(f.id, image.width, image.height);
-								image.src = f.dataURL;
+							asset={{
+								name: `Standby image ${index + 1}`,
+								dataURL: f.dataURL,
+								soundId: "",
 							}}
-						>
-							<img src={f.dataURL} alt="Saved drawing asset" />
-						</button>
+							onClick={() =>
+								void startImageDraft(f.id, f.dataURL).catch((e) =>
+									setError(String(e)),
+								)
+							}
+							onDragPreview={(point) =>
+								setDragGhost({
+									object: {
+										id: f.id,
+										kind: "image",
+										name: "Standby image",
+										preview: f.dataURL,
+										detail: "Saved image",
+									},
+									point,
+								})
+							}
+							onDragCancel={() => setDragGhost(undefined)}
+							onDrop={(point) => {
+								setDragGhost(undefined);
+								void startImageDraft(f.id, f.dataURL, undefined, point).catch((e) =>
+									setError(String(e)),
+								);
+							}}
+						/>
 					))}
 				</aside>
 			)}

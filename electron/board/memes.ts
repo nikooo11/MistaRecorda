@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { BoardMode, BoardState } from "../../src/types/board";
 import { bundledMemeFromURL } from "../../src/lib/bundledMemes";
 import { DEFAULT_MEME_PLAYBACK } from "../../src/types/memes";
+import { objectContainsPoint } from "../../src/components/board/objectPlacement";
 
 const transition = z.enum(["none", "fade", "spin", "fall"]);
 export const memeShakeSchema = z.object({
@@ -10,6 +11,7 @@ export const memeShakeSchema = z.object({
 	durationMs: z.number().int().min(100).max(2000),
 });
 const point = z.number().finite().min(-1e7).max(1e7);
+const angle = z.number().finite().min(-Math.PI).max(Math.PI);
 export const memeSchema = z.object({
 	edited: z.boolean().optional(),
 	shake: memeShakeSchema.optional(),
@@ -41,6 +43,7 @@ export const memeSchema = z.object({
 	soundId: z.union([z.literal(""), z.string().uuid()]).default(""),
 });
 export const placedMemeSchema = z.object({
+	angle: angle.optional(),
 	shake: memeShakeSchema.optional(),
 	shakeAt: z.number().nonnegative().optional(),
 	shadow: z.boolean().optional(),
@@ -94,6 +97,7 @@ export function placeMeme(state: BoardState, input: unknown) {
 			x: point,
 			y: point,
 			width: z.number().positive().max(4000),
+			angle: angle.optional(),
 			shadow: z.boolean().optional(),
 		})
 		.parse(input);
@@ -118,6 +122,7 @@ export function placeMeme(state: BoardState, input: unknown) {
 		x: data.x,
 		y: data.y,
 		width: data.width,
+		angle: data.angle,
 		height: Math.min(20000, (data.width * asset.height) / asset.width),
 		placedAt: Date.now(),
 		enter: asset.enter,
@@ -147,10 +152,7 @@ export function memeAtPoint(state: BoardState, x: number, y: number, now = Date.
 			m.removedAt === undefined &&
 			(m.stayUntilClicked || now < m.placedAt + m.durationSeconds * 1000) &&
 			state.memes?.some((a) => a.id === m.assetId) &&
-			sceneX >= m.x &&
-			sceneX <= m.x + m.width &&
-			sceneY >= m.y &&
-			sceneY <= m.y + m.height
+			objectContainsPoint(m, sceneX, sceneY)
 		)
 			return m;
 	}
@@ -190,6 +192,7 @@ export function updatePlacedMeme(state: BoardState, input: unknown) {
 			x: point.optional(),
 			y: point.optional(),
 			width: z.number().min(16).max(4000).optional(),
+			angle: angle.optional(),
 			keep: z.boolean().optional(),
 		})
 		.parse(input);
@@ -199,6 +202,7 @@ export function updatePlacedMeme(state: BoardState, input: unknown) {
 		x: patch.x ?? item.x,
 		y: patch.y ?? item.y,
 		width: patch.width ?? item.width,
+		angle: patch.angle ?? item.angle,
 		height: patch.width ? (patch.width * item.height) / item.width : item.height,
 	};
 	for (const list of [
