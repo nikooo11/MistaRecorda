@@ -106,9 +106,12 @@ References:
 - Saved notes, object preferences and imported environments now publish `presenterChanged` to desktop windows as well as connected companions. Notes remain separate from recorded scenes.
 - Save points synchronizes both directions. A newer remote save preserves an unsaved local draft; Use saved version explicitly replaces that draft with the latest saved version.
 - Browser playtest using two real TalkingPoints instances verified Mac-to-iPad and iPad-to-Mac updates, bold bullets and versioned saves. Backend persistence/concurrent-save regressions passed. Screenshots are retained locally in `.tmp/notes-sync-verified.png` and `.tmp/private-placement-verified.png`.
+- Installed Mac smoke test confirmed the studio's Notes button opens the talking-points editor. Existing notes were not modified. Facecam remained off.
 
 ## OpenAI test setup — 2026-10-16
 
 - Setup offers Import env file. A native Mac file picker passes the chosen file to the main process, validates OPENAI_API_KEY and saves it using the existing encrypted storage. The plaintext key is never returned to a renderer, companion or project. Companion requests cannot invoke key import.
 - Env import accepts standard quoted/export syntax, bounds file size, performs no shell evaluation and uses fixed errors that do not echo file contents. Regression tests cover valid import and rejected values.
-- The authorized seven-day test key was written to the confirmed Git-ignored `.env.local`. An authenticated model lookup and a minimal synthetic generation succeeded. In-app import awaits the signed installation and unlocked Mac; the key is not embedded in source or packaged assets.
+- The authorized seven-day test key was written to the confirmed Git-ignored `.env.local`. An authenticated model lookup and a minimal synthetic generation succeeded. After installing the signed update, the native Setup file picker imported that file into encrypted app storage (mode 0600), and Test connection displayed **Connection verified**. The key is not embedded in source or packaged assets.
+- Native playtesting caught an actor mismatch: trusted IPC requests use `desktop:<window ID>`, but import previously accepted only `desktop`. Import now accepts the main-process desktop actor formats and rejects companion/agent actors before opening a picker. The regression verifies both valid desktop forms, denied callers and cancellation without saving.
+- Final automated checks: TypeScript, repository lint, all 1,425 tests in 184 files, production build and Electron startup smoke passed. The Linux camera-origin test runs with recording inactive; production camera behavior is unchanged. GitHub quality checks passed for the preceding camera/lint fixes.

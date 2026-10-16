@@ -35,7 +35,7 @@ import {
 } from "../../src/components/board/whiteboards";
 import { FigureService } from "../figures/service";
 import { FigureSettings } from "../figures/settings";
-import { readOpenAIEnvFile } from "../figures/importKey";
+import { importOpenAIKey } from "../figures/importKey";
 import { publicURL } from "../figures/sources";
 import { nativeCaptureProcess, selectedSource } from "../ipc/state";
 import { shouldHidePanel, showCapturePanel } from "../panelToggle";
@@ -749,14 +749,18 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		case "aiSetKey":
 			return figures.setKey(input);
 		case "aiImportKey": {
-			if (actor !== "desktop") throw Error("Import keys on the Mac in Settings → Setup.");
-			const selection = await dialog.showOpenDialog({
-				title: "Import OpenAI key from an env file",
-				buttonLabel: "Import key",
-				properties: ["openFile", "showHiddenFiles"],
-			});
-			if (selection.canceled || !selection.filePaths[0]) return null;
-			return figures.setKey(await readOpenAIEnvFile(selection.filePaths[0]));
+			return importOpenAIKey(
+				actor,
+				async () => {
+					const selection = await dialog.showOpenDialog({
+						title: "Import OpenAI key from an env file",
+						buttonLabel: "Import key",
+						properties: ["openFile", "showHiddenFiles"],
+					});
+					return selection.canceled ? undefined : selection.filePaths[0];
+				},
+				(key) => figures.setKey(key),
+			);
 		}
 		case "aiTestKey":
 			return figures.testKey();
