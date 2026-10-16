@@ -7,6 +7,7 @@ import { bundledMemes, bundledMemeURL } from "../../src/lib/bundledMemes";
 import { emptyBoardState } from "../../src/types/board";
 import { emptyPresenterDocument } from "../../src/types/presenter";
 import { seedDefaultMemes } from "./defaultMemes";
+import { defaultSounds } from "../studio/defaultSounds";
 import { BoardStore } from "./store";
 import { gifSize } from "./gifSize";
 import { memeSchema, placeMeme } from "./memes";
@@ -28,9 +29,9 @@ async function directory() {
 	return dir;
 }
 
-test("all 25 bundled GIFs are intact, tagged, and only Fahhh has audio", async () => {
-	expect(bundledMemes).toHaveLength(25);
-	expect(new Set(bundledMemes.map((m) => m.id)).size).toBe(25);
+test("all 42 bundled GIFs are intact, tagged, and paired memes reference bundled sounds", async () => {
+	expect(bundledMemes).toHaveLength(42);
+	expect(new Set(bundledMemes.map((m) => m.id)).size).toBe(42);
 	for (const m of bundledMemes) {
 		const bytes = await fs.readFile(path.join(assets, m.asset));
 		expect(createHash("sha256").update(bytes).digest("hex")).toBe(m.sha256);
@@ -39,7 +40,38 @@ test("all 25 bundled GIFs are intact, tagged, and only Fahhh has audio", async (
 		expect(m.description.length).toBeGreaterThan(20);
 	}
 	const state = await seedDefaultMemes(emptyBoardState(), assets);
-	expect(state.memes?.filter((m) => m.soundId).map((m) => m.name)).toEqual(["Fahhh"]);
+	const voiced = state.memes!.filter((m) => m.soundId);
+	expect(voiced.map((m) => m.name)).toEqual([
+		"Fahhh",
+		"Black Cat Slow Clap",
+		"Mike Evans Who Are You",
+		"Math Not Mathing",
+		"Chill Guy",
+		"Moo Deng Tantrum",
+		"MJ Laugh",
+		"Picard Facepalm",
+		"Scrib Doon",
+		"PLL A Text",
+		"What the Hell",
+		"Eye Roll",
+		"Are You Kidding Me",
+		"Blinking Guy",
+		"Shocked Pikachu",
+		"This Is Fine",
+		"Sarcastic Thumbs Up",
+		"Mic Drop",
+	]);
+	// Memes share soundboard clips by ID instead of bundling duplicate audio.
+	const soundOf = (name: string) => voiced.find((m) => m.name === name)?.soundId;
+	expect(soundOf("Picard Facepalm")).toBe(soundOf("Fahhh"));
+	expect(soundOf("Math Not Mathing")).toBe(soundOf("Eye Roll"));
+	expect(new Set(defaultSounds.map((s) => s.sha256)).size).toBe(defaultSounds.length);
+	for (const meme of voiced) {
+		const sound = defaultSounds.find((s) => s.id === meme.soundId);
+		expect(sound).toBeDefined();
+		// Paired memes stay on screen at least as long as their clip plays.
+		expect(meme.durationSeconds * 1000).toBeGreaterThanOrEqual(sound!.durationMs);
+	}
 	expect(state.memes?.[0].soundId).toBe("8c4c2b71-3d8a-41f5-9a42-000000000001");
 	expect(JSON.stringify(state).length).toBeLessThan(40_000);
 	expect(
@@ -48,7 +80,9 @@ test("all 25 bundled GIFs are intact, tagged, and only Fahhh has audio", async (
 				m.enter === "none" &&
 				m.exit === "spin" &&
 				!m.stayUntilClicked &&
-				m.durationSeconds === 3,
+				(voiced.includes(m) && m.name !== "Fahhh"
+					? m.durationSeconds >= 3
+					: m.durationSeconds === 3),
 		),
 	).toBe(true);
 	expect(
@@ -97,9 +131,9 @@ test("restart and explicit restore preserve names, audio removal, loves and favo
 	await reopened.load();
 	const unchanged = await seedDefaultMemes(reopened.state, assets);
 	expect(unchanged).toBe(reopened.state);
-	expect(unchanged.memes).toHaveLength(24);
+	expect(unchanged.memes).toHaveLength(41);
 	const restored = await seedDefaultMemes(unchanged, assets, true);
-	expect(restored.memes).toHaveLength(25);
+	expect(restored.memes).toHaveLength(42);
 	expect(restored.memes?.find((m) => m.id === fahhh.id)).toMatchObject({
 		name: "My Fahhh",
 		soundId: "",
@@ -155,7 +189,7 @@ test("loves sort globally; preparation favorites survive start/pause but reset a
 });
 test("saved environment carries favorites while importing cannot replace personal loves", async () => {
 	const state = await seedDefaultMemes(emptyBoardState(), assets);
-	state.memes![0].soundId = "";
+	for (const meme of state.memes!) meme.soundId = "";
 	state.memes![0].loved = true;
 	state.favoriteMemeIds = [state.memes![1].id];
 	const bundle = validatePresentationBundle(
@@ -176,5 +210,5 @@ test("saved environment carries favorites while importing cannot replace persona
 	const merged = mergeMemeLibraries(state.memes!, [{ ...state.memes![0], loved: false }, other]);
 	expect(merged.find((m) => m.id === state.memes![0].id)?.loved).toBe(true);
 	expect(merged.find((m) => m.id === other.id)?.loved).toBe(false);
-	expect(merged).toHaveLength(26);
+	expect(merged).toHaveLength(43);
 });

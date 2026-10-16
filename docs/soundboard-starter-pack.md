@@ -124,3 +124,47 @@ results, metadata-only upload, cancellation and hosted-session cleanup. See the
 - The signed-app local installer was rebuilt at
   `release/MistaRecorda-local-arm64.pkg`. Its installer container is local-only
   (not signed/notarized for public distribution).
+
+## GIF + audio meme packs (2026-10-16)
+
+Seventeen GIFs from the user's `meme-pack` and `meme-pack-2` downloads, each with a
+paired sound. Each distinct clip is added once to the soundboard (IDs `…000000000008`–`…000000000022`),
+and memes point to soundboard sounds by ID. Memes that share a sound share one clip,
+so there are no duplicate files:
+
+- Pack 1's Fahh clip (used by both Math Not Mathing and Picard Facepalm) is a version
+  of the existing **Fahhhhh**. Picard Facepalm uses Fahhhhh, and that clip is not imported.
+- Math Not Mathing uses **Bruh**, the sound originally intended for it, which it shares with Eye Roll.
+- Pack 2's README lists `-alt` clips in pack 1 (Scrib doon, Bruh, Bow Bow Bow, Sad violin).
+  They were not in the downloaded folder and are not imported.
+
+| Meme | Sound | Clip | On-screen duration |
+| --- | --- | ---: | ---: |
+| Black Cat Slow Clap | Slow Clap | 6.90 s | 6.9 s |
+| Mike Evans Who Are You | Who Are You | 2.90 s | 4.8 s |
+| Math Not Mathing | Bruh | 0.77 s | 3 s |
+| Chill Guy | Chill Guy | 6.90 s | 6.9 s |
+| Moo Deng Tantrum | Moo Deng Tantrum | 3.08 s | 3.6 s |
+| MJ Laugh | MJ Laugh | 9.50 s | 9.5 s |
+| Picard Facepalm | Fahhhhh | 1.86 s | 3 s |
+| Scrib Doon | Scrib Doon | 4.06 s | 4.1 s |
+| PLL A Text | Dun Dun | 3.00 s | 3 s |
+| What the Hell | Emotional Damage | 8.00 s | 8 s |
+| Eye Roll | Bruh | 0.77 s | 3 s |
+| Are You Kidding Me | Oh My God Wow | 2.10 s | 3 s |
+| Blinking Guy | Crickets | 2.95 s | 3 s |
+| Shocked Pikachu | Nani | 3.10 s | 3.1 s |
+| This Is Fine | Think Music | 2.80 s | 3 s |
+| Sarcastic Thumbs Up | Boo-Womp | 1.27 s | 3 s |
+| Mic Drop | Airhorn | 2.90 s | 3 s |
+
+These memes stay on screen for the longer of their GIF and their clip (minimum 3 s),
+so the sound is never cut short. Other memes keep the 3 s default. Presenters can change
+a meme's sound or turn it off at any time (⚙ → Sound on placement). Clips use the same
+stereo 48 kHz PCM WAV format with 3 ms edge fades. GIFs over 500 KB are reduced only
+when that saves space. Existing installs get the additions on next launch, and removed
+defaults stay removed. Rebuild with:
+
+```sh
+node scripts/build-meme-packs.mjs /path/to/meme-pack /path/to/meme-pack-2
+```
