@@ -1944,3 +1944,36 @@ html[data-window-type^="board-"] #root {
 	padding: 8px 0;
 	cursor: pointer;
 }
+
+/* Private reference layout is local to the tablet, never the clean Mac canvas. */
+.board-tablet .talking-panel.tablet-floating-panel {
+	width: min(560px, calc(100vw - 70px));
+	overflow: hidden;
+}
+.board-tablet .talking-panel .tablet-panel-handle {
+	flex-shrink: 0;
+}
+.board-tablet .talking-panel .tablet-panel-handle button {
+	min-width: 44px;
+	min-height: 44px;
+}
+.board-tablet .talking-panel > nav {
+	padding: 4px;
+	gap: 4px;
+}
+.board-tablet .talking-panel > nav button {
+	min-height: 44px;
+}
+.board-tablet .talking-panel .talking-content {
+	flex: 1;
+	min-width: 0;
+}
+.board-tablet .talking-panel.tablet-panel-fullscreen {
+	max-width: none;
+	max-height: none;
+}
+.board-tablet .talking-panel .private-pdf-panel :is(button, select, input[type="number"]),
+.board-tablet .talking-panel .presenter-upload {
+	min-height: 44px;
+	min-width: 44px;
+}

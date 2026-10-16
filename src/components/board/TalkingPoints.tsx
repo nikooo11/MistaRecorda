@@ -235,7 +235,8 @@ export function TalkingPoints({
 			)}
 			{open && (
 				<aside
-					className={`talking-panel ${tab === "pdf" ? "pdf-open" : ""}`}
+					className="talking-panel"
+					data-pdf-open={tab === "pdf"}
 					aria-label="Points to talk about"
 				>
 					<header>

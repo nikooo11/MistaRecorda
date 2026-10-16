@@ -518,7 +518,7 @@
 	min-width: 20px;
 	min-height: 20px;
 }
-.talking-panel.pdf-open {
+.talking-panel[data-pdf-open="true"] {
 	width: min(560px, calc(100% - 24px));
 }
 .pdf-object-preview {

@@ -1,20 +1,59 @@
-# iPad private reference reader — work in progress
+# iPad private reference reader
 
-The user wants the PDF to remain viewable on iPad with tabs for PDFs and talking points. The reference panel should be movable/minimizable, or expand to fill the iPad for easy reading while presenting. It must stay private and never change the recorded Mac canvas. Keep the user's facecam OFF. Do not interrupt a recording.
+Implementation completed from WIP commit `34fd609` on base `ee16ba8`.
 
-Base: main ee16ba83d713d5848accefa2830c3c71a25d61c3. That version is installed on the user's Mac, signed, pushed, and passed 1,435 tests and GitHub CI. It already has synced private PDFs, named talking-point sets, PDF page/zoom/search/thumbnails, and AI presentation drafts. See docs/pdf-presentation-plan.md and docs/pdf-presentation-validation.md.
+## Behavior
 
-This branch contains an INCOMPLETE first edit in src/components/board/tabletPanels.ts. It adds an expand control only for the Points to talk about panel and uses the existing non-unmounting collapse/restore mechanism. Do not merge as-is; finish and playtest it.
+- The private reference panel has PDFs and Talking points tabs, a draggable handle,
+  a full-screen/return control, and a minimize control. The Notes side button restores
+  the same mounted panel, including full-screen mode when minimized there.
+- React keeps a stable panel class; PDF tab sizing uses `data-pdf-open`, so tab
+  changes cannot remove the hook's floating, collapsed, or full-screen classes.
+- Full-screen dimensions follow the board stage, including rotation. Header controls
+  and tabs remain outside the scrolling content. Reference controls have touch targets.
+- The PDF viewer observes nonzero container widths, cancels superseded pdf.js renders,
+  and rerenders at the current page/zoom. Resizing preserves the relative scroll position
+  on the same page. Hidden tabs and minimized panels stay mounted, retaining the selected
+  PDF, unsaved notes and unapplied draft edits. Each PDF retains its own page and zoom.
+- New controls use the existing three-second hover help. Other panels get generic
+  collapse help rather than instructions to use Notes.
+- Layout is device-local. No recording, webcam, presented scene, store schema, or
+  transport permission changes were made. `BoardCanvas` mounts TalkingPoints only
+  when `!clean`; the recorded board surface uses `clean`.
 
-Remaining work:
+## Cloud validation
 
-- Add tablet-panel-fullscreen CSS in board.css, overriding the floating panel's width/max-width/max-height limits. The hook sets explicit dimensions from the board stage bounds. Keep header controls and PDF/Talking points tabs visible; touch-friendly, compact, no overlap. Expanded mode should provide a comfortable reading area and preserve a way back to the movable panel. Minimize via side Notes button; preserve PDF selection, page, zoom, draft, and unsaved notes.
-- Fix TalkingPoints.tsx's dynamically rewritten className (`talking-panel pdf-open`): React tab changes can overwrite the classes added imperatively by useTabletPanels. Use a stable className with a data-pdf-open attribute and adjust presenter.css's `.talking-panel.pdf-open` selector.
-- Add a ResizeObserver to PrivatePDFPanel's viewer container and rerender PDF at its current width when expanding/restoring, showing a previously hidden tab, or rotating the iPad. Current render dependencies only include pdf/page/zoom/selected. Ignore zero width while hidden and cancel prior pdf.js renders. Preserve reading position.
-- Review the new generic toggle help text in tabletPanels.ts: it currently mentions Notes for ALL panels and must be restricted to the private reference panel or generalized appropriately. Add clear 3-second hover help to new controls using existing data-help mechanism.
-- Test tab switching, minimize/restore, full screen/restore, drag, portrait/landscape/small viewport, PDF page/zoom retention, and notes edits syncing between two clients. Confirm none of this changes recording state. Existing clean BoardCanvas does not mount TalkingPoints. No new API credentials or paid API calls needed.
-- Run typecheck, lint, relevant tests and build. Push final tested changes and merge main under the user's standing authorization. Do not claim physical iPad or native macOS verification from a Linux/cloud runner. Leave local signing/install for when the user's Mac is open again.
+A disposable Vite fixture used the actual TalkingPoints, PrivatePDFPanel,
+useTabletPanels, HoverHelp, PresenterStore and PresentationPDFStore. Separate simulated
+Mac and touch-enabled tablet pages shared a test HTTP/event transport, with a synthetic
+three-page PDF and an in-memory synthetic ready draft. No AI calls, credentials or
+private user documents were used. This is a UI/store integration check, not physical
+pairing or a macOS recording check.
 
-Useful files: src/components/board/TalkingPoints.tsx, PrivatePDFPanel.tsx, presenter.css, tabletPanels.ts, board.css, BoardCanvas.tsx; electron/board/presenter.ts, presentationPDF.ts. The iPad uses useTabletPanels(stage, tablet && !clean) and TalkingPoints dock={tablet}, with Notes openRequest. Existing panel state is local, separate from shared document state.
+Browser assertions passed for:
 
-The user's Mac has ignored .tmp/pdf-qa-server.ts and .tmp/pdf-qa.tsx fixtures, unavailable in cloud. Build an equivalent disposable local fixture if needed using real PresenterStore/PresentationPDFStore, mock transport and a synthetic PDF. No secrets or private PDFs should be committed. The repository is https://github.com/nikooo11/MistaRecorda.git.
+- Mac import and tablet viewing; multiple PDFs and per-PDF page/zoom retention.
+- PDF/Talking points tab switching without losing imperative panel classes.
+- Unapplied draft edits and unsaved talking points retained across tab changes and
+  minimize/restore; bidirectional saved-note sync and named note-set sync.
+- Full-screen/return, Notes minimize/restore, keyboard movement and pointer dragging.
+- Landscape 1194×834, portrait 834×1194 and narrow 390×844 sizing; PDF width responds.
+- Three-second hover help; other floating panels collapse without reference-only controls.
+- No recording, canvas mutation or webcam requests from these interactions; no page errors.
+
+Checks: typecheck, lint (44 existing warnings), all 1,435 Vitest tests, production Vite
+renderer/main/preload build, Electron CJS normalization and smoke check passed.
+The restricted runner required system FFmpeg in place of the uninstalled npm binary
+and a test-only loopback fallback for unavailable `os.networkInterfaces()`. Neither
+workaround changes repository code. GitHub CI runs without that fallback.
+
+The full `npm run build` packaging pipeline stops at the missing CMake requirement
+for the native Whisper runtime in this runner. The production JavaScript bundles
+build successfully. Native packaging/signing is deferred.
+
+## Remaining local checks
+
+When the Mac is open, build/sign/install locally and test physical iPad Safari pairing,
+real portrait/landscape rotation, touch dragging, the on-screen keyboard and a live
+recording. Confirm private reference controls stay absent from the recorded output
+and that facecam remains OFF. No installation on the user's Mac was attempted in cloud.
