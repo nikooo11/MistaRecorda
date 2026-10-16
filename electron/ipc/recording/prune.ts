@@ -114,6 +114,14 @@ async function loadSavedProjectMediaPaths() {
 	return protectedPaths;
 }
 
+/** Auto recordings that a saved project still points at must never be deleted. */
+export async function isProtectedRecording(videoPath: string) {
+	if (await hasSiblingProjectFile(videoPath)) return true;
+	const protectedPaths = await loadSavedProjectMediaPaths();
+	const real = await fs.realpath(videoPath).catch(() => videoPath);
+	return protectedPaths.has(normalizePath(videoPath)) || protectedPaths.has(real);
+}
+
 export async function pruneAutoRecordings(exemptPaths: string[] = []) {
 	const recordingsDir = await getRecordingsDir();
 	await fs.mkdir(recordingsDir, { recursive: true });

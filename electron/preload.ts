@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { ClipsAPI } from "../src/types/clips";
 import type { RecordingZoomAPI } from "../src/types/recordingZoom";
 import type { VoiceAPI, VoiceProgress } from "../src/types/voice";
 import type { RecordingSessionData } from "./ipc/types";
@@ -262,6 +263,27 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	hudOverlayClose: () => {
 		ipcRenderer.send("hud-overlay-close");
 	},
+	clips: {
+		status: () => ipcRenderer.invoke("clip:status"),
+		record: () => ipcRenderer.invoke("clip:record"),
+		cancel: () => ipcRenderer.invoke("clip:cancel"),
+		append: () => ipcRenderer.invoke("clip:append"),
+		discard: (input) => ipcRenderer.invoke("clip:discard", input),
+		discardAndRecord: (input) => ipcRenderer.invoke("clip:discard-and-record", input),
+		recordingFinalized: (videoPath) => ipcRenderer.send("clip:recording-finalized", videoPath),
+		onPendingChanged: (callback) => {
+			const listener = (_event: Electron.IpcRendererEvent, pending: boolean) =>
+				callback(pending);
+			ipcRenderer.on("clip-capture-changed", listener);
+			return () => ipcRenderer.removeListener("clip-capture-changed", listener);
+		},
+		onRecordingFinalized: (callback) => {
+			const listener = (_event: Electron.IpcRendererEvent, videoPath: string) =>
+				callback(videoPath);
+			ipcRenderer.on("clip-recording-finalized", listener);
+			return () => ipcRenderer.removeListener("clip-recording-finalized", listener);
+		},
+	} satisfies ClipsAPI,
 	hudOverlayRendererReady: () => {
 		ipcRenderer.send("hud-overlay-renderer-ready");
 	},

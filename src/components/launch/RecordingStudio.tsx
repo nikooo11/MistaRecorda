@@ -15,6 +15,7 @@ import {
 	PlayIcon,
 	RecordIcon,
 	StopIcon,
+	FilmStripIcon,
 	FolderOpenIcon,
 	SpeakerHighIcon,
 } from "@phosphor-icons/react";
@@ -46,6 +47,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 	const [countdown, setCountdown] = useState<number | null>(null);
 	const [discard, setDiscard] = useState(false);
 	const [library, setLibrary] = useState(false);
+	const [clipPending, setClipPending] = useState(false);
 	const mic = useMicrophoneDevices(r.microphoneEnabled, r.microphoneDeviceId);
 	const cam = useVideoDevices(r.webcamEnabled);
 	const mac = platform === "darwin";
@@ -95,6 +97,13 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 			ticks?.();
 		};
 	}, [run, refresh]);
+	useEffect(() => {
+		void window.electronAPI.clips
+			.status()
+			.then((s) => setClipPending(s.pending))
+			.catch(() => undefined);
+		return window.electronAPI.clips.onPendingChanged(setClipPending);
+	}, []);
 	useEffect(() => {
 		if (!r.countdownActive) setCountdown(null);
 	}, [r.countdownActive]);
@@ -210,6 +219,21 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 				</div>
 			</aside>
 			<section className="studio-preview-area" aria-label="Selected recording source">
+				{clipPending && (
+					<div className="studio-clip-banner" role="status">
+						<FilmStripIcon size={18} />
+						<p>
+							{r.recording || r.finalizing
+								? "This take will be added to the end of your project."
+								: "Record a clip to add to the end of your project."}
+						</p>
+						{!locked && (
+							<button onClick={() => void window.electronAPI.clips.cancel()}>
+								Back to editor
+							</button>
+						)}
+					</div>
+				)}
 				<div className="studio-preview-heading">
 					<div>
 						<span className="studio-eyebrow">

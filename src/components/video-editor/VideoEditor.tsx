@@ -5,6 +5,7 @@ import {
 	ClosedCaptioning,
 	Crop,
 	Cursor,
+	FilmStrip,
 	DownloadSimple as Download,
 	FolderOpen,
 	Gear,
@@ -19,6 +20,7 @@ import {
 	SkipForward,
 	Sparkle,
 	Stack,
+	Trash,
 	ArrowCounterClockwise as Undo2,
 	UserCircle as User,
 	SpeakerLow as Volume1,
@@ -183,6 +185,7 @@ import {
 	toFileUrl,
 	validateProjectData,
 } from "./projectPersistence";
+import { mergeAppendedClip } from "./appendClip";
 import { SettingsPanel } from "./SettingsPanel";
 import { getDevOpenRecordingConfig, getSmokeExportConfig } from "./smokeExportConfig";
 import { createSmokeExportProgressSampler } from "./smokeExportProgress";
@@ -3326,6 +3329,188 @@ export default function VideoEditor() {
 		[closeProjectNameEditor, projectNameDraft, saveProjectWithName],
 	);
 
+	// Clips recorded from the editor are joined onto the open recording. Each join keeps the
+	// project as it was before, so "Discard & re-record" can return to it.
+	const [clipCapture, setClipCapture] = useState<"idle" | "recording" | "joining">("idle");
+	const clipCaptureRef = useRef(clipCapture);
+	clipCaptureRef.current = clipCapture;
+	const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+	const appendedClipsRef = useRef<
+		Array<{
+			snapshot: EditorProjectData;
+			saved: EditorProjectData | null;
+			videoPath: string;
+			webcamPath: string | null;
+		}>
+	>([]);
+	const [appendedClipCount, setAppendedClipCount] = useState(0);
+	const clipStateRef = useRef({ currentProjectSnapshot, lastSavedSnapshot, currentProjectPath });
+	clipStateRef.current = { currentProjectSnapshot, lastSavedSnapshot, currentProjectPath };
+
+	const recordClip = useCallback(async () => {
+		try {
+			videoPlaybackRef.current?.pause();
+		} catch {
+			// no-op
+		}
+		setIsPlaying(false);
+		setClipCapture("recording");
+		try {
+			await window.electronAPI.clips.record();
+		} catch (error) {
+			setClipCapture("idle");
+			toast.error(error instanceof Error ? error.message : String(error));
+		}
+	}, []);
+
+	const joinRecordedClip = useCallback(async () => {
+		const {
+			currentProjectSnapshot: snapshot,
+			lastSavedSnapshot: saved,
+			currentProjectPath: projectPath,
+		} = clipStateRef.current;
+		if (!snapshot) return;
+		setClipCapture("joining");
+		try {
+			const clip = await window.electronAPI.clips.append();
+			const [zooms, sounds] = await Promise.all([
+				window.electronAPI.recordingZoom.getRegions(clip.videoPath).catch(() => null),
+				window.electronAPI.studio.getSounds(clip.videoPath).catch(() => []),
+			]);
+			const fromNewTake = <T extends { startMs: number }>(regions: T[]) =>
+				regions.filter((r) => r.startMs >= clip.firstDurationMs);
+			const merged = mergeAppendedClip(
+				{ ...snapshot, editor: normalizeProjectEditor(snapshot.editor) },
+				clip,
+				{
+					zoomRegions: zooms?.success ? fromNewTake(zooms.regions) : [],
+					audioRegions: fromNewTake(sounds),
+				},
+				`clip-${nextClipIdRef.current++}`,
+			);
+			appendedClipsRef.current.push({
+				snapshot: cloneStructured(snapshot),
+				saved,
+				videoPath: clip.videoPath,
+				webcamPath: clip.webcamPath,
+			});
+			setAppendedClipCount(appendedClipsRef.current.length);
+			recordedZoomsImportedPath.current = clip.videoPath;
+			await applyLoadedProject(merged, projectPath);
+			// The joined clip is a new edit; keep the save state of the project as it was on disk.
+			setLastSavedSnapshot(saved);
+			toast.success("Clip added to the end of your project.");
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			toast.error(`Could not add the clip. ${message}`);
+			await window.electronAPI.clips.cancel().catch(() => undefined);
+			await applyLoadedProject(snapshot, projectPath);
+			setLastSavedSnapshot(saved);
+		} finally {
+			setClipCapture("idle");
+		}
+	}, [applyLoadedProject]);
+
+	useEffect(() => {
+		const stopFinalized = window.electronAPI.clips.onRecordingFinalized(() => {
+			if (clipCaptureRef.current === "recording") void joinRecordedClip();
+		});
+		const stopPending = window.electronAPI.clips.onPendingChanged((pending) => {
+			if (!pending && clipCaptureRef.current === "recording") setClipCapture("idle");
+		});
+		return () => {
+			stopFinalized();
+			stopPending();
+		};
+	}, [joinRecordedClip]);
+
+	const discardLastRecording = useCallback(async () => {
+		setDiscardDialogOpen(false);
+		const last = appendedClipsRef.current[appendedClipsRef.current.length - 1];
+		try {
+			if (last) {
+				await window.electronAPI.clips.discard({
+					videoPath: last.videoPath,
+					webcamPath: last.webcamPath,
+				});
+				appendedClipsRef.current.pop();
+				setAppendedClipCount(appendedClipsRef.current.length);
+				await applyLoadedProject(last.snapshot, clipStateRef.current.currentProjectPath);
+				setLastSavedSnapshot(last.saved);
+				await recordClip();
+				return;
+			}
+			if (!currentSourcePath) return;
+			await window.electronAPI.clips.discardAndRecord({
+				videoPath: currentSourcePath,
+				webcamPath: webcam.sourcePath,
+			});
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : String(error));
+		}
+	}, [applyLoadedProject, currentSourcePath, recordClip, webcam.sourcePath]);
+
+	const clipDialogs = (
+		<>
+			<Dialog open={discardDialogOpen} onOpenChange={setDiscardDialogOpen}>
+				<DialogContent className="max-w-sm border-foreground/10 bg-editor-dialog text-foreground">
+					<DialogHeader>
+						<DialogTitle>
+							{appendedClipCount
+								? "Discard the last clip?"
+								: "Discard this recording?"}
+						</DialogTitle>
+						<DialogDescription className="text-muted-foreground">
+							{appendedClipCount
+								? "The clip you just added is deleted and the recorder opens so you can record it again. Your earlier clips and edits are kept."
+								: "The recording and its audio, webcam and cursor files are deleted, and the recorder opens for a new take. This can’t be undone."}
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="ghost"
+							onClick={() => setDiscardDialogOpen(false)}
+						>
+							{t("common.actions.cancel", "Cancel")}
+						</Button>
+						<Button
+							type="button"
+							variant="destructive"
+							onClick={() => void discardLastRecording()}
+						>
+							Discard & re-record
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+			{clipCapture !== "idle" && (
+				<div
+					className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+					role="status"
+				>
+					<div className="flex max-w-xs flex-col items-center gap-3 rounded-lg border border-foreground/10 bg-editor-dialog px-6 py-5 text-center text-sm text-foreground">
+						<FilmStrip className="h-6 w-6" />
+						<p>
+							{clipCapture === "joining"
+								? "Adding your new clip to the end of the project…"
+								: "Waiting for your new clip from the recording studio. It will be added to the end of this project."}
+						</p>
+						{clipCapture === "recording" && (
+							<Button
+								type="button"
+								variant="ghost"
+								onClick={() => void window.electronAPI.clips.cancel()}
+							>
+								Cancel
+							</Button>
+						)}
+					</div>
+				</div>
+			)}
+		</>
+	);
+
 	const confirmReplaceSourceWithUnsavedChanges = useCallback(
 		async (actionLabel: string) => {
 			if (!hasUnsavedChanges) {
@@ -5958,6 +6143,8 @@ export default function VideoEditor() {
 				{projectBrowser}
 				{projectSaveDialog}
 				{unsavedChangesDialog}
+				{clipDialogs}
+				{clipDialogs}
 				{nativeCaptureUnavailableDialog}
 				<Toaster className="pointer-events-auto" />
 			</div>
@@ -5980,6 +6167,8 @@ export default function VideoEditor() {
 				{projectBrowser}
 				{projectSaveDialog}
 				{unsavedChangesDialog}
+				{clipDialogs}
+				{clipDialogs}
 				{nativeCaptureUnavailableDialog}
 				<Toaster className="pointer-events-auto" />
 			</div>
@@ -6032,6 +6221,41 @@ export default function VideoEditor() {
 						aria-label={t("common.actions.redo", "Redo")}
 					>
 						<Redo2 className="h-4 w-4" />
+					</Button>
+					<div className="ml-1 h-5 w-px bg-foreground/10" />
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						onClick={() => void recordClip()}
+						disabled={!currentSourcePath || clipCapture !== "idle"}
+						className="inline-flex h-8 items-center gap-1.5 rounded-[5px] border border-foreground/10 bg-foreground/5 px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-foreground/10 disabled:cursor-not-allowed disabled:opacity-40"
+						title="Go back to the recorder and record another screen clip. It is added to the end of this project."
+					>
+						<FilmStrip className="h-4 w-4" />
+						Add clip
+					</Button>
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						onClick={() => setDiscardDialogOpen(true)}
+						disabled={
+							!currentSourcePath ||
+							clipCapture !== "idle" ||
+							(!appendedClipCount && Boolean(currentProjectPath))
+						}
+						className="inline-flex h-8 items-center gap-1.5 rounded-[5px] border border-foreground/10 bg-foreground/5 px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-red-500/15 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
+						title={
+							!appendedClipCount && currentProjectPath
+								? "Saved projects can’t be discarded from here."
+								: appendedClipCount
+									? "Delete the last clip you added and go back to the recorder to record it again."
+									: "Delete this recording and go back to the recorder."
+						}
+					>
+						<Trash className="h-4 w-4" />
+						Discard & re-record
 					</Button>
 				</div>
 				<div
@@ -7261,6 +7485,7 @@ export default function VideoEditor() {
 			{projectBrowser}
 			{projectSaveDialog}
 			{unsavedChangesDialog}
+			{clipDialogs}
 			{nativeCaptureUnavailableDialog}
 
 			<Toaster className="pointer-events-auto" />
