@@ -1,7 +1,9 @@
 import { SHADOW_HELP } from "./shadowObjects";
 import { presenterId } from "./presenterModel";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { HeartIcon, StarIcon, GearSixIcon } from "@phosphor-icons/react";
+import { createPortal } from "react-dom";
+import { dragObject, type ObjectRect } from "./objectPlacement";
 import { matchingMemes } from "./memePreferences";
 import { MemePreviewButton } from "./MemePreviewButton";
 import type { BoardAPI, BoardState } from "../../types/board";
@@ -16,10 +18,12 @@ export function MemeLibrary({
 	onChoose,
 	onClose,
 	initialEditId,
+	onDragPreview,
 }: {
 	transport: BoardAPI;
 	state: BoardState;
-	onChoose: (asset: MemeAsset) => void;
+	onChoose: (asset: MemeAsset, client?: { x: number; y: number }) => void;
+	onDragPreview?: (asset: MemeAsset, client: { x: number; y: number }) => void;
 	onClose: () => void;
 	initialEditId?: string;
 }) {
@@ -71,8 +75,8 @@ export function MemeLibrary({
 			<details className="meme-help">
 				<summary>Placement, loves & favorites</summary>
 				<p>
-					Choose a meme, move the 50% preview, then tap to place it. Nothing appears in
-					the recording until placed.
+					Tap a meme or drag its thumbnail onto the canvas. Move and resize the 50%
+					preview, then press Deploy. Sound and effects start only after deployment.
 				</p>
 				<p className="meme-preference-help">
 					♥ Love keeps a meme at the top across projects. ★ Favorites are for this take or
@@ -132,6 +136,13 @@ export function MemeLibrary({
 						<MemePreviewButton
 							asset={asset}
 							soundName={sounds.find((s) => s.id === asset.soundId)?.name}
+							onDragPreview={
+								onDragPreview ? (point) => onDragPreview(asset, point) : undefined
+							}
+							onDrop={(point) => {
+								onChoose(asset, point);
+								onClose();
+							}}
 							onClick={() => {
 								onChoose(asset);
 								onClose();
@@ -298,7 +309,118 @@ export function MemeLibrary({
 							))}
 						</select>
 					</label>
+					<label className="board-import">
+						＋ Upload sound
+						<input
+							type="file"
+							accept="audio/*"
+							disabled={busy}
+							onChange={async (e) => {
+								const file = e.target.files?.[0];
+								e.target.value = "";
+								if (!file) return;
+								if (file.size > 12 * 1024 * 1024) {
+									setError("Choose an audio clip under 12 MB.");
+									return;
+								}
+								setBusy(true);
+								setError("");
+								try {
+									const dataURL = await new Promise<string>((resolve, reject) => {
+										const reader = new FileReader();
+										reader.onload = () => resolve(String(reader.result));
+										reader.onerror = reject;
+										reader.readAsDataURL(file);
+									});
+									const sound = await transport.request<SoundEffect>(
+										"uploadMemeSound",
+										{ name: file.name, dataURL },
+									);
+									setSounds((old) => [...old, sound]);
+									setEdit((old) => (old ? { ...old, soundId: sound.id } : old));
+								} catch (error) {
+									setError(String(error));
+								} finally {
+									setBusy(false);
+								}
+							}}
+						/>
+					</label>
 					<small>Sound follows your soundboard recording setting.</small>
+					<label>
+						Shake on deployment
+						<select
+							value={edit.shake?.target ?? "none"}
+							onChange={(e) =>
+								setEdit({
+									...edit,
+									shake:
+										e.target.value === "none"
+											? undefined
+											: {
+													target: e.target.value as "meme" | "screen",
+													strength: edit.shake?.strength ?? 8,
+													durationMs: edit.shake?.durationMs ?? 600,
+												},
+								})
+							}
+						>
+							<option value="none">None</option>
+							<option value="meme">Meme only</option>
+							<option value="screen">Recording + preview</option>
+						</select>
+					</label>
+					{edit.shake && (
+						<>
+							<label>
+								Shake strength · {edit.shake.strength}
+								<input
+									aria-label="Shake strength"
+									type="range"
+									min="1"
+									max="24"
+									value={edit.shake.strength}
+									onChange={(e) =>
+										setEdit({
+											...edit,
+											shake: {
+												...edit.shake!,
+												strength: Number(e.target.value),
+											},
+										})
+									}
+								/>
+							</label>
+							<label>
+								Shake duration · {(edit.shake.durationMs / 1000).toFixed(1)}s
+								<input
+									aria-label="Shake duration"
+									type="range"
+									min="100"
+									max="2000"
+									step="100"
+									value={edit.shake.durationMs}
+									onChange={(e) =>
+										setEdit({
+											...edit,
+											shake: {
+												...edit.shake!,
+												durationMs: Number(e.target.value),
+											},
+										})
+									}
+								/>
+							</label>
+							<small>
+								Brief movement in the picture. Presenter controls stay still. Screen
+								shake is included in Mac recordings and the live preview.
+							</small>
+						</>
+					)}
+					<small>
+						Save keeps these sound, timing and effect settings across projects.
+					</small>
+
 					<label>
 						<input
 							type="checkbox"
@@ -342,22 +464,92 @@ function MemeImage({
 	onRemove,
 	onShadow,
 	interactive,
+	zoom,
+	transport,
 }: {
 	item: PlacedMeme;
 	asset: MemeAsset;
 	clean: boolean;
 	interactive: boolean;
+	zoom: number;
+	transport: BoardAPI;
 	onRemove: () => void;
 	onShadow?: (shadow: boolean) => Promise<void>;
 }) {
 	const [options, setOptions] = useState(false);
+	const [menu, setMenu] = useState<{ x: number; y: number }>();
+	const [position, setPosition] = useState<ObjectRect>(item);
+	const [keep, setKeep] = useState(item.stayUntilClicked);
+	const gesture = useRef<{
+		id: number;
+		x: number;
+		y: number;
+		rect: ObjectRect;
+		moved: boolean;
+		held: boolean;
+		sent: number;
+		timer?: ReturnType<typeof setTimeout>;
+	}>();
+	const suppress = useRef(false);
+	const latest = useRef(position);
+	latest.current = position;
+	useEffect(() => {
+		setPosition(item);
+		setKeep(item.stayUntilClicked);
+	}, [item.x, item.y, item.width, item.height, item.stayUntilClicked]);
+	useEffect(
+		() =>
+			transport.on<{
+				id: string;
+				x: number;
+				y: number;
+				width: number;
+				height: number;
+				stayUntilClicked: boolean;
+			}>("memeTransform", (patch) => {
+				if (patch.id === item.id && !gesture.current?.moved) {
+					setPosition(patch);
+					setKeep(patch.stayUntilClicked);
+				}
+			}),
+		[item.id, transport],
+	);
+	const request = (method: string, input: unknown) =>
+		transport.request(method, input).catch((e) => setError(String(e)));
+	const openMenu = (x: number, y: number) => {
+		if (clean && !onShadow) void request("memeContextMenu", item.id);
+		else
+			setMenu({
+				x: Math.max(8, Math.min(window.innerWidth - 216, x)),
+				y: Math.max(8, Math.min(window.innerHeight - 260, y)),
+			});
+	};
+	const end = (cancelled = false) => {
+		const g = gesture.current;
+		gesture.current = undefined;
+		clearTimeout(g?.timer);
+		if (!g) return;
+		suppress.current = true;
+		if (g.moved)
+			void request("updateMeme", { id: item.id, ...latest.current, keep: true, final: true });
+		else if (!g.held && !cancelled) {
+			if (item.shadow) setOptions((v) => !v);
+			else onRemove();
+		}
+		if (clean && !onShadow) void request("memeInteraction", { id: item.id, active: false });
+	};
+	useEffect(
+		() => () => {
+			clearTimeout(gesture.current?.timer);
+		},
+		[],
+	);
+
 	const [error, setError] = useState("");
 	const [now, setNow] = useState(Date.now());
 	const exitTime = Math.min(
 		item.removedAt ?? Infinity,
-		item.shadow || item.stayUntilClicked
-			? Infinity
-			: item.placedAt + item.durationSeconds * 1000,
+		item.shadow || keep ? Infinity : item.placedAt + item.durationSeconds * 1000,
 	);
 	useEffect(() => {
 		if (!Number.isFinite(exitTime)) return;
@@ -377,10 +569,10 @@ function MemeImage({
 		<div
 			className="placed-meme"
 			style={{
-				left: item.x,
-				top: item.y,
-				width: item.width,
-				height: item.height,
+				left: position.x,
+				top: position.y,
+				width: position.width,
+				height: position.height,
 				pointerEvents: interactive ? "auto" : "none",
 			}}
 		>
@@ -388,10 +580,76 @@ function MemeImage({
 				tabIndex={clean ? -1 : 0}
 				disabled={!interactive}
 				aria-label={`${item.shadow ? "Shadow options for" : "Dismiss"} ${asset.name}`}
+				title={
+					clean && !onShadow
+						? undefined
+						: "Drag to move and keep on screen. Tap to dismiss. Right-click or hold for options."
+				}
+				onPointerDown={(e) => {
+					if (e.button !== 0) return;
+					e.preventDefault();
+					e.stopPropagation();
+					suppress.current = false;
+					const g = {
+						id: e.pointerId,
+						x: e.clientX,
+						y: e.clientY,
+						rect: { ...position },
+						moved: false,
+						held: false,
+						sent: 0,
+						timer: undefined as ReturnType<typeof setTimeout> | undefined,
+					};
+					gesture.current = g;
+					e.currentTarget.setPointerCapture(e.pointerId);
+					if (clean && !onShadow)
+						void request("memeInteraction", { id: item.id, active: true });
+					if (e.pointerType !== "mouse")
+						g.timer = setTimeout(() => {
+							g.held = true;
+							openMenu(g.x, g.y);
+						}, 500);
+				}}
+				onPointerMove={(e) => {
+					const g = gesture.current;
+					if (!g || g.id !== e.pointerId || g.held) return;
+					const dx = e.clientX - g.x,
+						dy = e.clientY - g.y;
+					if (Math.hypot(dx, dy) > 6) {
+						g.moved = true;
+						clearTimeout(g.timer);
+					}
+					if (!g.moved) return;
+					e.preventDefault();
+					e.stopPropagation();
+					setKeep(true);
+					const next = dragObject(g.rect, dx, dy, zoom);
+					latest.current = next;
+					setPosition(next);
+					if (Date.now() - g.sent > 40) {
+						g.sent = Date.now();
+						void request("updateMeme", { id: item.id, ...next, keep: true });
+					}
+				}}
+				onPointerUp={(e) => {
+					e.stopPropagation();
+					end();
+				}}
+				onPointerCancel={() => end(true)}
+				onLostPointerCapture={() => end(true)}
+				onContextMenu={(e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					end(true);
+					openMenu(e.clientX, e.clientY);
+				}}
 				onClick={(e) => {
 					e.stopPropagation();
-					if (item.shadow) setOptions(!options);
-					else onRemove();
+					if (e.detail === 0 && !suppress.current) {
+						if (item.shadow) setOptions(!options);
+						else onRemove();
+					}
+					suppress.current = false;
 				}}
 				style={{
 					opacity: item.shadow ? 0.5 : 1,
@@ -402,9 +660,75 @@ function MemeImage({
 					animationDelay: `-${Math.min(450, elapsed)}ms`,
 				}}
 			>
-				<img src={asset.dataURL} alt={asset.name} draggable={false} />
+				<img
+					src={asset.dataURL}
+					alt={asset.name}
+					draggable={false}
+					key={item.shakeAt ?? 0}
+					style={
+						item.shake?.target === "meme" && item.shakeAt
+							? ({
+									animation: `meme-jolt ${item.shake.durationMs}ms linear both`,
+									animationDelay: `-${Math.min(item.shake.durationMs, Math.max(0, Date.now() - item.shakeAt))}ms`,
+									"--shake-distance": `${item.shake.strength}px`,
+								} as React.CSSProperties)
+							: undefined
+					}
+				/>
 			</button>
-			{!clean && onShadow && (
+			{menu &&
+				createPortal(
+					<div
+						className="meme-live-menu"
+						role="menu"
+						style={{ left: menu.x, top: menu.y }}
+						onPointerDown={(e) => e.stopPropagation()}
+					>
+						<strong>{asset.name}</strong>
+						<button
+							onClick={() => {
+								setKeep(true);
+								void request("updateMeme", {
+									id: item.id,
+									keep: true,
+									final: true,
+								});
+								setMenu(undefined);
+							}}
+						>
+							Keep on screen
+						</button>
+						<button
+							onClick={() => {
+								onRemove();
+								setMenu(undefined);
+							}}
+						>
+							Remove from screen
+						</button>
+						<button
+							onClick={() => {
+								void request("shakeMeme", { id: item.id, target: "meme" });
+								setMenu(undefined);
+							}}
+						>
+							Shake meme
+						</button>
+						<button
+							onClick={() => {
+								void request("shakeMeme", { id: item.id, target: "screen" });
+								setMenu(undefined);
+							}}
+						>
+							Shake screen
+						</button>
+						<button onClick={() => setMenu(undefined)}>Close</button>
+						{error && <small role="alert">{error}</small>}
+					</div>,
+					document.body,
+				)}
+
+			{onShadow && (
 				<>
 					<button
 						className="meme-shadow-gear"
@@ -467,6 +791,8 @@ export function MemeLayer({
 						asset={asset}
 						clean={clean}
 						interactive={interactive}
+						zoom={view.zoom}
+						transport={transport}
 						onRemove={() => void transport.request("removeMeme", item.id)}
 						onShadow={
 							tablet

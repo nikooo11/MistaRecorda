@@ -46,6 +46,9 @@ export class PreviewFrames {
 /** One shared, silent capture for visible studio panels. Polling is also a short lease:
  * closing/minimizing every consumer stops the helper even after a renderer crash. */
 export class StudioLivePreview {
+	shake(strength: number, durationMs: number) {
+		if (this.child?.stdin.writable) this.child.stdin.write(`shake ${strength} ${durationMs}\n`);
+	}
 	private child?: ChildProcessWithoutNullStreams;
 	private key = "";
 	private lastUsed = 0;

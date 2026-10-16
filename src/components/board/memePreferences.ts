@@ -30,6 +30,6 @@ export function mergeMemeLibraries(current: MemeAsset[], imported: MemeAsset[]) 
 	const previous = new Map(current.map((meme) => [meme.id, meme]));
 	const merged = new Map(previous);
 	for (const meme of imported)
-		merged.set(meme.id, { ...meme, loved: previous.get(meme.id)?.loved ?? false });
+		merged.set(meme.id, previous.get(meme.id) ?? { ...meme, loved: false });
 	return [...merged.values()];
 }

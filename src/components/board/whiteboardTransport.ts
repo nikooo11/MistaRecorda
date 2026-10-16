@@ -42,6 +42,8 @@ export function whiteboardTransport(
 					"setObjectShadow",
 					"placeMeme",
 					"removeMeme",
+					"updateMeme",
+					"shakeMeme",
 					"setMemeShadow",
 					"loadScene",
 				].includes(method)

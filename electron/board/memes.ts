@@ -4,8 +4,14 @@ import { bundledMemeFromURL } from "../../src/lib/bundledMemes";
 import { DEFAULT_MEME_PLAYBACK } from "../../src/types/memes";
 
 const transition = z.enum(["none", "fade", "spin", "fall"]);
+export const memeShakeSchema = z.object({
+	target: z.enum(["meme", "screen"]),
+	strength: z.number().min(1).max(24),
+	durationMs: z.number().int().min(100).max(2000),
+});
 const point = z.number().finite().min(-1e7).max(1e7);
 export const memeSchema = z.object({
+	shake: memeShakeSchema.optional(),
 	tags: z
 		.array(z.string().trim().min(1).max(40))
 		.max(30)
@@ -34,6 +40,8 @@ export const memeSchema = z.object({
 	soundId: z.union([z.literal(""), z.string().uuid()]).default(""),
 });
 export const placedMemeSchema = z.object({
+	shake: memeShakeSchema.optional(),
+	shakeAt: z.number().nonnegative().optional(),
 	shadow: z.boolean().optional(),
 	id: z.string().uuid(),
 	assetId: z.string().uuid(),
@@ -101,6 +109,8 @@ export function placeMeme(state: BoardState, input: unknown) {
 	if (state.placedMemes[data.mode].length >= 200)
 		throw Error("Clear some memes before placing more.");
 	state.placedMemes[data.mode].push({
+		shake: asset.shake,
+		shakeAt: (data.shadow ?? asset.shadow) ? undefined : Date.now(),
 		shadow: data.shadow ?? asset.shadow ?? false,
 		id: crypto.randomUUID(),
 		assetId: asset.id,
@@ -163,4 +173,45 @@ export function dismissMeme(state: BoardState, id: string, now = Date.now()) {
 		}
 	}
 	return changed;
+}
+
+export function placedMeme(state: BoardState, id: string) {
+	return [
+		...(state.placedMemes?.screen ?? []),
+		...(state.placedMemes?.board ?? []),
+		...(state.whiteboards ?? []).flatMap((p) => p.memes),
+	].find((m) => m.id === id);
+}
+export function updatePlacedMeme(state: BoardState, input: unknown) {
+	const patch = z
+		.object({
+			id: z.string().uuid(),
+			x: point.optional(),
+			y: point.optional(),
+			width: z.number().min(16).max(4000).optional(),
+			keep: z.boolean().optional(),
+		})
+		.parse(input);
+	const item = placedMeme(state, patch.id);
+	if (!item || item.removedAt !== undefined) throw Error("This meme has left the screen.");
+	const rect = {
+		x: patch.x ?? item.x,
+		y: patch.y ?? item.y,
+		width: patch.width ?? item.width,
+		height: patch.width ? (patch.width * item.height) / item.width : item.height,
+	};
+	for (const list of [
+		state.placedMemes?.screen ?? [],
+		state.placedMemes?.board ?? [],
+		...(state.whiteboards ?? []).map((p) => p.memes),
+	]) {
+		const m = list.find((m) => m.id === patch.id);
+		if (m)
+			Object.assign(
+				m,
+				rect,
+				patch.keep === undefined ? {} : { stayUntilClicked: patch.keep },
+			);
+	}
+	return item;
 }

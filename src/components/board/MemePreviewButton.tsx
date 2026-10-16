@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { SpeakerHighIcon } from "@phosphor-icons/react";
 import type { MemeAsset } from "../../types/memes";
@@ -9,12 +9,18 @@ export function MemePreviewButton({
 	soundName,
 	onClick,
 	disabled = false,
+	onDragPreview,
+	onDrop,
 }: {
 	asset: MemeAsset;
 	soundName?: string;
 	onClick: () => void;
 	disabled?: boolean;
+	onDragPreview?: (point: { x: number; y: number }) => void;
+	onDrop?: (point: { x: number; y: number }) => void;
 }) {
+	const drag = useRef<{ id: number; x: number; y: number; moved: boolean }>();
+	const suppressClick = useRef(false);
 	const [anchor, setAnchor] = useState<{ x: number; y: number }>();
 	const show = (target: HTMLElement) => {
 		const rect = target.getBoundingClientRect();
@@ -32,7 +38,44 @@ export function MemePreviewButton({
 				className="meme-preview-button"
 				aria-label={`Place ${asset.name}${asset.soundId ? " · Contains audio" : ""}`}
 				disabled={disabled}
+				onPointerDownCapture={(e) => {
+					if (!onDragPreview || e.button !== 0) return;
+					e.stopPropagation();
+					drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
+					suppressClick.current = false;
+					e.currentTarget.setPointerCapture(e.pointerId);
+				}}
+				onPointerMoveCapture={(e) => {
+					e.stopPropagation();
+					const d = drag.current;
+					if (!d || d.id !== e.pointerId) return;
+					if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) d.moved = true;
+					if (d.moved) {
+						e.preventDefault();
+						setAnchor(undefined);
+						onDragPreview?.({ x: e.clientX, y: e.clientY });
+					}
+				}}
+				onPointerUpCapture={(e) => {
+					e.stopPropagation();
+					const d = drag.current;
+					drag.current = undefined;
+					if (d?.moved) {
+						suppressClick.current = true;
+						e.preventDefault();
+						onDrop?.({ x: e.clientX, y: e.clientY });
+					}
+				}}
+				onPointerCancelCapture={() => {
+					drag.current = undefined;
+				}}
+				onContextMenu={(e) => e.preventDefault()}
+				style={onDragPreview ? { touchAction: "none" } : undefined}
 				onClick={() => {
+					if (suppressClick.current) {
+						suppressClick.current = false;
+						return;
+					}
 					setAnchor(undefined);
 					onClick();
 				}}
@@ -42,7 +85,7 @@ export function MemePreviewButton({
 				onBlur={() => setAnchor(undefined)}
 			>
 				<span className="meme-thumbnail">
-					<img src={asset.dataURL} alt="" loading="lazy" />
+					<img src={asset.dataURL} alt="" loading="lazy" draggable={false} />
 					{asset.soundId && (
 						<span className="meme-audio-badge" aria-label="Contains audio">
 							<SpeakerHighIcon size={15} />

@@ -1,4 +1,9 @@
 export type MemeTransition = "none" | "fade" | "spin" | "fall";
+export interface MemeShake {
+	target: "meme" | "screen";
+	strength: number;
+	durationMs: number;
+}
 export const DEFAULT_MEME_PLAYBACK = {
 	enter: "none",
 	exit: "spin",
@@ -6,6 +11,7 @@ export const DEFAULT_MEME_PLAYBACK = {
 	durationSeconds: 3,
 } as const;
 export interface MemeAsset {
+	shake?: MemeShake;
 	tags?: string[];
 	description?: string;
 	loved?: boolean;
@@ -22,6 +28,8 @@ export interface MemeAsset {
 	soundId: string;
 }
 export interface PlacedMeme {
+	shake?: MemeShake;
+	shakeAt?: number;
 	shadow?: boolean;
 	id: string;
 	assetId: string;

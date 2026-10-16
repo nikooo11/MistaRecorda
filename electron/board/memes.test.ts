@@ -7,6 +7,7 @@ import {
 	memeSchema,
 	placeMeme,
 	validateMemes,
+	updatePlacedMeme,
 } from "./memes";
 
 const asset = () =>
@@ -161,4 +162,40 @@ test("dismissal finds placements across scene switches and private whiteboards w
 	expect(dismissMeme(state, item.id, 2500)).toBe(false);
 	expect(item.removedAt).toBe(2000);
 	expect(dismissMeme(state, "missing", 3000)).toBe(false);
+});
+
+test("live movement preserves aspect and updates saved whiteboard instances", () => {
+	const { state, item } = placed();
+	item.placedAt = Date.now();
+	state.whiteboards = [
+		{ id: "page", name: "Board", scene: state.scenes.board, memes: [{ ...item }] },
+	];
+	updatePlacedMeme(state, { id: item.id, x: 350, y: 175, width: 300, keep: true });
+	expect(item).toMatchObject({ x: 350, y: 175, width: 300, height: 150, stayUntilClicked: true });
+	expect(state.whiteboards[0].memes[0]).toMatchObject({
+		x: 350,
+		y: 175,
+		width: 300,
+		height: 150,
+	});
+	expect(memeAtPoint(state, 400, 200)).toBe(item);
+	dismissMeme(state, item.id);
+	expect(() => updatePlacedMeme(state, { id: item.id, x: 500 })).toThrow("left the screen");
+});
+test("shake preferences are bounded, captured on deploy and private before reveal", () => {
+	const state = emptyBoardState(),
+		a = asset();
+	a.shake = { target: "screen", strength: 10, durationMs: 600 };
+	state.memes = [a];
+	placeMeme(state, { assetId: a.id, mode: "screen", x: 0, y: 0, width: 240 });
+	expect(state.placedMemes!.screen[0].shake).toEqual(a.shake);
+	expect(state.placedMemes!.screen[0].shakeAt).toBeGreaterThan(0);
+	placeMeme(state, { assetId: a.id, mode: "board", x: 0, y: 0, width: 240, shadow: true });
+	expect(state.placedMemes!.board[0].shakeAt).toBeUndefined();
+	for (const shake of [
+		{ ...a.shake, strength: 100 },
+		{ ...a.shake, durationMs: 10000 },
+	])
+		expect(memeSchema.safeParse({ ...a, shake }).success).toBe(false);
+	expect(validateMemes(JSON.parse(JSON.stringify(state))).memes[0].shake).toEqual(a.shake);
 });

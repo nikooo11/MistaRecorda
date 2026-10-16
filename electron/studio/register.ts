@@ -245,6 +245,85 @@ export async function setSoundPreference(input: unknown) {
 	await save();
 	return info();
 }
+export function shakeScreen(strength: number, durationMs: number) {
+	const command = `shake ${strength} ${durationMs}\n`;
+	if (nativeCaptureProcess?.stdin.writable) nativeCaptureProcess.stdin.write(command);
+	livePreview.shake(strength, durationMs);
+}
+async function importSoundFile(original: string, name?: string) {
+	if (settings.sounds.length >= 200) throw Error("You can keep up to 200 sounds.");
+	if ((await fs.stat(original)).size > 25 * 1024 * 1024)
+		throw Error("Choose an audio clip under 25 MB.");
+	const { stdout } = await exec(
+		getFfprobeBinaryPath(),
+		[
+			"-v",
+			"error",
+			"-show_entries",
+			"format=duration",
+			"-of",
+			"default=noprint_wrappers=1:nokey=1",
+			original,
+		],
+		{ timeout: 15000 },
+	);
+	const durationMs = Math.round(Number(stdout.trim()) * 1000);
+	if (!Number.isFinite(durationMs) || durationMs <= 0 || durationMs > 120000)
+		throw Error("Choose a sound between 0 and 120 seconds.");
+	const id = crypto.randomUUID();
+	const file = `${id}.wav`;
+	await fs.mkdir(root(), { recursive: true });
+	await exec(
+		getFfmpegBinaryPath(),
+		[
+			"-y",
+			"-i",
+			original,
+			"-vn",
+			"-ac",
+			"2",
+			"-ar",
+			"48000",
+			"-c:a",
+			"pcm_s16le",
+			path.join(root(), file),
+		],
+		{ timeout: 30000 },
+	);
+	settings.sounds.push({
+		id,
+		file,
+		name: (name ?? path.parse(original).name).slice(0, 100),
+		durationMs,
+		shortcut: "",
+		volume: 1,
+		favorite: false,
+		color: "#466784",
+	});
+	await save();
+	return settings.sounds.find((s) => s.id === id)!;
+}
+export async function uploadMemeSound(input: unknown) {
+	const data = z
+		.object({ name: z.string().min(1).max(100), dataURL: z.string().max(17 * 1024 * 1024) })
+		.parse(input);
+	const match =
+		/^data:(?:audio\/[\w.+-]+|application\/octet-stream);base64,([A-Za-z0-9+/=]+)$/.exec(
+			data.dataURL,
+		);
+	if (!match) throw Error("Choose an audio file.");
+	const bytes = Buffer.from(match[1], "base64");
+	if (!bytes.length || bytes.length > 12 * 1024 * 1024)
+		throw Error("Choose an audio clip under 12 MB.");
+	const temporary = path.join(app.getPath("temp"), `meme-sound-${crypto.randomUUID()}`);
+	try {
+		await fs.writeFile(temporary, bytes, { mode: 0o600 });
+		return await importSoundFile(temporary, data.name.replace(/\.[^.]+$/, ""));
+	} finally {
+		await fs.rm(temporary, { force: true });
+	}
+}
+
 export async function fireSound(id: string) {
 	const sound = settings.sounds.find((s) => s.id === id);
 	if (!sound) throw Error("Sound not found.");
@@ -493,7 +572,7 @@ function bindAll(next: StudioSettings) {
 		bindings.add(b.shortcut);
 	}
 }
-async function applyScene(id: string) {
+async function applyScene(id: string, options: { activateCamera?: boolean } = {}) {
 	browserPresentation.cancel();
 	const scene = settings.scenes.find((s) => s.id === id);
 	if (!scene) throw Error("Choose a saved scene.");
@@ -563,7 +642,9 @@ async function applyScene(id: string) {
 	activeSceneId = scene.id;
 	mediaStartedMs = isCursorCaptureActive ? getCursorCaptureElapsedMs() : 0;
 	if (isCursorCaptureActive) mediaTake.switch(currentMedia(), mediaStartedMs);
-	sendRecordingControl(scene.camera ? "webcam-on" : "webcam-off");
+	sendRecordingControl(
+		options.activateCamera !== false && scene.camera ? "webcam-on" : "webcam-off",
+	);
 	message = `Scene: ${scene.name}${focusWarning ? `. ${focusWarning}` : ""}`;
 	publish();
 }
@@ -599,7 +680,9 @@ async function prepareLaunchScene() {
 		const scene = launchScene(settings.scenes, displayId);
 		try {
 			if (!scene) throw Error("No screen is available.");
-			await applyScene(scene.id);
+			// Opening the app must not activate the camera. Explicit scene recalls still
+			// apply their saved camera choice, and Facecam can be enabled by the user.
+			await applyScene(scene.id, { activateCamera: false });
 		} catch (e) {
 			// A saved scene can point at a closed window; still open on the full screen.
 			if (!display) throw e;
@@ -1409,55 +1492,7 @@ export function registerStudio() {
 			});
 			if (result.canceled) return info();
 			const original = result.filePaths[0];
-			if ((await fs.stat(original)).size > 25 * 1024 * 1024)
-				throw Error("Choose an audio clip under 25 MB.");
-			const { stdout } = await exec(
-				getFfprobeBinaryPath(),
-				[
-					"-v",
-					"error",
-					"-show_entries",
-					"format=duration",
-					"-of",
-					"default=noprint_wrappers=1:nokey=1",
-					original,
-				],
-				{ timeout: 15000 },
-			);
-			const durationMs = Math.round(Number(stdout.trim()) * 1000);
-			if (!Number.isFinite(durationMs) || durationMs <= 0 || durationMs > 120000)
-				throw Error("Choose a sound between 0 and 120 seconds.");
-			const id = crypto.randomUUID();
-			const file = `${id}.wav`;
-			await fs.mkdir(root(), { recursive: true });
-			await exec(
-				getFfmpegBinaryPath(),
-				[
-					"-y",
-					"-i",
-					original,
-					"-vn",
-					"-ac",
-					"2",
-					"-ar",
-					"48000",
-					"-c:a",
-					"pcm_s16le",
-					path.join(root(), file),
-				],
-				{ timeout: 30000 },
-			);
-			settings.sounds.push({
-				id,
-				file,
-				name: path.parse(original).name.slice(0, 100),
-				durationMs,
-				shortcut: "",
-				volume: 1,
-				favorite: false,
-				color: "#466784",
-			});
-			await save();
+			await importSoundFile(original);
 			return info();
 		}
 		if (method === "soundPath") {

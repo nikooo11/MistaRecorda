@@ -1666,3 +1666,134 @@ html[data-window-type^="board-"] #root {
 .board-stage:not(.board-tablet) .board-object-tools {
 	top: 104px;
 }
+
+.object-draft {
+	position: absolute;
+	z-index: 24;
+	outline: 2px dashed #597de5;
+	touch-action: none;
+	cursor: move;
+	pointer-events: auto;
+}
+.object-draft > img {
+	width: 100%;
+	height: 100%;
+	opacity: 0.5;
+	pointer-events: none;
+	object-fit: contain;
+}
+.object-draft .draft-handle {
+	position: absolute;
+	width: 28px;
+	height: 28px;
+	min-width: 28px;
+	padding: 0;
+	border: 2px solid white;
+	background: #4169df;
+	border-radius: 50%;
+	touch-action: none;
+}
+.draft-handle.nw {
+	left: -14px;
+	top: -14px;
+	cursor: nwse-resize;
+}
+.draft-handle.ne {
+	right: -14px;
+	top: -14px;
+	cursor: nesw-resize;
+}
+.draft-handle.sw {
+	left: -14px;
+	bottom: -14px;
+	cursor: nesw-resize;
+}
+.draft-handle.se {
+	right: -14px;
+	bottom: -14px;
+	cursor: nwse-resize;
+}
+.object-deploy-bar {
+	position: absolute;
+	z-index: 45;
+	bottom: 76px;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	background: #26303e;
+	color: white;
+	border: 1px solid #748399;
+	border-radius: 9px;
+	padding: 9px 12px;
+	max-width: calc(100% - 24px);
+	box-shadow: 0 5px 18px #0003;
+}
+.object-deploy-bar span {
+	min-width: 120px;
+	font-size: 13px;
+}
+.object-deploy-bar small {
+	display: block;
+	font-size: 11px;
+	color: #d4deed;
+}
+.object-deploy-bar button {
+	padding: 9px 13px;
+	min-height: 42px;
+	border: 1px solid #8494a6;
+	border-radius: 6px;
+	background: #3a4658;
+	color: white;
+}
+.object-deploy-bar .deploy {
+	background: #3565db;
+	border-color: #6689f1;
+	font-weight: 600;
+}
+.meme-live-menu {
+	position: fixed;
+	z-index: 100;
+	padding: 8px;
+	display: grid;
+	gap: 6px;
+	width: 200px;
+	background: #f8fafc;
+	color: #26303e;
+	border: 1px solid #8d9cae;
+	border-radius: 8px;
+	box-shadow: 0 4px 18px #0004;
+}
+.meme-live-menu button {
+	min-height: 40px;
+	border: 1px solid #bec6d2;
+	border-radius: 5px;
+	padding: 7px;
+	text-align: left;
+	background: #edf0f5;
+	color: #26303e;
+}
+.placed-meme {
+	touch-action: none;
+}
+@keyframes meme-jolt {
+	0%,
+	100% {
+		transform: translate(0, 0) rotate(0);
+	}
+	10%,
+	30%,
+	50%,
+	70%,
+	90% {
+		transform: translate(calc(-1 * var(--shake-distance)), calc(0.4 * var(--shake-distance)))
+			rotate(-1deg);
+	}
+	20%,
+	40%,
+	60%,
+	80% {
+		transform: translate(var(--shake-distance), calc(-0.4 * var(--shake-distance))) rotate(1deg);
+	}
+}

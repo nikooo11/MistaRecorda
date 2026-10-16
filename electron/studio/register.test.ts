@@ -860,7 +860,7 @@ test("current source overlays autosave without refocusing the desktop; reset pre
 	await expect(request("resetRecordingDefaults")).rejects.toThrow("Stop recording");
 });
 
-test("launch creates and applies a screen-sharing presentation scene once", async () => {
+test("launch prepares a screen scene without activating the camera", async () => {
 	host.root = await fs.mkdtemp(path.join(os.tmpdir(), "studio-launch-"));
 	await fs.mkdir(path.join(host.root, "studio"));
 	await fs.writeFile(
@@ -891,7 +891,8 @@ test("launch creates and applies a screen-sharing presentation scene once", asyn
 	expect(host.selected).toMatchObject({ id: "screen:7:0" });
 	expect(host.control).toHaveBeenCalledWith("microphone-on");
 	expect(host.control).toHaveBeenCalledWith("system-audio-on");
-	expect(host.control).toHaveBeenLastCalledWith("webcam-on");
+	expect(host.control).toHaveBeenLastCalledWith("webcam-off");
+	expect(host.control).not.toHaveBeenCalledWith("webcam-on");
 	const saved = JSON.parse(
 		await fs.readFile(path.join(host.root, "studio/settings.json"), "utf8"),
 	);

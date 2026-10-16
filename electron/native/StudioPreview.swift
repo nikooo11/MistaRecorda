@@ -30,6 +30,40 @@ final class StudioPreview: NSObject, SCStreamOutput, SCStreamDelegate {
     var settings: PreviewConfig!
     var lastSent: CFAbsoluteTime = 0
 
+    private var shakeStart: CFAbsoluteTime = 0
+    private var shakeDuration: Double = 0
+    private var shakeStrength: Double = 0
+    private func shaken(_ image: CIImage, canvas: CGRect) -> CIImage {
+        let elapsed = CFAbsoluteTimeGetCurrent() - shakeStart
+        guard elapsed >= 0, elapsed < shakeDuration else { return image }
+        let fade = pow(1 - elapsed / shakeDuration, 2)
+        let amplitude = shakeStrength * Double(canvas.height) / 1080
+        let dx = sin(elapsed * 107) * amplitude * fade
+        let dy = cos(elapsed * 139) * amplitude * fade * 0.65
+        let scale = 1 + 2 * amplitude / Double(min(canvas.width, canvas.height))
+        return image.transformed(by: CGAffineTransform(translationX: -canvas.midX, y: -canvas.midY))
+            .transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+            .transformed(by: CGAffineTransform(translationX: canvas.midX + dx, y: canvas.midY + dy)).cropped(to: canvas)
+    }
+
+    private var shakeTimer: DispatchSourceTimer?
+    func shake(strength: Double, durationMs: Double) {
+        guard strength.isFinite, durationMs.isFinite else { return }
+        queue.async {
+            self.shakeStart = CFAbsoluteTimeGetCurrent(); self.shakeDuration = min(2000, max(100, durationMs)) / 1000; self.shakeStrength = min(24, max(1, strength))
+            self.shakeTimer?.cancel()
+            let timer = DispatchSource.makeTimerSource(queue: self.queue); self.shakeTimer = timer
+            timer.schedule(deadline: .now(), repeating: 1.0 / 15)
+            timer.setEventHandler { [weak self] in
+                guard let self else { return }
+                let finished = CFAbsoluteTimeGetCurrent() >= self.shakeStart + self.shakeDuration
+                self.emitFrame(force: finished)
+                if finished { self.shakeTimer?.cancel(); self.shakeTimer = nil }
+            }
+            timer.resume()
+        }
+    }
+
     func stream(_ stream: SCStream, didStopWithError error: Error) {
         fputs("Live preview stopped.\n", stderr); exit(1)
     }
@@ -47,7 +81,11 @@ final class StudioPreview: NSObject, SCStreamOutput, SCStreamDelegate {
         autoreleasepool {
             let image = CIImage(cvPixelBuffer: buffer)
             if stream === drawing { ink = image } else { base = image }
-            guard let base, canvas.width > 0, CFAbsoluteTimeGetCurrent() - lastSent >= 1.0 / 15 else { return }
+            emitFrame()
+        }
+    }
+    func emitFrame(force: Bool = false) {
+            guard let base, canvas.width > 0, force || CFAbsoluteTimeGetCurrent() - lastSent >= 1.0 / 15 else { return }
             let black = CIImage(color: .black).cropped(to: canvas)
             var result = fit(base, to: canvas).composited(over: black)
             if let ink, settings.windowId != nil, drawingFrame.width > 0 {
@@ -63,14 +101,15 @@ final class StudioPreview: NSObject, SCStreamOutput, SCStreamDelegate {
                     result = fit(ink.composited(over: clear).cropped(to: crop), to: canvas).composited(over: result)
                 }
             }
+            result = shaken(result, canvas: canvas)
             guard let data = context.jpegRepresentation(of: result.cropped(to: canvas), colorSpace: color,
                 options: [kCGImageDestinationLossyCompressionQuality as CIImageRepresentationOption: 0.75]) else { return }
             lastSent = CFAbsoluteTimeGetCurrent()
             var length = UInt32(data.count).bigEndian
             FileHandle.standardOutput.write(Data(bytes: &length, count: 4))
             FileHandle.standardOutput.write(data)
-        }
     }
+
     func configuration(_ frame: CGRect, transparent: Bool = false) -> SCStreamConfiguration {
         let config = SCStreamConfiguration()
         let aspect = transparent ? frame.width / frame.height : (settings.aspect ?? frame.width / frame.height)
@@ -142,5 +181,11 @@ guard CommandLine.arguments.count == 2, let data = CommandLine.arguments[1].data
       let config = try? JSONDecoder().decode(PreviewConfig.self, from: data), CGPreflightScreenCaptureAccess() else { exit(1) }
 let preview = StudioPreview()
 Task { do { try await preview.start(config) } catch { fputs("Selected source is unavailable for live preview.\n", stderr); exit(1) } }
-DispatchQueue.global().async { while !FileHandle.standardInput.readData(ofLength: 1).isEmpty {} ; exit(0) }
+DispatchQueue.global().async {
+    while let line = readLine() {
+        let parts = line.split(separator: " ")
+        if parts.count == 3, parts[0] == "shake", let strength = Double(parts[1]), let duration = Double(parts[2]) { preview.shake(strength: strength, durationMs: duration) }
+    }
+    exit(0)
+}
 dispatchMain()

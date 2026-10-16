@@ -30,6 +30,8 @@ import {
 import type { MemeTransition } from "../../types/memes";
 import type { MemeAsset } from "../../types/memes";
 import { MemeLayer, MemeLibrary } from "./Memes";
+import { ObjectDraft } from "./ObjectDraft";
+import { draftRect, scenePoint, type ObjectRect } from "./objectPlacement";
 import "@excalidraw/excalidraw/index.css";
 import "./board.css";
 import { ChartLineUpIcon, MicrophoneIcon, SparkleIcon } from "@phosphor-icons/react";
@@ -132,7 +134,11 @@ export function BoardCanvas({
 	const [chartEditId, setChartEditId] = useState<string>();
 	const [presentChart, setPresentChart] = useState<string>();
 	const [presenting, setPresenting] = useState(false);
-	const [pendingChart, setPendingChart] = useState<{ chart: ChartDocument; shadow: boolean; widthPercent: number }>();
+	const [pendingChart, setPendingChart] = useState<{
+		chart: ChartDocument;
+		shadow: boolean;
+		widthPercent: number;
+	}>();
 	const [memeSettings, setMemeSettings] = useState<string>();
 	const [pendingImage, setPendingImage] = useState<{
 		object: PresenterObject;
@@ -143,7 +149,8 @@ export function BoardCanvas({
 		object: PresenterObject;
 		point: PlacementPoint;
 	}>();
-	const [memePoint, setMemePoint] = useState({ x: 100, y: 100 });
+	const [objectDraft, setObjectDraft] = useState<ObjectRect>();
+	const [deploying, setDeploying] = useState(false);
 	const [memeView, setMemeView] = useState({ x: 0, y: 0, zoom: 1 });
 	const [inkColor, setInkColor] = useState("#1e1e1e");
 	const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -482,13 +489,125 @@ export function BoardCanvas({
 			}),
 		[transport, clean],
 	);
-	const memeCoordinates = (clientX: number, clientY: number) => {
+	const canvasView = () => {
 		const view = api!.getAppState();
+		// Read the live paper origin; an opening animation can invalidate cached offsets.
+		const rect = paper.current?.getBoundingClientRect();
 		return {
-			x: (clientX - view.offsetLeft) / view.zoom.value - view.scrollX,
-			y: (clientY - view.offsetTop) / view.zoom.value - view.scrollY,
+			offsetLeft: rect?.left ?? view.offsetLeft,
+			offsetTop: rect?.top ?? view.offsetTop,
+			scrollX: view.scrollX,
+			scrollY: view.scrollY,
+			zoom: view.zoom.value,
 		};
 	};
+	const memeCoordinates = (x: number, y: number) => scenePoint(x, y, canvasView());
+	const startMemeDraft = (asset: MemeAsset, client?: PlacementPoint) => {
+		if (!api) return;
+		setPendingImage(undefined);
+		setPendingCard(undefined);
+		setPendingChart(undefined);
+		const box = stage.current!.getBoundingClientRect();
+		setObjectDraft(
+			draftRect(
+				client?.x ?? box.left + box.width / 2,
+				client?.y ?? box.top + box.height / 2,
+				asset.width / asset.height,
+				canvasView(),
+				Math.min(240, box.width * 0.3),
+			),
+		);
+		setPendingMeme(asset);
+	};
+	async function deployDraft() {
+		if (!objectDraft || deploying) return;
+		setDeploying(true);
+		setError("");
+		try {
+			await flush();
+			if (pendingMeme)
+				await transport.request("placeMeme", {
+					assetId: pendingMeme.id,
+					mode: modeRef.current,
+					x: objectDraft.x,
+					y: objectDraft.y,
+					width: objectDraft.width,
+				});
+			else if (pendingImage) {
+				placeImage(
+					pendingImage.object.id,
+					pendingImage.width,
+					pendingImage.height,
+					objectDraft,
+					objectDraft.width,
+					pendingImage.object,
+				);
+				await flush();
+			}
+			setPendingMeme(undefined);
+			setPendingImage(undefined);
+			setObjectDraft(undefined);
+			if (!tablet && modeRef.current === "screen") await transport.request("hideEditor");
+		} catch (e) {
+			setError(String(e));
+		} finally {
+			setDeploying(false);
+		}
+	}
+	// Covers Mac arming, AI suggestions and images from the objects list.
+	useEffect(() => {
+		if ((!pendingMeme && !pendingImage) || !api) {
+			setObjectDraft(undefined);
+			return;
+		}
+		setObjectDraft((old) => {
+			if (old) return old;
+			const box = stage.current!.getBoundingClientRect();
+			const ratio = pendingMeme
+				? pendingMeme.width / pendingMeme.height
+				: pendingImage!.width / pendingImage!.height;
+			return draftRect(
+				box.left + box.width / 2,
+				box.top + box.height / 2,
+				ratio,
+				canvasView(),
+				Math.min(240, box.width * 0.3),
+			);
+		});
+	}, [pendingMeme, pendingImage, api]);
+
+	useEffect(() => {
+		if (!tablet) return;
+		return transport.on<{ strength: number; durationMs: number; startedAt: number }>(
+			"screenShake",
+			(effect) => {
+				const elapsed = Math.max(0, Date.now() - effect.startedAt);
+				if (elapsed >= effect.durationMs) return;
+				const amplitude = (effect.strength * (stage.current?.clientHeight ?? 1080)) / 1080;
+				const frames = Array.from({ length: 31 }, (_, i) => {
+					const t = i / 30,
+						seconds = (t * effect.durationMs) / 1000,
+						fade = (1 - t) ** 2;
+					return {
+						translate: `${Math.sin(seconds * 107) * amplitude * fade}px ${Math.cos(seconds * 139) * amplitude * fade * 0.65}px`,
+					};
+				});
+				// Animate only picture layers. Toolbars, handles and presenter notes stay still.
+				stage.current
+					?.querySelectorAll(
+						".board-video > *, .board-paper canvas, .meme-paper, .chart-paper",
+					)
+					.forEach((element) => {
+						const animation = element.animate(frames, {
+							duration: effect.durationMs,
+							easing: "linear",
+						});
+						animation.currentTime = elapsed;
+					});
+			},
+		);
+	}, [tablet, transport]);
+
 	async function chooseMode() {
 		await flush();
 		const next = await transport.request<BoardState>("mode", {
@@ -568,7 +687,7 @@ export function BoardCanvas({
 	}
 	async function usePresenterObject(object: PresenterObject, client?: PlacementPoint) {
 		if (!api) throw Error("The canvas is still loading. Try again in a moment.");
-		if (!drawing && onEnableDrawing) {
+		if (!drawing && onEnableDrawing && object.kind !== "meme" && object.kind !== "image") {
 			await onEnableDrawing();
 			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 		}
@@ -589,73 +708,62 @@ export function BoardCanvas({
 		if (object.kind === "meme") {
 			const asset = current.current.memes?.find((m) => m.id === object.id);
 			if (!asset) throw Error("This meme is no longer available.");
-			if (point) {
-				await flush();
-				await transport.request("placeMeme", {
-					assetId: asset.id,
-					mode: modeRef.current,
-					...point,
-					width: Math.min(360, current.current.width * 0.3),
-				});
-			} else {
-				setMemePoint(
-					memeCoordinates(
-						(paper.current?.getBoundingClientRect().left ?? 0) + 100,
-						(paper.current?.getBoundingClientRect().top ?? 0) + 160,
-					),
-				);
-				setPendingMeme(asset);
-			}
+			startMemeDraft(asset, client);
 		} else if (object.kind === "image") {
 			const file = current.current.assets[object.id];
 			if (!file) throw Error("This image is no longer available.");
 			const image = new Image();
 			image.src = file.dataURL;
 			await image.decode();
-			if (point) {
-				placeImage(
-					file.id,
-					image.width,
-					image.height,
-					point,
-					(current.current.width * (object.widthPercent ?? 30)) / 100,
-					object,
-				);
-				api.setActiveTool({ type: "selection" });
-			} else {
-				setMemePoint(
-					memeCoordinates(
-						(paper.current?.getBoundingClientRect().left ?? 0) + 100,
-						(paper.current?.getBoundingClientRect().top ?? 0) + 160,
-					),
-				);
-				setPendingImage({ object, width: image.width, height: image.height });
-			}
+			const box = stage.current!.getBoundingClientRect();
+			setObjectDraft(
+				draftRect(
+					client?.x ?? box.left + box.width / 2,
+					client?.y ?? box.top + box.height / 2,
+					image.width / image.height,
+					canvasView(),
+					Math.min(240, box.width * 0.3),
+				),
+			);
+			setPendingImage({ object, width: image.width, height: image.height });
 		} else {
 			if (point) placeCard(object, point);
 			else setPendingCard(object);
 		}
 	}
 	/** Placement goes through the Mac so a draft can never be published by a scene edit. */
-	async function placeChart(chart: ChartDocument, point?: PlacementPoint, shadow = true, widthPercent = 45) {
+	async function placeChart(
+		chart: ChartDocument,
+		point?: PlacementPoint,
+		shadow = true,
+		widthPercent = 45,
+	) {
 		if (!api) throw Error("The canvas is still loading. Try again in a moment.");
 		await flush();
 		const view = api.getAppState();
-		const at = point ?? { x: -view.scrollX + 120 / view.zoom.value, y: -view.scrollY + 120 / view.zoom.value };
-		const reply = await transport.request<{ state: BoardState; elementId: string }>("chartPlace", {
-			chartId: chart.id,
-			mode: modeRef.current,
-			x: at.x,
-			y: at.y,
-			width: Math.max(120, (current.current.width * widthPercent) / 100),
-			shadow,
-			revision: current.current.revision,
-		});
+		const at = point ?? {
+			x: -view.scrollX + 120 / view.zoom.value,
+			y: -view.scrollY + 120 / view.zoom.value,
+		};
+		const reply = await transport.request<{ state: BoardState; elementId: string }>(
+			"chartPlace",
+			{
+				chartId: chart.id,
+				mode: modeRef.current,
+				x: at.x,
+				y: at.y,
+				width: Math.max(120, (current.current.width * widthPercent) / 100),
+				shadow,
+				revision: current.current.revision,
+			},
+		);
 		last.current = "";
 		apply(reply.state);
 		setPresentChart(chart.id);
 		requestAnimationFrame(() =>
-			api.updateScene({ appState: { selectedElementIds: { [reply.elementId]: true }, selectedGroupIds: {} } }),
+			api.updateScene({
+				appState: { selectedElementIds: { [reply.elementId]: true }, selectedGroupIds: {} },
+			}),
 		);
 	}
 	async function revealChart(chartId: string) {
@@ -929,6 +1037,22 @@ export function BoardCanvas({
 			ref={stage}
 			data-board-ready={clean && api ? "true" : undefined}
 			onPointerDownCapture={(event) => {
+				if (
+					(pendingMeme || pendingImage) &&
+					objectDraft &&
+					api &&
+					event.target instanceof HTMLCanvasElement
+				) {
+					event.preventDefault();
+					event.stopPropagation();
+					const point = memeCoordinates(event.clientX, event.clientY);
+					setObjectDraft({
+						...objectDraft,
+						x: point.x - objectDraft.width / 2,
+						y: point.y - objectDraft.height / 2,
+					});
+					return;
+				}
 				if (pendingChart && api && event.target instanceof HTMLCanvasElement) {
 					event.preventDefault();
 					event.stopPropagation();
@@ -975,43 +1099,7 @@ export function BoardCanvas({
 					setPendingCard(undefined);
 					return;
 				}
-				if (pendingImage && api && event.target instanceof HTMLCanvasElement) {
-					event.preventDefault();
-					event.stopPropagation();
-					api.refresh();
-					placeImage(
-						pendingImage.object.id,
-						pendingImage.width,
-						pendingImage.height,
-						memeCoordinates(event.clientX, event.clientY),
-						(current.current.width * (pendingImage.object.widthPercent ?? 30)) / 100,
-						pendingImage.object,
-					);
-					api.setActiveTool({ type: "selection" });
-					setPendingImage(undefined);
-					return;
-				}
-				if (pendingMeme && api && event.target instanceof HTMLCanvasElement) {
-					event.preventDefault();
-					event.stopPropagation();
-					const point = memeCoordinates(event.clientX, event.clientY);
-					void flush()
-						.then(() =>
-							transport.request("placeMeme", {
-								assetId: pendingMeme.id,
-								mode: modeRef.current,
-								...point,
-								width: Math.min(360, current.current.width * 0.3),
-							}),
-						)
-						.then(() => {
-							setPendingMeme(undefined);
-							if (!tablet && modeRef.current === "screen")
-								return transport.request("hideEditor");
-						})
-						.catch((e) => setError(String(e)));
-					return;
-				}
+
 				if (api && paper.current && event.target instanceof HTMLCanvasElement) {
 					const rect = paper.current.getBoundingClientRect();
 					const view = api.getAppState();
@@ -1081,8 +1169,7 @@ export function BoardCanvas({
 					});
 					return;
 				}
-				if ((pendingMeme || pendingImage) && api)
-					setMemePoint(memeCoordinates(event.clientX, event.clientY));
+
 				if (
 					clean ||
 					!drawing ||
@@ -1118,7 +1205,10 @@ export function BoardCanvas({
 				interacted.current = true;
 			}}
 			onKeyDownCapture={(event) => {
-				if ((pendingMeme || pendingImage || pendingCard || pendingChart) && event.key === "Escape") {
+				if (
+					(pendingMeme || pendingImage || pendingCard || pendingChart) &&
+					event.key === "Escape"
+				) {
 					event.stopPropagation();
 					setPendingMeme(undefined);
 					setPendingImage(undefined);
@@ -1208,7 +1298,7 @@ export function BoardCanvas({
 			>
 				<Excalidraw
 					excalidrawAPI={setApi}
-					viewModeEnabled={clean || (tablet && (!drawing || !!draft))}
+					viewModeEnabled={clean || !!objectDraft || (tablet && (!drawing || !!draft))}
 					zenModeEnabled={clean}
 					initialData={{
 						elements: restoreElements(
@@ -1448,23 +1538,27 @@ export function BoardCanvas({
 					tablet={tablet}
 					transport={transport}
 				/>
-				{(pendingMeme || pendingImage) && (
-					<img
-						className="meme-ghost"
-						src={pendingMeme?.dataURL ?? pendingImage?.object.preview}
-						alt="Object placement preview"
-						style={{
-							left: (memePoint.x + memeView.x) * memeView.zoom,
-							top: (memePoint.y + memeView.y) * memeView.zoom,
-							width:
-								(pendingImage
-									? (state.width * (pendingImage.object.widthPercent ?? 30)) / 100
-									: Math.min(360, state.width * 0.3)) * memeView.zoom,
-						}}
-					/>
-				)}
 			</div>
-			{(pendingMeme || pendingImage || pendingCard || pendingChart) && (
+			{!clean && (pendingMeme || pendingImage) && objectDraft && (
+				<ObjectDraft
+					src={pendingMeme?.dataURL ?? pendingImage!.object.preview!}
+					name={pendingMeme?.name ?? pendingImage!.object.name}
+					rect={objectDraft}
+					zoom={memeView.zoom}
+					left={fit.left + (objectDraft.x + memeView.x) * memeView.zoom}
+					top={fit.top + (objectDraft.y + memeView.y) * memeView.zoom}
+					onChange={setObjectDraft}
+					busy={deploying}
+					onDeploy={() => void deployDraft()}
+					onCancel={() => {
+						setPendingMeme(undefined);
+						setPendingImage(undefined);
+						setObjectDraft(undefined);
+					}}
+				/>
+			)}
+
+			{(pendingCard || pendingChart) && (
 				<button
 					className="meme-cancel"
 					onClick={() => {
@@ -1836,11 +1930,8 @@ export function BoardCanvas({
 					transport={transport}
 					state={state}
 					initialEditId={memeSettings}
-					onChoose={(asset) => {
-						setPendingImage(undefined);
-						setPendingCard(undefined);
-						setPendingMeme(asset);
-					}}
+					onChoose={startMemeDraft}
+					onDragPreview={startMemeDraft}
 					onClose={() => {
 						setMemes(false);
 						setMemeSettings(undefined);
@@ -1851,11 +1942,7 @@ export function BoardCanvas({
 				<FigureAssistant
 					transport={transport}
 					memes={state.memes ?? []}
-					onChooseMeme={(asset) => {
-						setPendingImage(undefined);
-						setPendingCard(undefined);
-						setPendingMeme(asset);
-					}}
+					onChooseMeme={startMemeDraft}
 					onCreateChart={(source) => {
 						setChartEditId(undefined);
 						setChartImport(source);
@@ -1899,7 +1986,11 @@ export function BoardCanvas({
 						const placed = state.scenes[cleanMode].elements.filter(
 							(e) => !e.isDeleted && chartMeta(e)?.chartId === id,
 						);
-						return !placed.length ? "none" : placed.some((e) => !isShadow(e)) ? "visible" : "shadow";
+						return !placed.length
+							? "none"
+							: placed.some((e) => !isShadow(e))
+								? "visible"
+								: "shadow";
 					})()}
 					anchor={anchoredChart}
 					onChoose={setPresentChart}

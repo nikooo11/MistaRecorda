@@ -79,6 +79,55 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	private var compositePool: CVPixelBufferPool?
 	private let imageContext = CIContext(options: [.cacheIntermediates: false])
 
+    private var shakeStart: CFAbsoluteTime = 0
+    private var shakeDuration: Double = 0
+    private var shakeStrength: Double = 0
+    private func shaken(_ image: CIImage, canvas: CGRect) -> CIImage {
+        let elapsed = CFAbsoluteTimeGetCurrent() - shakeStart
+        guard elapsed >= 0, elapsed < shakeDuration else { return image }
+        let fade = pow(1 - elapsed / shakeDuration, 2)
+        let amplitude = shakeStrength * Double(canvas.height) / 1080
+        let dx = sin(elapsed * 107) * amplitude * fade
+        let dy = cos(elapsed * 139) * amplitude * fade * 0.65
+        let scale = 1 + 2 * amplitude / Double(min(canvas.width, canvas.height))
+        return image.transformed(by: CGAffineTransform(translationX: -canvas.midX, y: -canvas.midY))
+            .transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+            .transformed(by: CGAffineTransform(translationX: canvas.midX + dx, y: canvas.midY + dy)).cropped(to: canvas)
+    }
+
+    private var shakeTimer: DispatchSourceTimer?
+    func shake(strength: Double, durationMs: Double) {
+        guard strength.isFinite, durationMs.isFinite else { return }
+        queue.async {
+            guard self.isRecording, !self.isPaused else { return }
+            self.shakeStart = CFAbsoluteTimeGetCurrent()
+            self.shakeDuration = min(2000, max(100, durationMs)) / 1000
+            self.shakeStrength = min(24, max(1, strength))
+            self.shakeTimer?.cancel()
+            let timer = DispatchSource.makeTimerSource(queue: self.queue)
+            self.shakeTimer = timer
+            timer.schedule(deadline: .now(), repeating: 1.0 / Double(targetCaptureFPS))
+            timer.setEventHandler { [weak self] in
+                guard let self else { return }
+                let finished = CFAbsoluteTimeGetCurrent() >= self.shakeStart + self.shakeDuration
+                defer { if !self.isRecording || self.isPaused { self.shakeTimer?.cancel(); self.shakeTimer = nil } }
+                guard self.isRecording, !self.isPaused, self.sessionStarted,
+                      let source = self.lastSampleBuffer, let input = self.videoInput, input.isReadyForMoreMediaData else { return }
+                let time = CMClockGetTime(CMClockGetHostTimeClock()) - self.firstSampleTime - self.accumulatedPausedDuration
+                guard time > self.lastVideoPresentationTime else { return }
+                // A static desktop may stop delivering frames. Drive the short effect on this queue.
+                guard let frame = self.compositedSample(source, force: true),
+                      let timed = try? CMSampleBuffer(copying: frame, withNewTiming: [CMSampleTimingInfo(duration: CMTime(value: 1, timescale: CMTimeScale(targetCaptureFPS)), presentationTimeStamp: time, decodeTimeStamp: .invalid)]) else { return }
+                if input.append(timed) {
+                    self.lastSampleBuffer = frame; self.lastVideoPresentationTime = time
+                    self.lastVideoDuration = CMTime(value: 1, timescale: CMTimeScale(targetCaptureFPS)); self.frameCount += 1
+                    if finished { self.shakeTimer?.cancel(); self.shakeTimer = nil }
+                }
+            }
+            timer.resume()
+        }
+    }
+
 	func playSound(_ encoded: String) {
 		struct Sound: Decodable { let token: String; let path: String; let volume: Float }
 		guard let data = Data(base64Encoded: encoded), let sound = try? JSONDecoder().decode(Sound.self, from: data) else { return }
@@ -135,9 +184,13 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 	}
 
-	private func compositedSample(_ source: CMSampleBuffer) -> CMSampleBuffer? {
-		guard let base = windowImage, let overlay = drawingImage, let pool = compositePool else { return nil }
+	private func compositedSample(_ source: CMSampleBuffer, force: Bool = false) -> CMSampleBuffer? {
+		guard let base = windowImage, let pool = compositePool else { return nil }
+		let shaking = CFAbsoluteTimeGetCurrent() < shakeStart + shakeDuration
+		guard drawingImage != nil || shaking || force else { return nil }
 		let canvas = CGRect(origin: .zero, size: outputSize)
+		var combined = base
+		if let overlay = drawingImage, drawingStream != nil {
 		let crop: CGRect
 		if drawingIsBoard { crop = overlay.extent }
 		else {
@@ -152,7 +205,9 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		let ink = overlay.cropped(to: crop).transformed(by: CGAffineTransform(translationX: -crop.minX, y: -crop.minY))
 			.transformed(by: CGAffineTransform(scaleX: scale, y: scale)).transformed(by: CGAffineTransform(translationX: x, y: y))
 		let background = drawingIsBoard ? CIImage(color: .black).cropped(to: canvas) : base
-		let combined = ink.composited(over: background).cropped(to: canvas)
+		combined = ink.composited(over: background).cropped(to: canvas)
+		}
+		combined = shaken(combined, canvas: canvas)
 		var pixel: CVPixelBuffer?
 		guard CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pixel) == kCVReturnSuccess, let pixel else { return nil }
 		imageContext.render(combined, to: pixel, bounds: canvas, colorSpace: CGColorSpaceCreateDeviceRGB())
@@ -881,6 +936,7 @@ final class RecorderService {
 	}
 
 	func playSound(_ encoded: String) { recorder.playSound(encoded) }
+	func shake(strength: Double, durationMs: Double) { recorder.shake(strength: strength, durationMs: durationMs) }
 	func setDrawing(_ id: UInt32, board: Bool) {
 		queue.async {
 			Task {
@@ -976,6 +1032,10 @@ service.start(configJSON: CommandLine.arguments[1])
 
 DispatchQueue.global(qos: .utility).async {
 	while let input = readLine(strippingNewline: true) {
+		if input.hasPrefix("shake ") {
+			let parts = input.split(separator: " ")
+			if parts.count == 3, let strength = Double(parts[1]), let duration = Double(parts[2]) { service.shake(strength: strength, durationMs: duration) }; continue
+		}
 		if input.hasPrefix("sound ") { service.playSound(String(input.dropFirst(6))); continue }
 		if input.hasPrefix("drawing ") {
 			let parts = input.split(separator: " ")

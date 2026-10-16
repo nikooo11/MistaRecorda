@@ -12,6 +12,7 @@ import {
 	type IpcMainInvokeEvent,
 	ipcMain,
 	nativeImage,
+	Menu,
 	safeStorage,
 	screen,
 } from "electron";
@@ -49,6 +50,8 @@ import {
 	getSceneMediaFile,
 	boardSoundPreview,
 	fireSound,
+	shakeScreen,
+	uploadMemeSound,
 	updateBoardSound,
 	exportPresentationSounds,
 	preparePresentationSounds,
@@ -71,7 +74,17 @@ import { captureWindowId, ensureDrawingSurfaceReady } from "./captureReady";
 import { EdgeBoardTrigger } from "./edgeTrigger";
 import { gifSize } from "./gifSize";
 import { DrawingMcpServer } from "./mcp";
-import { clearMemes, dismissMeme, memeAtPoint, memeSchema, placeMeme, validateMemes } from "./memes";
+import {
+	clearMemes,
+	placedMeme,
+	updatePlacedMeme,
+	memeShakeSchema,
+	dismissMeme,
+	memeAtPoint,
+	memeSchema,
+	placeMeme,
+	validateMemes,
+} from "./memes";
 import { seedDefaultMemes } from "./defaultMemes";
 import { bundledMemeFromURL } from "../../src/lib/bundledMemes";
 import { finishMemeTake, mergeMemeLibraries } from "../../src/components/board/memePreferences";
@@ -104,6 +117,7 @@ let pendingPresenterTool: "ai" | "voices" | "sounds" | "memes" | null = null;
 let edgeTimer: ReturnType<typeof setInterval> | undefined;
 let memeInputTimer: ReturnType<typeof setInterval> | undefined;
 let memeInputEnabled = false;
+let memeInteraction: { id: string; until: number } | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 const edgeTrigger = new EdgeBoardTrigger();
 let closing = false;
@@ -194,6 +208,13 @@ function publish(origin = "system") {
 		void store.save().catch((e) => send("error", String(e)));
 	}, 180);
 }
+function playMemeShake(item: import("../../src/types/memes").PlacedMeme) {
+	if (item.shadow || !item.shake || item.shake.target !== "screen") return;
+	shakeScreen(item.shake.strength, item.shake.durationMs);
+	const effect = { ...item.shake, startedAt: Date.now() };
+	send("screenShake", effect);
+	companion.broadcast("screenShake", effect);
+}
 function devicesChanged() {
 	preview?.retain(
 		companion
@@ -280,7 +301,20 @@ async function prepare() {
 		if (!surface || surface.isDestroyed()) return;
 		const p = screen.getCursorScreenPoint();
 		const b = surface.getBounds();
-		const enabled = surface.isVisible() && !!memeAtPoint(store.state, p.x - b.x, p.y - b.y);
+		const mode = store.state.output === "board" ? "board" : store.state.mode;
+		const leased = store.state.placedMemes?.[mode].find((m) => m.id === memeInteraction?.id);
+		const leaseValid =
+			leased &&
+			!leased.shadow &&
+			leased.removedAt === undefined &&
+			store.state.enabled &&
+			store.state.output !== "screen" &&
+			(leased.stayUntilClicked ||
+				Date.now() < leased.placedAt + leased.durationSeconds * 1000);
+		const enabled =
+			surface.isVisible() &&
+			(!!memeAtPoint(store.state, p.x - b.x, p.y - b.y) ||
+				!!(leaseValid && memeInteraction && memeInteraction.until > Date.now()));
 		if (enabled !== memeInputEnabled) {
 			memeInputEnabled = enabled;
 			surface.setIgnoreMouseEvents(!enabled);
@@ -827,7 +861,11 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			const revealing = item.shadow && !request.shadow;
 			item.shadow = request.shadow;
 			item.removedAt = undefined;
-			if (revealing) item.placedAt = Date.now();
+			if (revealing) {
+				item.placedAt = Date.now();
+				item.shakeAt = Date.now();
+				playMemeShake(item);
+			}
 			store.state.revision++;
 			publish(actor);
 			const sound = store.state.memes?.find((m) => m.id === item.assetId)?.soundId;
@@ -1196,6 +1234,9 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		case "placeMeme": {
 			if (!store.state.enabled) throw Error("Enable drawing before placing a meme.");
 			const sound = placeMeme(store.state, input);
+			const mode = z.object({ mode: z.enum(["screen", "board"]) }).parse(input).mode;
+			const item = store.state.placedMemes![mode][store.state.placedMemes![mode].length - 1];
+			playMemeShake(item);
 			store.state.revision++;
 			publish(actor);
 			if (sound)
@@ -1203,6 +1244,80 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 					send("error", `Meme placed, but its sound could not play: ${String(e)}`),
 				);
 			return store.state;
+		}
+		case "uploadMemeSound":
+			return uploadMemeSound(input);
+		case "memeInteraction": {
+			if (actor !== "desktop") throw Error("Desktop gesture required.");
+			const data = z.object({ id: z.string().uuid(), active: z.boolean() }).parse(input);
+			if (data.active && placedMeme(store.state, data.id))
+				memeInteraction = { id: data.id, until: Date.now() + 30000 };
+			else if (memeInteraction?.id === data.id) memeInteraction = undefined;
+			return true;
+		}
+		case "memeContextMenu": {
+			if (actor !== "desktop") throw Error("Desktop menu required.");
+			const id = z.string().uuid().parse(input);
+			if (!placedMeme(store.state, id)) return false;
+			const run = (method: string, input: unknown) =>
+				void action(method, input, actor).catch((e) => send("error", String(e)));
+			Menu.buildFromTemplate([
+				{
+					label: "Keep on screen",
+					click: () => run("updateMeme", { id, keep: true, final: true }),
+				},
+				{ label: "Remove from screen", click: () => run("removeMeme", id) },
+				{ type: "separator" },
+				{ label: "Shake meme", click: () => run("shakeMeme", { id, target: "meme" }) },
+				{
+					label: "Shake recording + preview",
+					click: () => run("shakeMeme", { id, target: "screen" }),
+				},
+			]).popup({ window: surface });
+			return true;
+		}
+		case "updateMeme": {
+			const item = updatePlacedMeme(store.state, input);
+			store.state.revision++;
+			const patch = {
+				id: item.id,
+				x: item.x,
+				y: item.y,
+				width: item.width,
+				height: item.height,
+				stayUntilClicked: item.stayUntilClicked,
+			};
+			send("memeTransform", patch);
+			companion.broadcast("memeTransform", patch);
+			if (z.object({ final: z.boolean().optional() }).parse(input).final) publish(actor);
+			else {
+				clearTimeout(saveTimer);
+				saveTimer = setTimeout(
+					() => void store.save().catch((e) => send("error", String(e))),
+					180,
+				);
+			}
+			return patch;
+		}
+		case "shakeMeme": {
+			const data = z
+				.object({ id: z.string().uuid(), target: z.enum(["meme", "screen"]) })
+				.parse(input);
+			const item = placedMeme(store.state, data.id);
+			if (!item || item.removedAt !== undefined || item.shadow)
+				throw Error("Show this meme first.");
+			item.shake = memeShakeSchema.parse({
+				...item.shake,
+				target: data.target,
+				strength: item.shake?.strength ?? 8,
+				durationMs: item.shake?.durationMs ?? 600,
+			});
+			item.shakeAt = Date.now();
+			item.stayUntilClicked = true;
+			playMemeShake(item);
+			store.state.revision++;
+			publish(actor);
+			return true;
 		}
 		case "removeMeme": {
 			const id = z.string().uuid().parse(input);
