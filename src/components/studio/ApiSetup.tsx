@@ -143,7 +143,16 @@ function KeyCard({ provider }: { provider: Provider }) {
 					Remove key
 				</button>
 			</div>
-			<p role="status" className={error ? "capture-error" : "capture-note"}>
+			<p
+				role="status"
+				className={
+					error
+						? "capture-error"
+						: message === "Connection verified."
+							? "capture-note api-connection-verified"
+							: "capture-note"
+				}
+			>
 				{busy ? "Working…" : message}
 			</p>
 		</section>

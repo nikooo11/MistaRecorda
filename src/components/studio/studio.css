@@ -1038,6 +1038,9 @@
 	color: #aac6ce;
 	font-size: 12px;
 }
+.api-key-card .api-connection-verified {
+	color: #8ce3bb;
+}
 .api-key-card label {
 	display: grid;
 	gap: 6px;
