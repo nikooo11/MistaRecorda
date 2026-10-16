@@ -57,3 +57,34 @@ When the Mac is open, build/sign/install locally and test physical iPad Safari p
 real portrait/landscape rotation, touch dragging, the on-screen keyboard and a live
 recording. Confirm private reference controls stay absent from the recorded output
 and that facecam remains OFF. No installation on the user's Mac was attempted in cloud.
+
+## Local follow-up (October 16)
+
+- Verified PR #7 merged at `2c39908`; fast-forwarded a clean local main without
+  overwriting changes. Signed/installed using the existing MistaRecorda Local
+  Development identity and kept facecam off.
+- Real companion-server testing found an issue not exposed by the cloud Vite fixture:
+  the pdf.js `.mjs` worker was served as binary, and font/decoder paths were blocked.
+  Added the JavaScript/wasm/font MIME types and a restricted pdf.js asset allowlist.
+  A real HTTP regression test checks these routes with `nosniff` still enabled.
+- Saved talking points synced both directions between the actual Mac app and a paired
+  browser. The disposable note set was removed and the original set retained.
+- User confirmed the reference panel works on their physical iPad, including the
+  requested expand/minimize/tab-switch and touch/rotation check.
+- Added tablet Pan & zoom selection for ordinary pasted/standby images. Tap to select;
+  tap again, hold, or right-click for Copy, Paste, Duplicate, Remove from screen, and
+  Delete. Dragging respects canvas zoom. Copy is an in-app clipboard, also available
+  after deletion. Exit choice is stored on the image (default Spin out).
+- Animated removal immediately saves a deletion tombstone, with a 450 ms read-only
+  outro on tablet and clean Mac surfaces. It does not depend on a tablet timer completing;
+  Delete bypasses the outro. Private shadow images remain excluded from Mac output.
+- Isolated browser checks passed selection, second tap, 700 ms hold, copy/duplicate,
+  paste after removal, immediate deletion, and dragging at 105% zoom without extra ink.
+  These mouse-driven checks do not substitute for physical Apple Pencil validation.
+- Typecheck, lint (existing warnings), all 1,439 tests, production bundle build,
+  Electron CJS smoke and signed-package binary smoke passed before final installation.
+- Final combined package installed successfully; `codesign --verify --deep --strict`
+  passes. Startup is currently waiting in macOS Keychain access, so real PDF import
+  after the MIME fix, a live recording privacy check, and the new controls on physical
+  iPad/Apple Pencil remain unverified. The earlier physical iPad confirmation applies
+  to the reference-panel layout, not the newly added image controls.

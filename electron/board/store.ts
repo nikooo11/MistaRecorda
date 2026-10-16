@@ -45,7 +45,9 @@ export function validateScene(input: unknown): BoardScene {
 				meta.publicOpacity < 0 ||
 				meta.publicOpacity > 100 ||
 				!["none", "fade", "spin", "fall"].includes(meta.enter) ||
-				(meta.revealedAt !== undefined && !Number.isFinite(meta.revealedAt)))
+				(meta.revealedAt !== undefined && !Number.isFinite(meta.revealedAt)) ||
+				(meta.removedAt !== undefined && !Number.isFinite(meta.removedAt)) ||
+				(meta.exit !== undefined && !["none", "fade", "spin", "fall"].includes(meta.exit)))
 		)
 			throw Error("Invalid shadow object settings");
 		if (
@@ -77,7 +79,9 @@ export function validateScene(input: unknown): BoardScene {
 			chart !== undefined &&
 			(e.type !== "rectangle" ||
 				typeof chart?.chartId !== "string" ||
-				!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chart.chartId))
+				!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+					chart.chartId,
+				))
 		)
 			throw Error("Invalid chart object");
 		if (e.link || e.type === "embeddable" || e.type === "magicframe")
@@ -189,7 +193,10 @@ export class BoardStore {
 			!!this.state.placedMemes?.screen.length;
 		if (!dirty) return false;
 		await fs
-			.copyFile(path.join(this.root, "board.json"), path.join(this.root, "board.previous.json"))
+			.copyFile(
+				path.join(this.root, "board.json"),
+				path.join(this.root, "board.previous.json"),
+			)
 			.catch((e) => {
 				if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
 			});

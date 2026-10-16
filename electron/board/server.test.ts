@@ -65,6 +65,27 @@ test("expired QR codes cannot pair and arbitrary files are not served", async ()
 	expect(await (await fetch(`http://127.0.0.1:${server.port}/`)).text()).toBe("Companion");
 });
 
+test("paired PDF reader can load its module worker, fonts and decoders with nosniff enabled", async () => {
+	await connect();
+	for (const [file, mime] of [
+		["assets/pdf.worker.min-test.mjs", "text/javascript"],
+		["pdfjs/wasm/openjpeg.wasm", "application/wasm"],
+		["pdfjs/wasm/openjpeg_nowasm_fallback.js", "text/javascript"],
+		["pdfjs/standard_fonts/LiberationSans-Regular.ttf", "font/ttf"],
+		["pdfjs/cmaps/Adobe-Japan1-UCS2.bcmap", "application/octet-stream"],
+	]) {
+		await fs.mkdir(path.dirname(path.join(root, file)), { recursive: true });
+		await fs.writeFile(path.join(root, file), "bundled PDF asset");
+		const response = await fetch(`http://127.0.0.1:${server.port}/${file}`);
+		expect(response.status).toBe(200);
+		expect(response.headers.get("content-type")).toBe(mime);
+		expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+		expect(await response.text()).toBe("bundled PDF asset");
+	}
+	await fs.writeFile(path.join(root, "pdfjs/private.pdf"), "not a bundled renderer asset");
+	expect((await fetch(`http://127.0.0.1:${server.port}/pdfjs/private.pdf`)).status).toBe(404);
+});
+
 test("overlapping drawing and signaling requests are processed in arrival order", async () => {
 	const action = await connect();
 	const next = message();

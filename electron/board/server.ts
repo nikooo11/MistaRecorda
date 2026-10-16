@@ -91,7 +91,8 @@ export class CompanionServer {
 					!(
 						relative === "tablet.html" ||
 						relative.startsWith("assets/") ||
-						relative.startsWith("excalidraw/")
+						relative.startsWith("excalidraw/") ||
+						/^pdfjs\/(cmaps|standard_fonts|wasm)\/[a-zA-Z0-9_.-]+$/.test(relative)
 					) ||
 					relative.split("/").includes("..")
 				) {
@@ -107,6 +108,9 @@ export class CompanionServer {
 				const mime: Record<string, string> = {
 					".html": "text/html",
 					".js": "text/javascript",
+					".mjs": "text/javascript",
+					".wasm": "application/wasm",
+					".ttf": "font/ttf",
 					".css": "text/css",
 					".woff2": "font/woff2",
 					".png": "image/png",

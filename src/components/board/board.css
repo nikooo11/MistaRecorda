@@ -1977,3 +1977,87 @@ html[data-window-type^="board-"] #root {
 	min-height: 44px;
 	min-width: 44px;
 }
+
+.image-interaction-paper {
+	position: absolute;
+	z-index: 3;
+	pointer-events: none;
+}
+.image-outro {
+	position: absolute;
+	pointer-events: none;
+}
+.image-outro img {
+	width: 100%;
+	height: 100%;
+	object-fit: fill;
+}
+.pan-image-actions {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+.pan-image-hit {
+	position: absolute;
+	pointer-events: auto;
+	touch-action: none;
+	background: transparent !important;
+	border: 2px solid transparent !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	min-width: 0 !important;
+	min-height: 0 !important;
+	border-radius: 0 !important;
+}
+.pan-image-hit.selected {
+	border-color: #4263eb !important;
+	outline: 1px solid white;
+}
+.pan-image-menu {
+	font: 14px system-ui;
+	position: fixed;
+	z-index: 1200;
+	bottom: 20px;
+	left: 50%;
+	translate: -50% 0;
+	width: max-content;
+	max-width: calc(100vw - 140px);
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 8px;
+	border-radius: 12px;
+	background: #f8fafc;
+	color: #243244;
+	border: 1px solid #b7c2d4;
+	box-shadow: 0 3px 18px #0003;
+	pointer-events: auto;
+}
+.pan-image-menu button,
+.pan-image-menu select {
+	min-height: 44px;
+	padding: 8px 12px;
+}
+.pan-image-menu label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.pan-image-menu [role="alert"] {
+	flex-basis: 100%;
+	color: #b42318;
+}
+
+.pan-image-menu button,
+.pan-image-menu select {
+	font: inherit;
+	border: 1px solid #bcc8d5;
+	border-radius: 7px;
+	background: #edf0f6;
+	color: #263445;
+}
+.pan-image-menu button:disabled {
+	opacity: 0.45;
+}

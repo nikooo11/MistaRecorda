@@ -7,6 +7,8 @@ export interface PresentationMeta {
 	publicOpacity: number;
 	enter: MemeTransition;
 	revealedAt?: number;
+	exit?: MemeTransition;
+	removedAt?: number;
 	reference?: ObjectReference;
 }
 export const SHADOW_HELP =

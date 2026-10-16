@@ -30,6 +30,8 @@ import {
 import type { MemeTransition } from "../../types/memes";
 import type { MemeAsset } from "../../types/memes";
 import { MemeLayer, MemeLibrary } from "./Memes";
+import { ImageActions, ImageOutros } from "./ImageActions";
+import { removeImage, type ImageAction, type ImageExit } from "./imageRemoval";
 import { ObjectDraft } from "./ObjectDraft";
 import { MemePreviewButton } from "./MemePreviewButton";
 import { draftRect, scenePoint, type ObjectRect } from "./objectPlacement";
@@ -624,6 +626,78 @@ export function BoardCanvas({
 			},
 		);
 	}, [tablet, transport]);
+
+	async function editPanImage(
+		id: string,
+		change: (element: BoardElement) => BoardElement,
+		append = false,
+		fallback?: BoardElement,
+	) {
+		await flush();
+		const mode = modeRef.current;
+		const original = current.current.scenes[mode];
+		const element =
+			original.elements.find((e) => e.id === id && !e.isDeleted) ??
+			(append ? fallback : undefined);
+		if (!element) throw Error("This image has changed. Select it again.");
+		const updated = change(element);
+		const fileId = String(updated.fileId);
+		const copiedFile = clipboard?.files[fileId];
+		const scene = {
+			...original,
+			files: copiedFile ? { ...original.files, [fileId]: copiedFile } : original.files,
+			elements: append
+				? [...original.elements, updated]
+				: original.elements.map((e) => (e.id === id ? updated : e)),
+		};
+		const reply = await transport.request<{ revision: number }>("scene", {
+			mode,
+			scene: { ...scene, files: newSceneFiles(scene, original.files) },
+			revision: current.current.revision,
+		});
+		last.current = "";
+		apply(mergeScenePatch(current.current, { mode, scene, revision: reply.revision }));
+	}
+	async function panImageAction(action: ImageAction, id: string) {
+		const element = current.current.scenes[modeRef.current].elements.find(
+			(e) => e.id === id && !e.isDeleted,
+		);
+		if (!element && action !== "paste") throw Error("Select an image first.");
+		if (action === "copy") {
+			setClipboard({
+				elements: [structuredClone(element!)],
+				files: { ...current.current.assets } as BinaryFiles,
+			});
+			return;
+		}
+		if (action === "duplicate" || action === "paste") {
+			const source = action === "paste" ? clipboard?.elements[0] : element;
+			if (!source) return;
+			await editPanImage(
+				id,
+				() => duplicateObjects([source], 24 / memeView.zoom)[0],
+				true,
+				source,
+			);
+		} else await editPanImage(id, (e) => removeImage(e, action === "remove"));
+	}
+	async function panImageExit(id: string, exit: ImageExit) {
+		await editPanImage(id, (e) => ({
+			...e,
+			version: e.version + 1,
+			updated: Date.now(),
+			customData: {
+				...(e.customData as object),
+				presentation: {
+					shadow: false,
+					publicOpacity: Number(e.opacity ?? 100),
+					enter: "none",
+					...presentationMeta(e),
+					exit,
+				},
+			},
+		}));
+	}
 
 	async function chooseMode() {
 		await flush();
@@ -1592,6 +1666,39 @@ export function BoardCanvas({
 					transport={transport}
 				/>
 			</div>
+			<div
+				className="image-interaction-paper"
+				style={{
+					left: fit.left,
+					top: fit.top,
+					width: state.width * fit.scale,
+					height: state.height * fit.scale,
+					visibility: clean && state.output === "screen" ? "hidden" : "visible",
+				}}
+			>
+				<ImageOutros scene={state.scenes[cleanMode]} view={memeView} tablet={tablet} />
+				{tablet && !clean && !drawing && !objectDraft && (
+					<ImageActions
+						key={`${cleanMode}:${viewedWhiteboardId ?? state.activeWhiteboardId}`}
+						elements={state.scenes[cleanMode].elements}
+						view={memeView}
+						canPaste={!!clipboard?.elements.length}
+						connected={connected}
+						onAction={panImageAction}
+						onExit={panImageExit}
+						onMove={(id, dx, dy) =>
+							editPanImage(id, (e) => ({
+								...e,
+								x: Number(e.x) + dx,
+								y: Number(e.y) + dy,
+								version: e.version + 1,
+								updated: Date.now(),
+							}))
+						}
+					/>
+				)}
+			</div>
+
 			{!clean && (pendingMeme || pendingImage) && objectDraft && (
 				<ObjectDraft
 					src={pendingMeme?.dataURL ?? pendingImage!.object.preview!}
