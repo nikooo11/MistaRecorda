@@ -75,6 +75,174 @@
       "sourceStartSeconds": 10.08,
       "sourceEndSeconds": 12.04,
       "sha256": "97c60ffe6de5821f5713c469a979567a5e700f37b136cd067e24162fa95f5ede"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000008",
+      "name": "Slow Clap",
+      "asset": "08-black-cat-slow-clap.wav",
+      "durationMs": 6900,
+      "color": "#5E6B7A",
+      "sourceFolder": "meme-pack/01-black-cat-slow-clap",
+      "sourceUrl": "https://www.youtube.com/watch?v=CdqMZ_s7Y6k",
+      "sourceSha256": "a56955c6e8f7efe671f1aa6a0684adae51b0179956cc473bb870fbd0b6a3bcf2",
+      "sha256": "516f9c9f16965cec24e9493b9ff3e4b480f48c625e6a5340f3558890efa910c1"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000009",
+      "name": "Who Are You",
+      "asset": "09-who-are-you.wav",
+      "durationMs": 2905,
+      "color": "#8A5A44",
+      "sourceFolder": "meme-pack/02-mike-evans-who-are-you",
+      "sourceUrl": "https://www.youtube.com/watch?v=Oc7Cin_87H4",
+      "sourceSha256": "d59b644ecf054453ad67dfdfa70dac954e9947660fa8d0b120c99f798d5b9e38",
+      "sha256": "593ec6d59938f3a37f1ca8ffd96f39d64dac1f0e2bbce038b478fbcc4ebcc4e4"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000010",
+      "name": "Chill Guy",
+      "asset": "10-chill-guy.wav",
+      "durationMs": 6900,
+      "color": "#6D8257",
+      "sourceFolder": "meme-pack/04-chill-guy",
+      "sourceUrl": "https://www.youtube.com/watch?v=b3rNUhDqciM",
+      "sourceSha256": "254d62a34059f27bee145910b3b931b0306f22c18ee84beb6e2b28ea77ed7989",
+      "sha256": "fd8f83bb0f1da02893d377b0d5c18a7647036da0e922515f9fba844335b7bf02"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000011",
+      "name": "Moo Deng Tantrum",
+      "asset": "11-moo-deng-tantrum.wav",
+      "durationMs": 3081,
+      "color": "#9A6B7C",
+      "sourceFolder": "meme-pack/05-moo-deng-tantrum",
+      "sourceUrl": "https://www.youtube.com/watch?v=iDLmYZ5HqgM",
+      "sourceSha256": "2c4f7c4541cdfd0180c43875f3585a7b0483b86ceda057aac5efaaa18c1c4c44",
+      "sha256": "da3a42021a0687f46c4afd270f180ed0d4a5244ca6e5b811488820d15fe49b07"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000012",
+      "name": "MJ Laugh",
+      "asset": "12-mj-laugh.wav",
+      "durationMs": 9500,
+      "color": "#A0794A",
+      "sourceFolder": "meme-pack/06-mj-laugh",
+      "sourceUrl": "https://www.youtube.com/watch?v=Gf9LYy6enUk",
+      "sourceSha256": "f2a03e0ab3b395ab2d6fae9faff5870c86384ac2bb30dded57bb0fc5dfbb967d",
+      "sha256": "87cc2e72dcc1e94d1f65ccd3c0658240583f366e29724add89c2dbf06ebdf1b2"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000013",
+      "name": "Scrib Doon",
+      "asset": "13-scrib-doon.wav",
+      "durationMs": 4060,
+      "color": "#7A6A8E",
+      "sourceFolder": "meme-pack-2/08-scrib-doon",
+      "sourceUrl": "https://www.youtube.com/watch?v=67dmM5UM-AQ",
+      "sourceSha256": "c9b4c1eb215d56fa95d6e05de94a97659606602b3fcb99da9e2b091d683db7c2",
+      "sha256": "8624c1f16dce5ecc8727d3129325d228a6799cf94bbfd9599b98c74bc6be89cf"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000014",
+      "name": "Dun Dun",
+      "asset": "14-dun-dun.wav",
+      "durationMs": 3000,
+      "color": "#5A6F8F",
+      "sourceFolder": "meme-pack-2/09-pll-a-text",
+      "sourceUrl": "https://www.youtube.com/watch?v=lMalvNeJFLk",
+      "sourceSha256": "b9b27866da8066f5d5151115169ffa24cfb764d59b50e8b7ec72f6e581bbe214",
+      "sha256": "7ad835011537e42411f7364810e4fcf3132febc68c32b1904357d1385b8663ed"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000015",
+      "name": "Emotional Damage",
+      "asset": "15-emotional-damage.wav",
+      "durationMs": 8000,
+      "color": "#9B5A5A",
+      "sourceFolder": "meme-pack-2/10-what-the-hell",
+      "sourceUrl": "https://www.youtube.com/watch?v=tcPKQ3fuIVU",
+      "sourceSha256": "8344fe4de320ed73516319e2d4f07b6c6c7ac755159373b09e2f074064280cf3",
+      "sha256": "906db035530dd204ea4e1448b5ac8ca62dff6a74b57b7ea72b5bdef07ea0279b"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000016",
+      "name": "Bruh",
+      "asset": "16-bruh.wav",
+      "durationMs": 771,
+      "color": "#6E7468",
+      "sourceFolder": "meme-pack-2/11-eye-roll",
+      "sourceUrl": "https://www.youtube.com/watch?v=Lo9NDIavsq4",
+      "sourceSha256": "decd4de887f52d058dd3b9b946f0d8b08f099e9c7c9a5e7b5c764142e1eb8cad",
+      "sha256": "8693ce63dcf6451ca99831930a59132059fc1399b8a49a5b346438d935c3bfb9"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000017",
+      "name": "Oh My God Wow",
+      "asset": "17-oh-my-god-wow.wav",
+      "durationMs": 2100,
+      "color": "#A0864A",
+      "sourceFolder": "meme-pack-2/12-are-you-kidding-me",
+      "sourceUrl": "https://www.youtube.com/watch?v=uvsPzuriDdA",
+      "sourceSha256": "3c304eb4d0a5671a36cfff68a90547966967fe8a326df0dfeef2a645bc79bbb6",
+      "sha256": "05e2e93fbf294dba52d89c40d051aa1b48d0dd2204e06bffbc7b8915d78628e9"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000018",
+      "name": "Crickets",
+      "asset": "18-crickets.wav",
+      "durationMs": 2950,
+      "color": "#5F7F6A",
+      "sourceFolder": "meme-pack-2/13-blinking-guy",
+      "sourceUrl": "https://www.youtube.com/watch?v=CpGtBnVZLSk",
+      "sourceSha256": "f8f577b10997fb8d592ea18362057e1425e6019b7f8c017cdcec97fb924a82dc",
+      "sha256": "8711abce95630a79ab4c180eaae25e8dc8cd55dfd5a6d0bfe15cc11e17f84b2e"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000019",
+      "name": "Nani",
+      "asset": "19-nani.wav",
+      "durationMs": 3100,
+      "color": "#A87A3E",
+      "sourceFolder": "meme-pack-2/14-shocked-pikachu",
+      "sourceUrl": "https://www.youtube.com/watch?v=lGRd9QvU-qk",
+      "sourceSha256": "e4b178e09d5412ada2d2ad3691dd58c75acf21d1e30c9d2746719b8a4edf97a3",
+      "sha256": "8fa620400d5f894eb06507a3bc35922dd990f359c6ef5d4da52285c27bde8577"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000020",
+      "name": "Think Music",
+      "asset": "20-think-music.wav",
+      "durationMs": 2800,
+      "color": "#4E7A8C",
+      "sourceFolder": "meme-pack-2/15-this-is-fine",
+      "sourceUrl": "https://www.youtube.com/watch?v=HuABhumm6fY",
+      "sourceSha256": "fe34a8b07138bf8ef85a67fc28f178afcba30b9be6e8fb0e85d478d150a14654",
+      "sha256": "5365052187be387ade94b597bc7b2d6bef773daa5d4b9b2b70c7bf40e015b359"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000021",
+      "name": "Boo-Womp",
+      "asset": "21-boo-womp.wav",
+      "durationMs": 1274,
+      "color": "#7D6A55",
+      "sourceFolder": "meme-pack-2/16-sarcastic-thumbs-up",
+      "sourceUrl": "https://www.youtube.com/watch?v=Xsrjy7140Lw",
+      "sourceSha256": "b3a12494cfc1600973909158370bde3af9efeef90a70432ad953648a8464b0f0",
+      "sha256": "8bc1914e7f2d7d4dc597a04a8430d9ea94c9f8d4743b01839958f7fbe46cfd09"
+    },
+    {
+      "id": "8c4c2b71-3d8a-41f5-9a42-000000000022",
+      "name": "Airhorn",
+      "asset": "22-airhorn.wav",
+      "durationMs": 2900,
+      "color": "#8F5E78",
+      "sourceFolder": "meme-pack-2/17-mic-drop",
+      "sourceUrl": "https://www.youtube.com/watch?v=iZzCSk7QRno",
+      "sourceSha256": "6cefd46860f11c64cffe6e0640d731c5cb274338213598994e3ecfa25c48e016",
+      "sha256": "5f711cb19bb237541fa3284cbbc67c74bc2633bafd01e5f86408e7a7f20b3f44"
     }
+  ],
+  "additions": [
+    "User-provided meme-pack and meme-pack-2 (GIF + paired audio), 2026-10-16"
   ]
 }

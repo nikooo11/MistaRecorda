@@ -16,9 +16,9 @@ afterEach(async () => {
 	await fs.rm(storage, { recursive: true, force: true });
 });
 
-test("all seven bundled sounds are intact, audible stereo 48 kHz WAV files with exact durations", async () => {
-	expect(defaultSounds).toHaveLength(7);
-	expect(new Set(defaultSounds.map((s) => s.id)).size).toBe(7);
+test("all 22 bundled sounds are intact, audible stereo 48 kHz WAV files with exact durations", async () => {
+	expect(defaultSounds).toHaveLength(22);
+	expect(new Set(defaultSounds.map((s) => s.id)).size).toBe(22);
 	for (const sound of defaultSounds) {
 		const bytes = await fs.readFile(path.join(assets, sound.asset));
 		expect(createHash("sha256").update(bytes).digest("hex")).toBe(sound.sha256);
@@ -48,11 +48,11 @@ test("all seven bundled sounds are intact, audible stereo 48 kHz WAV files with 
 	}
 });
 
-test("fresh install seeds seven playable defaults, then does nothing on restart", async () => {
+test("fresh install seeds 22 playable defaults, then does nothing on restart", async () => {
 	const initial = fresh();
 	const seeded = await seedDefaultSounds(initial, storage, assets);
 	expect(initial.sounds).toHaveLength(0);
-	expect(seeded.sounds).toHaveLength(7);
+	expect(seeded.sounds).toHaveLength(22);
 	expect(studioSettingsSchema.parse(seeded)).toEqual(seeded);
 	for (const sound of seeded.sounds) {
 		expect((await fs.stat(path.join(storage, sound.file))).size).toBeGreaterThan(1000);
@@ -78,7 +78,7 @@ test("upgrade preserves custom sounds, shortcuts, colors, names, favorites and a
 		},
 	];
 	const seeded = await seedDefaultSounds(settings, storage, assets);
-	expect(seeded.sounds).toHaveLength(8);
+	expect(seeded.sounds).toHaveLength(23);
 	expect(seeded.sounds[0]).toEqual(settings.sounds[0]);
 	expect(seeded.glow).toBe(false);
 	expect(seeded.includeSoundboardInRecording).toBe(false);
@@ -99,9 +99,9 @@ test("deleted defaults stay deleted; explicit restore brings them back without r
 	const reloaded = studioSettingsSchema.parse(JSON.parse(JSON.stringify(seeded)));
 	expect(await seedDefaultSounds(reloaded, storage, assets)).toBe(reloaded);
 	const restored = await seedDefaultSounds(reloaded, storage, assets, true);
-	expect(restored.sounds).toHaveLength(7);
+	expect(restored.sounds).toHaveLength(22);
 	expect(restored.sounds[0]).toEqual(kept);
-	expect(restored.sounds.at(-1)?.name).toBe("Gear");
+	expect(restored.sounds.at(-1)?.name).toBe("Airhorn");
 	expect(await seedDefaultSounds(restored, storage, assets, true)).toBe(restored);
 });
 
@@ -120,6 +120,21 @@ test("partial pack upgrades only add unseen defaults", async () => {
 		"Boom Timer",
 		"Bow and Arrow",
 		"Gear",
+		"Slow Clap",
+		"Who Are You",
+		"Chill Guy",
+		"Moo Deng Tantrum",
+		"MJ Laugh",
+		"Scrib Doon",
+		"Dun Dun",
+		"Emotional Damage",
+		"Bruh",
+		"Oh My God Wow",
+		"Crickets",
+		"Nani",
+		"Think Music",
+		"Boo-Womp",
+		"Airhorn",
 	]);
 });
 

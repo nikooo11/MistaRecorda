@@ -579,6 +579,21 @@ test("startup persists bundled defaults and exposes playable clips to Mac and iP
 		"Boom Timer",
 		"Bow and Arrow",
 		"Gear",
+		"Slow Clap",
+		"Who Are You",
+		"Chill Guy",
+		"Moo Deng Tantrum",
+		"MJ Laugh",
+		"Scrib Doon",
+		"Dun Dun",
+		"Emotional Damage",
+		"Bruh",
+		"Oh My God Wow",
+		"Crickets",
+		"Nani",
+		"Think Music",
+		"Boo-Womp",
+		"Airhorn",
 	]);
 	for (const sound of listed)
 		expect((await boardSoundPreview(sound.id)).dataURL).toMatch(
@@ -587,16 +602,16 @@ test("startup persists bundled defaults and exposes playable clips to Mac and iP
 	const persisted = JSON.parse(
 		await fs.readFile(path.join(host.root, "studio/settings.json"), "utf8"),
 	);
-	expect(persisted.installedDefaultSoundIds).toHaveLength(7);
+	expect(persisted.installedDefaultSoundIds).toHaveLength(22);
 	await request("removeSound", listed[0].id);
 	registerStudio();
 	await request("info");
-	expect(boardSoundList().sounds).toHaveLength(6);
+	expect(boardSoundList().sounds).toHaveLength(21);
 	host.active = true;
 	await expect(request("restoreDefaultSounds")).rejects.toThrow("Stop recording");
 	host.active = false;
 	await request("restoreDefaultSounds");
-	expect(boardSoundList().sounds).toHaveLength(7);
+	expect(boardSoundList().sounds).toHaveLength(22);
 	persisted.sounds[0].shortcut = persisted.cameraShortcut;
 	await fs.writeFile(path.join(host.root, "studio/settings.json"), JSON.stringify(persisted));
 	registerStudio();
