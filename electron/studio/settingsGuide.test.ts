@@ -1,5 +1,9 @@
 import { beforeEach, expect, test, vi } from "vitest";
-const host = vi.hoisted(() => ({ windows: [] as any[], load: vi.fn(), show: vi.fn() }));
+interface GuideWindow {
+	destroyed: boolean;
+	destroy(): void;
+}
+const host = vi.hoisted(() => ({ windows: [] as GuideWindow[], load: vi.fn(), show: vi.fn() }));
 vi.mock("electron", () => ({
 	app: { getAppPath: () => "/app" },
 	BrowserWindow: class {

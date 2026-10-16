@@ -1,6 +1,12 @@
 import { EventEmitter } from "node:events";
 import { afterEach, expect, test, vi } from "vitest";
-const host = vi.hoisted(() => ({ children: [] as any[] }));
+type PreviewChild = EventEmitter & {
+	stdout: EventEmitter;
+	stderr: { resume: ReturnType<typeof vi.fn> };
+	stdin: EventEmitter & { end: ReturnType<typeof vi.fn> };
+	kill: ReturnType<typeof vi.fn>;
+};
+const host = vi.hoisted(() => ({ children: [] as PreviewChild[] }));
 vi.mock("../ipc/paths/binaries", () => ({
 	getNativeArchTag: () => "darwin-arm64",
 	resolveUnpackedAppPath: (...parts: string[]) => parts.join("/"),

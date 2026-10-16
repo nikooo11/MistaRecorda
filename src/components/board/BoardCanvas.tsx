@@ -1843,7 +1843,18 @@ export function BoardCanvas({
 						["Standby images", "▣", "Images", () => setAssets(true)],
 						["AI Chart", "◔", "Chart", () => setChartPanel(true)],
 						["Present chart", "▷", "Reveal", () => setPresenting(true)],
-						...(drawing ? [["Object editing", "↖", "Objects", () => {}]] : []),
+						...(drawing
+							? [
+									[
+										"Object editing",
+										"↖",
+										"Objects",
+										() => {
+											// Drawing mode already mounts this panel; the launcher only toggles it.
+										},
+									],
+								]
+							: []),
 					].map(([name, icon, label, spawn]) => (
 						<button
 							key={String(name)}

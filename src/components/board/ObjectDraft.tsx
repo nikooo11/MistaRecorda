@@ -49,7 +49,7 @@ export function ObjectDraft({
 				event.stopPropagation();
 			}
 		};
-		const escape = (event: KeyboardEvent) => {
+		const onEscape = (event: KeyboardEvent) => {
 			if (event.key === "Escape" && !busy) {
 				event.preventDefault();
 				event.stopPropagation();
@@ -57,10 +57,10 @@ export function ObjectDraft({
 			}
 		};
 		document.addEventListener("pointerdown", outside, true);
-		document.addEventListener("keydown", escape, true);
+		document.addEventListener("keydown", onEscape, true);
 		return () => {
 			document.removeEventListener("pointerdown", outside, true);
-			document.removeEventListener("keydown", escape, true);
+			document.removeEventListener("keydown", onEscape, true);
 		};
 	}, [busy, onCancel]);
 	const gesture = useRef<{

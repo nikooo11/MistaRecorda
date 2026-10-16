@@ -121,7 +121,9 @@ export class StudioLivePreview {
 		child.on("error", failed);
 		child.on("exit", failed);
 		child.stderr.resume();
-		child.stdin.on("error", () => {});
+		child.stdin.on("error", () => {
+			// The child exit/error handlers above own capture failure recovery.
+		});
 		this.timer = setInterval(() => {
 			if (Date.now() - this.lastUsed > 2500) this.stop();
 		}, 1000);

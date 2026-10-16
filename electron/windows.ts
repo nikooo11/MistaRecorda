@@ -156,10 +156,13 @@ function positionUpdateToastWindow() {
 	if (updateToastWindow && !updateToastWindow.isDestroyed())
 		updateToastWindow.setBounds(getUpdateToastBounds(), false);
 }
-ipcMain.on("hud-overlay-interactive-regions", () => {});
-ipcMain.on("hud-overlay-set-ignore-mouse", () => {});
-ipcMain.on("hud-overlay-set-source-selection-active", () => {});
-ipcMain.on("hud-overlay-set-webcam-preview-visible", () => {});
+const ignoreLegacyHudOverlayMessage = () => {
+	// The normal studio window no longer needs the old transparent HUD hit regions.
+};
+ipcMain.on("hud-overlay-interactive-regions", ignoreLegacyHudOverlayMessage);
+ipcMain.on("hud-overlay-set-ignore-mouse", ignoreLegacyHudOverlayMessage);
+ipcMain.on("hud-overlay-set-source-selection-active", ignoreLegacyHudOverlayMessage);
+ipcMain.on("hud-overlay-set-webcam-preview-visible", ignoreLegacyHudOverlayMessage);
 ipcMain.on("hud-overlay-hide", () => getHudOverlayWindow()?.minimize());
 ipcMain.handle("get-hud-overlay-capture-protection", () => ({ success: true, enabled: true }));
 ipcMain.handle("set-hud-overlay-capture-protection", () => ({ success: true, enabled: true }));

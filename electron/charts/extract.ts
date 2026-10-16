@@ -133,6 +133,7 @@ export type Extraction = z.infer<typeof extractionSchema>;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: Control characters in model output are replaced deliberately.
 const clip = (s: string, max: number) =>
 	s
+		// biome-ignore lint/suspicious/noControlCharactersInRegex: Strip control bytes from extracted labels intentionally.
 		.replace(/[\u0000-\u001f\u007f]/g, " ")
 		.trim()
 		.slice(0, max);

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { AudioRegion } from "../../src/components/video-editor/types";
+import type { StudioInfo } from "../../src/types/studio";
 import { ffmpeg } from "../ipc/voice/chunker";
 import { sceneMediaSchema } from "./model";
 
@@ -812,7 +813,7 @@ test("current source overlays autosave without refocusing the desktop; reset pre
 			{ senderFrame: frame, sender: { mainFrame: frame } },
 			method,
 			input,
-		) as Promise<any>;
+		) as Promise<StudioInfo>;
 	await request("info");
 	// Applying a saved scene first also clears any active ID from an earlier test.
 	const scene = {
@@ -844,14 +845,14 @@ test("current source overlays autosave without refocusing the desktop; reset pre
 	await fs.writeFile(path.join(host.root, "studio/media", media.file), "test image");
 	host.focus.mockClear();
 	let result = await request("setCurrentSceneMedia", { sceneId: scene.id, media: [media] });
-	expect(result.settings.scenes.find((s: any) => s.id === scene.id).media).toEqual([media]);
+	expect(result.settings.scenes.find((s) => s.id === scene.id)?.media).toEqual([media]);
 	expect(host.focus).not.toHaveBeenCalled();
 	await expect(
 		request("setCurrentSceneMedia", { sceneId: crypto.randomUUID(), media: [] }),
 	).rejects.toThrow("scene changed");
 	result = await request("resetRecordingDefaults");
 	expect(result.settings).toMatchObject({ glow: true, includeSoundboardInRecording: true });
-	expect(result.settings.scenes.find((s: any) => s.id === scene.id).media).toEqual([media]);
+	expect(result.settings.scenes.find((s) => s.id === scene.id)?.media).toEqual([media]);
 	expect(host.control).toHaveBeenCalledWith("recording-defaults");
 	host.active = true;
 	await expect(request("setCurrentSceneMedia", { sceneId: scene.id, media: [] })).rejects.toThrow(

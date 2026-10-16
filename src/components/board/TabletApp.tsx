@@ -227,7 +227,9 @@ export function TabletApp() {
 				.then((value) => {
 					if (!disposed) setURLPresentation(value);
 				})
-				.catch(() => {});
+				.catch(() => {
+					// Keep the last presentation state during a temporary disconnect; poll retries.
+				});
 		const timer = setInterval(poll, 1000);
 		return () => {
 			disposed = true;
