@@ -27,3 +27,38 @@
 - Native automation could not reliably send preview drag motion or global hotkey gestures. Precise property editing was verified; geometry/release behavior has regression coverage. Existing shortcut regression coverage is retained; physical key behavior is not newly certified here.
 - Chrome automation permission and physical iPad/Pencil behavior need a user-side check. URL session semantics are covered by automated tests; no new OS permission was granted unattended.
 - Sources currently support one base display/window, one facecam and up to 24 image/video/audio overlays per scene, not arbitrary simultaneous capture cards or multiple cameras. Live level meters are not added in this pass.
+
+## OBS visual pass — 2026-10-16
+
+The recording home now uses stacked Scenes/Sources docks on the left, a large live
+composition preview, and Audio & camera, Presenter tools, and Controls along the
+bottom. The palette, narrow gaps, dock headers, selected rows, and small-radius
+button states were compared with OBS 32.2.2 and the Yami theme in
+https://github.com/nikooo11/obs-studio/blob/master/frontend/data/themes/Yami.obt.
+This is an adaptation of the existing React studio; existing recorder, iPad,
+whiteboard, scene/media, soundboard and editing pipelines remain in place.
+
+Direct AI mic and Voices buttons open the existing figure assistant and
+ElevenLabs recording voice picker. Opening AI mic does not begin listening or
+send content. The microphone meter uses live input from the selected device;
+it is an input-activity display, not a calibrated dB meter or gain control.
+
+Validation: typecheck, production build, Electron CommonJS smoke check, and
+1,387 tests in 181 files passed. Browser playtest covered the 820×600 minimum
+and 1140×760 default sizes, scene switching, countdown, pause, and all presenter
+buttons remaining inside the window. A direct OBS-window reference recording
+was inspected after capture; Studio Mode was restored to off.
+
+First-launch defaults checked: a Screen explainer scene, microphone and computer
+audio on, soft-framed facecam, three-second countdown, soundboard included in
+recording, studio hidden from capture, and automatic click zoom off. Existing
+saved preferences and scenes are preserved; Reset to defaults remains available.
+
+The signed installed build was checked on macOS: AI mic opens the assistant on
+the first click after launch, Voices opens the populated ElevenLabs voice list,
+and Settings opens separately with the recording studio retained. A pending
+panel request is consumed only by the presenter window after React mounts;
+hidden drawing surfaces cannot steal it. AI research itself was not run because
+this installation reports that its OpenAI key has not been configured.
+The live microphone meter responded to input. Studio capture was temporarily
+enabled for the UI screenshot, then restored to off; facecam was restored to on.

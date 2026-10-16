@@ -36,6 +36,7 @@ export function BoardWindow({ kind }: { kind: string }) {
 	const [scenes, setScenes] = useState<string[]>([]);
 	const [compact, setCompact] = useState(false);
 	const [ai, setAi] = useState(false);
+	const [soundTab, setSoundTab] = useState<"sounds" | "voices">("sounds");
 	const [memes, setMemes] = useState(false);
 	const [sounds, setSounds] = useState(false);
 	const [tab, setTab] = useState<"draw" | "ipad" | "scenes" | "settings">("draw");
@@ -67,14 +68,32 @@ export function BoardWindow({ kind }: { kind: string }) {
 		);
 		const fail = transport.on("error", setError);
 		const showMemes = transport.on("openMemes", () => setMemes(true));
+		const openRequestedPresenter = () => {
+			if (kind !== "board-panel") return;
+			void transport
+				.request<"ai" | "voices" | "sounds" | null>("takePresenterTool")
+				.then((tool) => {
+					if (!tool) return;
+					setMemes(false);
+					setAi(tool === "ai");
+					setSoundTab(tool === "voices" ? "voices" : "sounds");
+					setSounds(tool !== "ai");
+				})
+				.catch((e) => setError(String(e)));
+		};
+		// Read once on mount as well: the desktop request can arrive before React mounts.
+		const showPresenter = transport.on("openPresenter", openRequestedPresenter);
+		openRequestedPresenter();
+
 		return () => {
 			navigate();
 			off();
 			status();
 			fail();
 			showMemes();
+			showPresenter();
 		};
-	}, [transport, run]);
+	}, [transport, run, kind]);
 	const preferredUrl = info?.pairing?.urls[0] ?? "";
 	useEffect(() => {
 		setPairUrl(preferredUrl);
@@ -151,7 +170,14 @@ export function BoardWindow({ kind }: { kind: string }) {
 					onClose={() => setMemes(false)}
 				/>
 			)}
-			{sounds && <Soundboard transport={transport} onClose={() => setSounds(false)} />}
+			{sounds && (
+				<Soundboard
+					key={soundTab}
+					initialTab={soundTab}
+					transport={transport}
+					onClose={() => setSounds(false)}
+				/>
+			)}
 			<header className="board-panel-heading">
 				<div>
 					<h1>{compact ? "Recording controls" : "Drawing"}</h1>

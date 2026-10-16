@@ -459,3 +459,420 @@
 	padding: 4px;
 	min-height: 28px;
 }
+
+/* OBS-style workspace: persistent scene/source docks, expansive preview,
+   and compact bottom docks. Only these controls intercept desktop input. */
+.capture-studio.recording-studio {
+	--capture-bg: #1d1f26;
+	--capture-panel: #272a33;
+	--capture-field: #3c404d;
+	--capture-line: #3c404d;
+	--capture-text: #ffffff;
+	--capture-muted: #b1b6c4;
+	grid-template-columns: 260px minmax(180px, 1fr) 216px 240px;
+	grid-template-rows: 38px minmax(0, 1fr) 262px 26px;
+	gap: 5px;
+	padding: 0 5px;
+	min-width: 800px;
+}
+.recording-studio .capture-heading {
+	margin: 0 -5px;
+	background: #23262d;
+	border-bottom: 1px solid var(--capture-line);
+}
+.recording-studio .studio-dock {
+	background: var(--capture-panel);
+	border: 1px solid var(--capture-line);
+	border-radius: 3px;
+	min-width: 0;
+	min-height: 0;
+}
+.recording-studio .studio-dock-title {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: none;
+	margin: 0;
+	padding: 5px 8px;
+	min-height: 28px;
+	background: #3c404d;
+	font-size: 12px;
+	font-weight: 650;
+	line-height: 18px;
+	border-bottom: 1px solid var(--capture-line);
+}
+.recording-studio .studio-dock-body {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 8px;
+	overflow: auto;
+	min-height: 0;
+	scrollbar-width: thin;
+}
+.recording-studio .studio-sources {
+	grid-column: 1;
+	grid-row: 2 / 4;
+	display: grid;
+	grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+	gap: 5px;
+	border: 0;
+	background: none;
+}
+.studio-scenes-dock {
+	display: flex;
+	flex-direction: column;
+}
+.recording-studio .studio-section-tabs {
+	padding: 0;
+	gap: 0;
+	background: #3c404d;
+	border-bottom: 1px solid var(--capture-line);
+}
+.recording-studio .studio-section-tabs button {
+	border: 0;
+	border-radius: 0;
+	padding: 5px;
+	min-height: 28px;
+	font-weight: 600;
+}
+.recording-studio .studio-section-tabs button[aria-pressed="true"] {
+	background: #43506d;
+	box-shadow: inset 0 -2px #7398f4;
+}
+.recording-studio .studio-source-scroll {
+	padding: 8px;
+	flex: 1;
+}
+.recording-studio .capture-section-heading {
+	gap: 4px;
+	margin-bottom: 6px;
+}
+.recording-studio .capture-section-heading p {
+	display: none;
+}
+.recording-studio .capture-section-heading h2 {
+	font-size: 11px;
+}
+.recording-studio .capture-section-heading > button {
+	padding: 3px 6px;
+}
+.recording-studio .scene-help {
+	font-size: 10px;
+	margin-bottom: 8px;
+}
+.recording-studio .compact-scene-list {
+	max-height: none;
+	overflow: visible;
+}
+.recording-studio .compact-scene-row {
+	padding: 5px 0;
+	gap: 3px;
+}
+.recording-studio .compact-scene-row .scene-description {
+	border-radius: 2px;
+	padding: 5px 7px;
+}
+.recording-studio .compact-scene-row .scene-description[aria-pressed="true"] {
+	background: #284cb8;
+	border-color: #718cdc;
+	color: white;
+}
+.recording-studio .studio-layer-dock {
+	overflow: auto;
+	scrollbar-width: thin;
+}
+.recording-studio .scene-source-dock {
+	border: 0;
+	padding: 0;
+	margin: 0;
+}
+.recording-studio .scene-source-dock > header {
+	padding: 5px 8px;
+	background: #3c404d;
+	border-bottom: 1px solid var(--capture-line);
+}
+.recording-studio .scene-source-dock > :not(header) {
+	margin-left: 8px;
+	margin-right: 8px;
+}
+.recording-studio .scene-source-dock .capture-note {
+	font-size: 10px;
+	padding: 5px;
+}
+.recording-studio .source-layer-fixed {
+	padding: 7px 5px;
+}
+.recording-studio .studio-preview-area {
+	grid-column: 2 / -1;
+	grid-row: 2;
+	padding: 0;
+	gap: 4px;
+	min-height: 0;
+	overflow: hidden;
+	position: relative;
+	background: #1b1d25;
+	border: 1px solid var(--capture-line);
+}
+.recording-studio .studio-preview-heading {
+	padding: 4px 9px;
+	background: #292c36;
+	border-bottom: 1px solid var(--capture-line);
+}
+.recording-studio .studio-preview-heading > div {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+.recording-studio .studio-preview-heading h2 {
+	font-size: 11px;
+	margin: 0;
+}
+.recording-studio .studio-eyebrow {
+	font-size: 9px;
+	letter-spacing: 0.5px;
+}
+.recording-studio .studio-preview {
+	min-height: 0;
+	max-height: none;
+	margin: 0 5px;
+	flex: 1;
+}
+.recording-studio .live-scene-preview {
+	min-height: 0;
+	gap: 4px;
+}
+.recording-studio .live-preview-stage {
+	border-radius: 0;
+	border-color: #303542;
+	background: #13141a;
+}
+.recording-studio .live-preview-footer {
+	font-size: 9px;
+	padding: 0 4px;
+	gap: 4px;
+}
+.recording-studio .studio-preview-caption {
+	display: none;
+}
+.recording-studio .studio-capture-visibility {
+	padding: 3px 9px 6px;
+	margin: 0;
+	font-size: 10px;
+}
+.recording-studio .studio-projects {
+	position: absolute;
+	right: 8px;
+	top: 36px;
+	z-index: 5;
+	width: min(340px, 90%);
+	max-height: 75%;
+	padding: 12px;
+	background: #303540;
+	border: 1px solid #5e687e;
+	box-shadow: 0 8px 28px #0009;
+}
+.recording-studio .studio-tools {
+	grid-column: 3;
+	grid-row: 3;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0;
+}
+.studio-tool-grid {
+	padding: 8px;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 6px;
+	overflow: auto;
+}
+.recording-studio .studio-tool-grid > button {
+	min-height: 38px;
+	height: auto;
+	padding: 5px;
+	border-radius: 3px;
+	gap: 6px;
+	justify-content: flex-start;
+	font-size: 11px;
+}
+.recording-studio .studio-tool-grid > button svg {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+}
+.recording-studio .studio-audio {
+	grid-column: 2;
+	grid-row: 3;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+.recording-studio .studio-controls {
+	grid-column: 4;
+	grid-row: 3;
+	padding: 0;
+	gap: 0;
+	overflow: hidden;
+}
+.recording-studio .studio-controls .studio-dock-body {
+	gap: 5px;
+}
+.recording-studio .studio-clock {
+	font-size: 29px;
+	letter-spacing: 2px;
+	margin: 0 0 2px;
+}
+.recording-studio .studio-record {
+	min-height: 48px;
+	border-radius: 3px;
+	font-size: 13px;
+}
+.recording-studio .studio-record > span {
+	gap: 1px;
+}
+.recording-studio .studio-pause {
+	min-height: 29px;
+	border-radius: 3px;
+}
+.recording-studio .studio-discard {
+	padding: 0;
+}
+.recording-studio .studio-discard button {
+	min-height: 22px;
+	padding: 2px 5px;
+}
+.recording-studio .studio-input-toggle {
+	padding: 5px 7px;
+	border-radius: 3px;
+	min-height: 30px;
+	font-size: 11px;
+}
+.recording-studio .studio-input-toggle svg {
+	width: 16px;
+	height: 16px;
+}
+.recording-studio .studio-input-toggle[aria-pressed="true"] {
+	border-color: #4a576b;
+}
+.recording-studio .studio-audio select {
+	width: 100%;
+	min-width: 0;
+	color: var(--capture-text);
+	background: #20232c;
+	border: 1px solid var(--capture-line);
+	border-radius: 3px;
+	padding: 4px;
+	font-size: 10px;
+}
+.recording-studio .studio-camera-shortcut {
+	font-size: 9px;
+	margin-top: -3px;
+}
+.recording-studio .studio-device-details {
+	font-size: 10px;
+}
+.recording-studio .studio-device-details p {
+	font-size: 10px;
+	margin: 4px 0;
+}
+.recording-studio .studio-footer {
+	grid-row: 4;
+	padding: 0 8px;
+	margin: 0 -5px;
+	font-size: 9px;
+}
+.recording-studio .studio-url-presentation {
+	padding: 5px 8px;
+	border-radius: 0;
+	font-size: 10px;
+}
+.recording-studio .studio-url-presentation small {
+	width: auto;
+}
+.recording-studio .studio-clip-banner {
+	padding: 5px 8px;
+	border-radius: 0;
+}
+@media (max-width: 980px) {
+	.capture-studio.recording-studio {
+		grid-template-columns: 220px minmax(165px, 1fr) 180px 220px;
+	}
+	.recording-studio .studio-tool-grid {
+		padding: 6px;
+		gap: 4px;
+	}
+	.recording-studio .studio-tool-grid > button {
+		font-size: 10px;
+		gap: 4px;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.recording-studio *,
+	.recording-studio *::before,
+	.recording-studio *::after {
+		transition: none !important;
+	}
+}
+.studio-mic-monitor {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.studio-mic-monitor small {
+	font-size: 9px;
+	color: var(--capture-muted);
+	white-space: nowrap;
+}
+.studio-meter {
+	flex: 1;
+	height: 7px;
+	overflow: hidden;
+	background: #171b22;
+	border: 1px solid #444b58;
+}
+.studio-meter span {
+	display: block;
+	height: 100%;
+	background: #67c999;
+	transition: width 80ms linear;
+}
+
+/* Yami reference: 4px button corners, 2px list corners, narrow dock gaps. */
+.recording-studio .studio-tool-grid > button {
+	min-height: 34px;
+	border-radius: 4px;
+}
+.recording-studio button:hover:not(:disabled) {
+	background: #464b59;
+	border-color: #5b6273;
+}
+.recording-studio button:active:not(:disabled) {
+	background: #1d1f26;
+}
+.recording-studio .studio-record:hover:not(:disabled) {
+	background: #e33b57;
+	border-color: #e85e75;
+}
+.recording-studio .studio-record {
+	background: #c01c37;
+	border-color: #e33b57;
+}
+.recording-studio .studio-dock-title,
+.recording-studio .scene-source-dock > header h2 {
+	font-size: 13px;
+}
+.recording-studio .studio-tool-grid > button,
+.recording-studio .studio-input-toggle,
+.recording-studio .studio-section-tabs button,
+.recording-studio .scene-description,
+.recording-studio .source-add-buttons button {
+	font-size: 12px;
+}
+@media (max-width: 980px) {
+	.recording-studio .studio-tool-grid > button,
+	.recording-studio .studio-section-tabs button {
+		font-size: 11px;
+	}
+}

@@ -100,6 +100,7 @@ let panel: BrowserWindow | undefined,
 let companion: CompanionServer, mcp: DrawingMcpServer;
 let displayId = 0;
 let panelTab: BoardInfo["panelTab"] = "draw";
+let pendingPresenterTool: "ai" | "voices" | "sounds" | null = null;
 let edgeTimer: ReturnType<typeof setInterval> | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 const edgeTrigger = new EdgeBoardTrigger();
@@ -408,6 +409,18 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			return editorWorkArea();
 		case "tabletInfo":
 			return tabletInfo();
+		case "openPresenter": {
+			const tool = z.enum(["ai", "voices", "sounds"]).parse(input);
+			pendingPresenterTool = tool;
+			await openDrawingStudio("draw");
+			panel?.webContents.send("board:openPresenter", tool);
+			return info();
+		}
+		case "takePresenterTool": {
+			const tool = pendingPresenterTool;
+			pendingPresenterTool = null;
+			return tool;
+		}
 		case "openMemes":
 			await openDrawingStudio("draw");
 			panel?.webContents.send("board:openMemes");

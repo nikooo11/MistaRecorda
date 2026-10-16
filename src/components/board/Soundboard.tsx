@@ -2,7 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import type { BoardAPI } from "../../types/board";
 import type { SoundEffect } from "../../types/studio";
 import { VoiceCuePicker } from "../studio/VoiceCuePicker";
-export function Soundboard({ transport, onClose }: { transport: BoardAPI; onClose: () => void }) {
+export function Soundboard({
+	transport,
+	onClose,
+	initialTab = "sounds",
+}: {
+	transport: BoardAPI;
+	onClose: () => void;
+	initialTab?: "sounds" | "voices";
+}) {
 	const [info, setInfo] = useState<{
 		sounds: Omit<SoundEffect, "file">[];
 		streaming: boolean;
@@ -13,7 +21,7 @@ export function Soundboard({ transport, onClose }: { transport: BoardAPI; onClos
 	const [notice, setNotice] = useState("");
 	const noticeTimer = useRef<ReturnType<typeof setTimeout>>();
 	useEffect(() => () => clearTimeout(noticeTimer.current), []);
-	const [tab, setTab] = useState<"sounds" | "voices">("sounds");
+	const [tab, setTab] = useState<"sounds" | "voices">(initialTab);
 	const [search, setSearch] = useState("");
 	useEffect(() => {
 		const refresh = () =>
