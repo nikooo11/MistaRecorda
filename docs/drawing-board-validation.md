@@ -75,3 +75,12 @@ On a Mac or Windows PC and an iPad on the same private Wi-Fi:
 - Suppress incidental app activation during whiteboard dismissal instead of bringing the studio forward over the presentation.
 - Validation: TypeScript and all 1,410 tests pass, including coordinate round trips at fit scales 0.59, 0.77, and 1.2.
 - Signed build installed and relaunched after the user stopped recording; Save & Close preserved the take. Studio reports Ready to record with facecam off. Native Board / Put board away controls open and close successfully. Physical iPad alignment and dismissal over an external foreground application still need device confirmation; automation could not reliably trigger the global board shortcut from another application.
+
+## 2026-10-16: compact meme library and reusable edits
+
+- Meme cards use responsive columns with a contained three-button action row, equal thumbnail/label heights, and wrapped names. The narrow iPad panel uses two columns; wider panels can use three.
+- All memes / Edited memes filters share search, loves and favorites. Saving a meme marks it as edited in the persisted shared library. Older customized playback settings also qualify; the bundled Fahhh sound alone does not.
+- The mobile editor replaces the thumbnail list and keeps Back / Save visible below the movable panel handle while scrolling. Sound, timing, transitions and shake controls use full-width fields; search tags and AI hints are collapsed.
+- Browser playtest used the real library and floating-panel components with isolated data at 1024×768, 768×1024 and 1280×800. Card actions stayed inside their cards, edit fields stayed inside the 300px panel, saved effects reappeared on reopening, Back discarded an unsaved change, and choosing the saved meme armed its placement with audio attached. Physical iPad Safari was not used for this check.
+- TypeScript, all 1,413 automated tests, production build and Electron CommonJS smoke checks passed. Regression tests cover edited-category filtering, legacy custom effects, persistence validation and preservation of shared edits when importing an environment.
+- The idle Mac app was quit, updated in /Applications, verified with strict deep codesign, and relaunched. It reports Ready to record with facecam off. The iPad needs a page refresh to load the new interface.

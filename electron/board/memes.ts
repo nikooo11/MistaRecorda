@@ -11,6 +11,7 @@ export const memeShakeSchema = z.object({
 });
 const point = z.number().finite().min(-1e7).max(1e7);
 export const memeSchema = z.object({
+	edited: z.boolean().optional(),
 	shake: memeShakeSchema.optional(),
 	tags: z
 		.array(z.string().trim().min(1).max(40))

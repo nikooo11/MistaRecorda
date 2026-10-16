@@ -199,3 +199,19 @@ test("shake preferences are bounded, captured on deploy and private before revea
 		expect(memeSchema.safeParse({ ...a, shake }).success).toBe(false);
 	expect(validateMemes(JSON.parse(JSON.stringify(state))).memes[0].shake).toEqual(a.shake);
 });
+
+test("edited playback settings and category survive a saved library round trip", () => {
+	const state = emptyBoardState();
+	state.memes = [
+		{
+			...asset(),
+			edited: true,
+			enter: "fade",
+			exit: "fall",
+			soundId: "61b2f687-14fa-4dca-b47b-6d901cda9980",
+			shake: { target: "screen", strength: 6, durationMs: 500 },
+		},
+	];
+	const restored = validateMemes(JSON.parse(JSON.stringify(state)));
+	expect(restored.memes[0]).toEqual(state.memes[0]);
+});

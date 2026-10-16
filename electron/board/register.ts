@@ -1205,6 +1205,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		}
 		case "saveMeme": {
 			const meme = memeSchema.parse(input);
+			if (store.state.memes?.some((m) => m.id === meme.id)) meme.edited = true;
 			meme.loved = store.state.memes?.find((m) => m.id === meme.id)?.loved ?? false;
 			const size =
 				bundledMemeFromURL(meme.dataURL) ??

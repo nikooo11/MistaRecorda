@@ -1815,3 +1815,85 @@ html[data-window-type^="board-"] #root {
 		transform: translate(var(--shake-distance), calc(-0.4 * var(--shake-distance))) rotate(1deg);
 	}
 }
+
+.meme-categories {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 5px;
+	margin: 6px 0;
+}
+.meme-categories button {
+	min-width: 0;
+	padding: 6px;
+	font-size: 12px;
+}
+.meme-categories button[aria-pressed="true"] {
+	background: #dcd9ff;
+	border-color: #756bcc;
+	color: #29216b;
+}
+.meme-category-help {
+	font-size: 12px;
+	color: #52616e;
+}
+.meme-options {
+	border-top: 0;
+	padding-top: 0;
+}
+.meme-edit-bar {
+	position: sticky;
+	top: 0;
+	z-index: 3;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	background: #fafbfc;
+	padding: 5px 0;
+	border-bottom: 1px solid #c8d0da;
+}
+.board-tablet .tablet-floating-panel .meme-edit-bar {
+	top: 32px;
+}
+.meme-edit-bar button {
+	min-height: 40px;
+}
+.meme-edit-bar button[type="submit"] {
+	color: white;
+	background: #315f9d;
+}
+.meme-edit-preview {
+	width: 100%;
+	height: 70px;
+	object-fit: contain;
+}
+.meme-options label {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 5px;
+	justify-content: stretch;
+}
+.meme-options :is(input:not([type="checkbox"]), select, textarea) {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 100%;
+	min-height: 40px;
+	font-size: 16px;
+}
+.meme-options
+	:is(input:not([type="checkbox"]):not([type="range"]):not([type="file"]), select, textarea) {
+	border: 1px solid #b9c3d1;
+	border-radius: 5px;
+	background: #fff;
+	color: #26303e;
+	padding: 7px;
+}
+.meme-options label:has(> input[type="checkbox"]) {
+	grid-template-columns: auto minmax(0, 1fr);
+	justify-content: start;
+	min-height: 40px;
+}
+.meme-options details summary {
+	padding: 8px 0;
+	cursor: pointer;
+}

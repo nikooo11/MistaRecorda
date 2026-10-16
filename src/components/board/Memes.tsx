@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { HeartIcon, StarIcon, GearSixIcon } from "@phosphor-icons/react";
 import { createPortal } from "react-dom";
 import { dragObject, type ObjectRect } from "./objectPlacement";
-import { matchingMemes } from "./memePreferences";
+import { matchingMemes, isEditedMeme } from "./memePreferences";
 import { MemePreviewButton } from "./MemePreviewButton";
 import type { BoardAPI, BoardState } from "../../types/board";
 import type { MemeAsset, MemeTransition, PlacedMeme } from "../../types/memes";
@@ -34,6 +34,12 @@ export function MemeLibrary({
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [query, setQuery] = useState("");
+	const [category, setCategory] = useState<"all" | "edited">("all");
+	const editedCount = state.memes?.filter(isEditedMeme).length ?? 0;
+	const library = useRef<HTMLElement>(null);
+	useEffect(() => {
+		library.current?.scrollTo({ top: 0 });
+	}, [edit?.id]);
 	const [tagDraft, setTagDraft] = useState(
 		() => state.memes?.find((m) => m.id === initialEditId)?.tags?.join(", ") ?? "",
 	);
@@ -60,6 +66,8 @@ export function MemeLibrary({
 		try {
 			await transport.request("saveMeme", asset);
 			setEdit(undefined);
+			setCategory(asset.edited ? "edited" : "all");
+			setQuery("");
 		} catch (e) {
 			setError(String(e));
 		} finally {
@@ -67,148 +75,187 @@ export function MemeLibrary({
 		}
 	};
 	return (
-		<aside className="board-tray meme-library" aria-label="Memes">
+		<aside ref={library} className="board-tray meme-library" aria-label="Memes">
 			<header>
 				<strong>Memes</strong>
 				<button onClick={onClose}>Close</button>
 			</header>
-			<details className="meme-help">
-				<summary>Placement, loves & favorites</summary>
-				<p>
-					Tap a meme or drag its thumbnail onto the canvas. Move and resize the 50%
-					preview, then press Deploy. Sound and effects start only after deployment.
-				</p>
-				<p className="meme-preference-help">
-					♥ Love keeps a meme at the top across projects. ★ Favorites are for this take or
-					saved environment. They reset when recording stops.
-				</p>
-			</details>
-			<label className="board-import">
-				＋ Import image or GIF
-				<input
-					type="file"
-					accept="image/png,image/jpeg,image/webp,image/gif"
-					disabled={busy}
-					onChange={async (e) => {
-						const file = e.target.files?.[0];
-						e.target.value = "";
-						if (!file) return;
-						if (file.size > 12 * 1024 * 1024) {
-							setError("Choose an image or GIF under 12 MB.");
-							return;
-						}
-						try {
-							const dataURL = await new Promise<string>((resolve, reject) => {
-								const r = new FileReader();
-								r.onload = () => resolve(String(r.result));
-								r.onerror = reject;
-								r.readAsDataURL(file);
-							});
-							const image = new Image();
-							image.src = dataURL;
-							await image.decode();
-							await save({
-								id: presenterId(),
-								name: file.name.replace(/\.[^.]+$/, "").slice(0, 80),
-								dataURL,
-								width: image.naturalWidth,
-								height: image.naturalHeight,
-								...DEFAULT_MEME_PLAYBACK,
-								soundId: "",
-							});
-						} catch {
-							setError("Could not import that image.");
-						}
-					}}
-				/>
-			</label>
-			<input
-				type="search"
-				className="meme-search"
-				aria-label="Find memes"
-				placeholder="Find memes: stupid, celebrate, surprised…"
-				value={query}
-				onChange={(e) => setQuery(e.target.value)}
-			/>
-			<div className="meme-grid">
-				{matchingMemes(state, query).map((asset) => (
-					<div key={asset.id}>
-						<MemePreviewButton
-							asset={asset}
-							soundName={sounds.find((s) => s.id === asset.soundId)?.name}
-							onDragPreview={
-								onDragPreview ? (point) => onDragPreview(asset, point) : undefined
-							}
-							onDrop={(point) => {
-								onChoose(asset, point);
-								onClose();
-							}}
-							onClick={() => {
-								onChoose(asset);
-								onClose();
+			{!edit && (
+				<>
+					<nav className="meme-categories" aria-label="Meme categories">
+						<button
+							aria-pressed={category === "all"}
+							onClick={() => setCategory("all")}
+						>
+							All memes
+						</button>
+						<button
+							aria-pressed={category === "edited"}
+							onClick={() => setCategory("edited")}
+						>
+							Edited memes · {editedCount}
+						</button>
+					</nav>
+					{category === "edited" && (
+						<p className="meme-category-help">
+							Your saved sounds, transitions and effects, ready across projects. Tap ⚙
+							to edit again.
+						</p>
+					)}
+					<details className="meme-help">
+						<summary>Placement, loves & favorites</summary>
+						<p>
+							Tap a meme or drag its thumbnail onto the canvas. Move and resize the
+							50% preview, then press Deploy. Sound and effects start only after
+							deployment.
+						</p>
+						<p className="meme-preference-help">
+							♥ Love keeps a meme at the top across projects. ★ Favorites are for this
+							take or saved environment. They reset when recording stops.
+						</p>
+					</details>
+					<label className="board-import">
+						＋ Import image or GIF
+						<input
+							type="file"
+							accept="image/png,image/jpeg,image/webp,image/gif"
+							disabled={busy}
+							onChange={async (e) => {
+								const file = e.target.files?.[0];
+								e.target.value = "";
+								if (!file) return;
+								if (file.size > 12 * 1024 * 1024) {
+									setError("Choose an image or GIF under 12 MB.");
+									return;
+								}
+								try {
+									const dataURL = await new Promise<string>((resolve, reject) => {
+										const r = new FileReader();
+										r.onload = () => resolve(String(r.result));
+										r.onerror = reject;
+										r.readAsDataURL(file);
+									});
+									const image = new Image();
+									image.src = dataURL;
+									await image.decode();
+									await save({
+										id: presenterId(),
+										name: file.name.replace(/\.[^.]+$/, "").slice(0, 80),
+										dataURL,
+										width: image.naturalWidth,
+										height: image.naturalHeight,
+										...DEFAULT_MEME_PLAYBACK,
+										soundId: "",
+									});
+								} catch {
+									setError("Could not import that image.");
+								}
 							}}
 						/>
-						<div className="meme-card-actions">
-							<button
-								disabled={busy}
-								aria-label={`${asset.loved ? "Unlove" : "Love"} ${asset.name}`}
-								aria-pressed={!!asset.loved}
-								title="Love ♥ — keep this meme near the top across all projects and recordings until you unlove it."
-								onClick={() => void preference(asset.id, "love", !asset.loved)}
-							>
-								<HeartIcon size={17} weight={asset.loved ? "fill" : "regular"} />
-							</button>
-							<button
-								disabled={busy}
-								aria-label={`${state.favoriteMemeIds?.includes(asset.id) ? "Unfavorite" : "Favorite"} ${asset.name}`}
-								aria-pressed={!!state.favoriteMemeIds?.includes(asset.id)}
-								title="Favorite ★ — pin this meme for this recording or saved environment only. Favorites reset after the take; Love keeps it across projects."
-								onClick={() =>
-									void preference(
-										asset.id,
-										"favorite",
-										!state.favoriteMemeIds?.includes(asset.id),
-									)
-								}
-							>
-								<StarIcon
-									size={17}
-									weight={
-										state.favoriteMemeIds?.includes(asset.id)
-											? "fill"
-											: "regular"
+					</label>
+					<input
+						type="search"
+						className="meme-search"
+						aria-label="Find memes"
+						placeholder="Find memes: stupid, celebrate, surprised…"
+						value={query}
+						onChange={(e) => setQuery(e.target.value)}
+					/>
+					<div className="meme-grid">
+						{matchingMemes(state, query, category).map((asset) => (
+							<div key={asset.id}>
+								<MemePreviewButton
+									asset={asset}
+									soundName={sounds.find((s) => s.id === asset.soundId)?.name}
+									onDragPreview={
+										onDragPreview
+											? (point) => onDragPreview(asset, point)
+											: undefined
 									}
+									onDrop={(point) => {
+										onChoose(asset, point);
+										onClose();
+									}}
+									onClick={() => {
+										onChoose(asset);
+										onClose();
+									}}
 								/>
-							</button>
-							<button
-								aria-label={`Settings for ${asset.name}`}
-								onClick={() => {
-									setTagDraft(asset.tags?.join(", ") ?? "");
-									setEdit(asset);
-								}}
-							>
-								<GearSixIcon size={17} />
-							</button>
-						</div>
+								<div className="meme-card-actions">
+									<button
+										disabled={busy}
+										aria-label={`${asset.loved ? "Unlove" : "Love"} ${asset.name}`}
+										aria-pressed={!!asset.loved}
+										title="Love ♥ — keep this meme near the top across all projects and recordings until you unlove it."
+										onClick={() =>
+											void preference(asset.id, "love", !asset.loved)
+										}
+									>
+										<HeartIcon
+											size={17}
+											weight={asset.loved ? "fill" : "regular"}
+										/>
+									</button>
+									<button
+										disabled={busy}
+										aria-label={`${state.favoriteMemeIds?.includes(asset.id) ? "Unfavorite" : "Favorite"} ${asset.name}`}
+										aria-pressed={!!state.favoriteMemeIds?.includes(asset.id)}
+										title="Favorite ★ — pin this meme for this recording or saved environment only. Favorites reset after the take; Love keeps it across projects."
+										onClick={() =>
+											void preference(
+												asset.id,
+												"favorite",
+												!state.favoriteMemeIds?.includes(asset.id),
+											)
+										}
+									>
+										<StarIcon
+											size={17}
+											weight={
+												state.favoriteMemeIds?.includes(asset.id)
+													? "fill"
+													: "regular"
+											}
+										/>
+									</button>
+									<button
+										aria-label={`Settings for ${asset.name}`}
+										onClick={() => {
+											setTagDraft(asset.tags?.join(", ") ?? "");
+											setEdit(asset);
+										}}
+									>
+										<GearSixIcon size={17} />
+									</button>
+								</div>
+							</div>
+						))}
 					</div>
-				))}
-			</div>
-			<button
-				disabled={busy}
-				onClick={async () => {
-					setBusy(true);
-					setError("");
-					try {
-						await transport.request("restoreDefaultMemes");
-					} catch (e) {
-						setError(String(e));
-					} finally {
-						setBusy(false);
-					}
-				}}
-			>
-				Restore default memes
-			</button>
+					{matchingMemes(state, query, category).length === 0 && (
+						<p role="status">
+							{category === "edited"
+								? "No edited memes found. Open a meme’s gear, customize it, then save."
+								: "No memes match your search."}
+						</p>
+					)}
+					<button
+						disabled={busy}
+						onClick={async () => {
+							setBusy(true);
+							setError("");
+							try {
+								await transport.request("restoreDefaultMemes");
+							} catch (e) {
+								setError(String(e));
+							} finally {
+								setBusy(false);
+							}
+						}}
+					>
+						Restore default memes
+					</button>
+				</>
+			)}
 			{edit && (
 				<form
 					className="meme-options"
@@ -216,6 +263,7 @@ export function MemeLibrary({
 						e.preventDefault();
 						void save({
 							...edit,
+							edited: true,
 							tags: tagDraft
 								.split(",")
 								.map((tag) => tag.trim())
@@ -223,6 +271,20 @@ export function MemeLibrary({
 						});
 					}}
 				>
+					<div className="meme-edit-bar">
+						<button type="button" disabled={busy} onClick={() => setEdit(undefined)}>
+							← Back
+						</button>
+						<strong>Edit meme</strong>
+						<button type="submit" disabled={busy}>
+							{busy ? "Saving…" : "Save"}
+						</button>
+					</div>
+					<img
+						className="meme-edit-preview"
+						src={edit.dataURL}
+						alt={`${edit.name} preview`}
+					/>
 					<input
 						aria-label="Meme name"
 						value={edit.name}
@@ -230,28 +292,6 @@ export function MemeLibrary({
 						maxLength={80}
 						onChange={(e) => setEdit({ ...edit, name: e.target.value })}
 					/>
-					<label>
-						AI suggestion hint
-						<input
-							value={edit.description ?? ""}
-							maxLength={300}
-							placeholder="When would you use this reaction?"
-							onChange={(e) => setEdit({ ...edit, description: e.target.value })}
-						/>
-					</label>
-					<label>
-						Search tags
-						<textarea
-							value={tagDraft}
-							maxLength={1200}
-							rows={2}
-							placeholder="stupid, really, disbelief…"
-							onChange={(e) => setTagDraft(e.target.value)}
-						/>
-						<small>
-							Separate tags with commas. Used by search and the AI mic (up to 30).
-						</small>
-					</label>
 					{(["enter", "exit"] as const).map((key) => (
 						<label key={key}>
 							{key === "enter" ? "Transition in" : "Transition out"}
@@ -418,7 +458,8 @@ export function MemeLibrary({
 						</>
 					)}
 					<small>
-						Save keeps these sound, timing and effect settings across projects.
+						Save adds this meme to Edited memes, with its sound, timing and effects kept
+						across projects.
 					</small>
 
 					<label>
@@ -432,15 +473,41 @@ export function MemeLibrary({
 					<small>
 						{SHADOW_HELP} Sound and the entrance transition start only when shown.
 					</small>
+					<details>
+						<summary>Search tags & AI suggestions</summary>{" "}
+						<label>
+							AI suggestion hint
+							<input
+								value={edit.description ?? ""}
+								maxLength={300}
+								placeholder="When would you use this reaction?"
+								onChange={(e) => setEdit({ ...edit, description: e.target.value })}
+							/>
+						</label>
+						<label>
+							Search tags
+							<textarea
+								value={tagDraft}
+								maxLength={1200}
+								rows={2}
+								placeholder="stupid, really, disbelief…"
+								onChange={(e) => setTagDraft(e.target.value)}
+							/>
+							<small>
+								Separate tags with commas. Used by search and the AI mic (up to 30).
+							</small>
+						</label>
+					</details>
 					<footer>
 						<button type="submit" disabled={busy}>
 							Save
 						</button>
-						<button type="button" onClick={() => setEdit(undefined)}>
+						<button type="button" disabled={busy} onClick={() => setEdit(undefined)}>
 							Cancel
 						</button>
 						<button
 							type="button"
+							disabled={busy}
 							onClick={() =>
 								void transport
 									.request("deleteMeme", edit.id)

@@ -11,6 +11,7 @@ export const DEFAULT_MEME_PLAYBACK = {
 	durationSeconds: 3,
 } as const;
 export interface MemeAsset {
+	edited?: boolean;
 	shake?: MemeShake;
 	tags?: string[];
 	description?: string;
