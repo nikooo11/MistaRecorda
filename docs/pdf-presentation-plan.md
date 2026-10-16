@@ -1,50 +1,34 @@
 # PDF-assisted presentation setup
 
-Status: proposed workflow and implementation plan. PDF importing and AI presentation drafting are not implemented by this document.
+Implemented October 16, 2026.
 
-## A simple presenter workflow
+## Presenter workflow
 
-1. Open **Talking points** on Mac or iPad. A compact selector switches between named note sets, with New, Rename, Duplicate and Delete in its menu. Existing notes become a set named “My talking points.”
-2. Choose **Import PDF**. It opens a private PDF tab beside **Talking points** and **Objects**. The viewer offers page thumbnails, page number, search, zoom and touch scrolling. A small “Presenter only · not recorded” label makes its purpose clear. Switching tabs preserves PDF page/zoom and the selected note set.
-3. Choose **Make presentation**. A single small form asks for the topic/goal, audience, target length and PDF pages. Useful defaults: a short explainer, all reasonable-length pages, existing notes included, subtle visual suggestions, sounds off. Long PDFs default to choosing chapters/pages before analysis.
-4. Review the draft. Show an outline of short bullet points, each with its source page and compact attachment chips: **Chart**, **Image**, **Link**, **Meme**, **Sound**. Clicking a chip previews the suggestion. Nothing is deployed or played automatically.
-5. Choose **Add to these notes**, **Replace these notes**, or **Save as new set**. Recommend Add when useful existing material should stay; recommend Replace only when the user asked for a rewrite or the existing notes are empty/off-topic. Explain the recommendation in one sentence. The user makes the choice; AI must not silently judge and discard “ineffective” notes.
-6. Present from the iPad. A point can read “Explain the trend · Chart attached” or “Pause for reaction · Meme + sound attached.” Its @reference uses the existing private placement, resize, tilt and Deploy controls. Links use the existing new-Chrome-tab/source-switch workflow. The PDF viewer and talking points remain private throughout.
+1. Open **Points to talk about → PDFs** on Mac or a paired iPad. Import a PDF once; it is saved on the Mac and available to both devices. The private reader has nearby-page thumbnails, page navigation, text search, fit/150%/200% zoom and touch scrolling. Each device remembers its reading position locally.
+2. Switch to **Talking points** to read or edit a named set. **Manage sets** offers New, Rename, Duplicate and Delete. Existing notes migrate to “My talking points.” Saved edits and the active set sync. Unsaved edits stay on their device and cannot overwrite a newer save.
+3. Choose **Make presentation with AI**. Set the goal, audience, speaking length and pages. Defaults use the first six pages, allow relevant library memes, and leave sounds, scanned-page images and web research off.
+4. Review short editable bullets, PDF page citations, evidence excerpts and optional Chart/Image/Link/Meme/Sound attachments. Preview chart values or available asset thumbnails before accepting. Nothing is deployed or played during drafting.
+5. Choose **Add to notes**, **Replace notes**, or **Save as new set**. AI recommends an approach, but the user chooses. Add/Replace keep the previous notes for **Undo AI changes**. A version check rejects stale drafts without overwriting notes. New links and note references save together; newly created charts are rolled back if the note transaction fails.
+6. Present with the existing reference chips. Charts are private drafts until reviewed in Objects → chart settings. Meme/image references use private positioning and Deploy; links use the existing browser workflow; sound references use the soundboard rules.
 
-## Draft contents and useful defaults
+PDFs, notes and draft controls are presenter UI, excluded from the clean drawing/recording surface. Environment backups include PDFs; exported videos do not. A deliberate capture of the app window itself can naturally include its visible UI.
 
-- Keep points short, editable, and ordered for explaining: context, claim, evidence, explanation, takeaway. Distinguish the PDF author's claims from verified facts. Preserve page citations, units, dates and uncertainty.
-- Extract text locally first. Use page images/OCR only for scanned pages and the selected charts/tables; do not send every page as a large image by default.
-- Reuse objects already in the presentation. Match meme/sound suggestions against library names, tags, favorites/loves and available settings. Send compact catalog metadata and asset IDs to AI, not entire GIFs or audio files. Generated plans may reference only real IDs.
-- Offer a few relevant visual suggestions rather than adding an object to every point. Memes and sounds are optional, restrained and separate from factual evidence. Default sounds off; an attached sound gets its visible audio badge and follows the chosen recording/stream audio mode.
-- Charts use the existing editable chart/reveal system. A chart may be created only from explicit numbers, labels and units in the PDF or a checked source. Unreadable data creates a “Review data” suggestion instead of an invented graph. Support a table/pie/line/bar choice appropriate to the data.
-- Suggest source links from the PDF first. Optional **Find supporting sources** performs a limited web search and retains the URL/title/date and the claim it supports. Unverified links are marked for review. A link can store an existing supported text/scroll destination.
-- Reuse existing images/memes before offering generation. Image generation and new voice/audio generation are separate explicit actions with their own estimates.
-- Staged visual objects start as shadow objects, retaining the existing 50% private preview. Library assets are not modified by preparing a presentation; presentation-specific effect overrides are kept with its object reference. **Save to Edited memes** is an explicit library action.
+## AI and cost controls
 
-## Saving and Mac/iPad synchronization
+The planner uses **GPT-6.1 Sol**, low reasoning, strict structured output, `store: false`, no automatic retries and a two-minute timeout. It makes one request with at most 12 selected pages, 12,000 text characters per page, 6,000 output tokens, 12,000 characters of existing notes and 200 compact catalog entries. It sends names/tags and IDs, not GIF/audio media. Existing object IDs must exist; links must occur in the PDF or the returned search sources. Text-chart numbers must match whole printed numeric values. Labels, units and meaning still require human review.
 
-Extend `PresenterDocument` with named note sets, active set ID, PDF documents, private viewer positions and draft history. Each note set has its own version and references. Migrate the current `notes` field without losing content; keep a compatible active-set projection while clients are upgraded.
+PDF.js extracts selectable text locally and caches it while the document is open. **Read scanned pages** sends at most three selected page images when text is missing. It does not permanently OCR the PDF or make scanned pages searchable. **Find supporting sources** explicitly permits one web search; returned links are suggestions to inspect, not proof that a PDF claim is true. Media generation is not triggered automatically.
 
-Store PDFs in the Mac's managed presentation assets. Serve only approved document IDs to an authenticated paired iPad; never accept an arbitrary filesystem path from a companion. Cache page thumbnails/rendered pages and request full pages on demand. Preserve each device's reading position unless **Follow presenter** is enabled. Notes and accepted object changes sync through the existing version/conflict mechanism.
+The UI estimates **$0.03–$0.30 for a text draft**, with actual charges dependent on tokens and provider rates; images/search can cost more. This is an estimate, not a dollar spending cap. Limits bound work instead. Identical drafts reuse a session cache of up to ten results; restarting the app clears that cache. Cancel aborts the request and prevents late results from changing the draft; provider work already processed can still incur charges.
 
-Switching note sets prompts to save or retain an unsaved draft. PDF analysis produces a separate draft with an explicit base version. Applying Add/Replace is one atomic save: objects, references and notes commit together. If another device saved meanwhile, keep the AI draft and offer a comparison instead of overwriting it. Save the previous set revision so **Undo AI changes** restores it.
+Official model/pricing reference checked October 16, 2026: https://developers.openai.com/api/docs/models/gpt-6.1-sol ($2/million input tokens; $10/million output tokens at standard context pricing).
 
-Export/import the complete presentation bundle with note sets, references, objects and optionally its private PDFs. Explain that private PDFs are included only in that presentation bundle, never in the exported video. An imported bundle must resolve its referenced assets before it is applied.
+## Storage and portability
 
-## Cost controls and progress
+Up to ten PDFs, each at most 6 MB and 500 pages; up to 40 note sets. PDFs are stored under managed UUID filenames with restrictive permissions. Companion reads require the existing paired connection and a document ID in the current presenter metadata; arbitrary paths are rejected. Portable imports verify PDF SHA-256 hashes before writing them. The existing 44 MB total environment-bundle limit still applies.
 
-Analyze selected pages once, cache extraction by document hash, and cache plans by page selection and instructions. Start with one bounded text-planning request; make a second vision request only for specific unreadable pages/charts. Reanalyzing edited notes should reuse the PDF extraction and catalog matches. No continuous AI listening or repeated analysis simply because a tab is opened.
+All note sets, previous-note undo snapshots and the compatible active-note projection are persisted. Notes use the existing global revision for conflict protection. PDF page/zoom are local per device, so private reading does not move another presenter's page. Removing a PDF from the presentation keeps already accepted notes. In-progress AI drafts are session-only; save them as notes to retain them across app restarts.
 
-Before analysis show selected page count, whether OCR is needed, and an estimate using the provider/model prices configured at implementation time. Offer **Quick draft** by default and optional deeper source research. Bound output, source searches and OCR pages; stop at the user-visible budget rather than continuing automatically.
+## Meme audio and help
 
-Progress stays simple: “Reading PDF,” “Drafting talking points,” “Matching your objects,” “Ready to review.” Completion summarizes the proposed changes, for example: “8 points, 2 charts and 1 meme suggested. Your existing notes are unchanged.” Errors preserve the original notes and imported document, explain whether a key, connection or page needs attention, and offer Retry. Cancel prevents late results from applying.
-
-## Implementation order and playtest
-
-1. Private PDF viewer, named note sets, migration and Mac/iPad synchronization.
-2. Local extraction, AI draft review and Add/Replace/New-set application with undo.
-3. Referenced chart/link/image suggestions and tagged meme/sound catalog matching.
-4. Portable bundle support and optional source research/generation.
-
-Validate with a text PDF, scanned PDF, charts with unclear labels, long PDF, corrupt/password-protected PDF, missing assets, invalid keys and offline mode. On Mac and simulated iPad, switch documents/sets, edit on Mac and read on iPad, preserve unsaved drafts, apply Add/Replace then Undo, stage suggested objects and reload/export/import the presentation. A native recording must show deployed public objects while excluding the PDF, notes, draft review and controls. Physical iPad/Pencil scrolling, dragging and reading legibility need a separate device check.
+Meme settings offer **No sound**, library selection, local audio upload and **Remove attached sound**. Save keeps the choice across projects. Removing a sound from the library detaches it from all linked memes, preserving visuals and avoiding broken export references. Controls use the existing three-second hover/focus help, with new plain-language explanations for PDF, note-set, AI review and audio actions.

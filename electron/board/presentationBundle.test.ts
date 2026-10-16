@@ -185,3 +185,33 @@ test("inactive whiteboards reject missing meme assets", async () => {
 	]);
 	expect(() => validatePresentationBundle(f)).toThrow("missing meme");
 });
+
+test("private PDFs and multiple note sets round-trip with integrity checks", async () => {
+	const { createHash } = await import("node:crypto");
+	const raw = fixture();
+	const bytes = Buffer.from("%PDF-1.7\nprivate presentation fixture");
+	raw.presenter.pdfs = [
+		{
+			id,
+			name: "Private reference.pdf",
+			pages: 2,
+			hash: createHash("sha256").update(bytes).digest("hex"),
+		},
+	];
+	raw.presenter.noteSets = [
+		{ id: "original", name: "First", notes: raw.presenter.notes },
+		{ id: "second", name: "Second", notes: { body: "Private second notes", references: {} } },
+	];
+	raw.presenter.activeSetId = "second";
+	const bundle = { ...raw, privatePDFs: { [id]: bytes.toString("base64") } };
+	const parsed = validatePresentationBundle(JSON.parse(JSON.stringify(bundle)));
+	expect(parsed.presenter.noteSets?.[1].notes.body).toBe("Private second notes");
+	expect(parsed.privatePDFs?.[id]).toBe(bytes.toString("base64"));
+	expect(() => validatePresentationBundle({ ...bundle, privatePDFs: {} })).toThrow();
+	expect(() =>
+		validatePresentationBundle({
+			...bundle,
+			privatePDFs: { [id]: Buffer.from("%PDF-tampered").toString("base64") },
+		}),
+	).toThrow("damaged");
+});

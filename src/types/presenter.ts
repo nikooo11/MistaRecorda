@@ -26,6 +26,18 @@ export interface PresenterNote {
 	name: string;
 	text: string;
 }
+export interface TalkingSet {
+	id: string;
+	name: string;
+	notes: TalkingNotes;
+	previous?: TalkingNotes;
+}
+export interface PresenterPDF {
+	id: string;
+	name: string;
+	pages: number;
+	hash: string;
+}
 export interface PresenterDocument {
 	version: 1;
 	notesVersion: number;
@@ -33,6 +45,9 @@ export interface PresenterDocument {
 	links: PresenterLink[];
 	preferences: Record<string, ObjectPreference>;
 	canvasNotes?: PresenterNote[];
+	noteSets?: TalkingSet[];
+	activeSetId?: string;
+	pdfs?: PresenterPDF[];
 }
 export interface PresenterObject extends ObjectReference {
 	searchTerms?: string[];
@@ -53,4 +68,5 @@ export const emptyPresenterDocument = (): PresenterDocument => ({
 	links: [],
 	preferences: {},
 	canvasNotes: [],
+	pdfs: [],
 });

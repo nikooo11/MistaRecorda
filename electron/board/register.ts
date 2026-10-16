@@ -1,3 +1,9 @@
+import { applyPresentationDraft } from "./applyPresentationDraft";
+import {
+	PresentationPDFStore,
+	PresentationPlanner,
+	presentationRequestSchema,
+} from "./presentationPDF";
 import { captureDisplayStill } from "../studio/livePreview";
 import { studioCaptureWindowId } from "../studio/captureVisibility";
 import { randomUUID } from "node:crypto";
@@ -106,6 +112,8 @@ let store: BoardStore;
 let presenter: PresenterStore;
 let charts: ChartStore;
 let figures: FigureService;
+let privatePDFs: PresentationPDFStore;
+let presentationPlanner: PresentationPlanner;
 let keyHealth: ApiKeyHealth;
 let preview: CompanionPreview;
 let escapeReady = false;
@@ -815,8 +823,65 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		case "aiOpen":
 			await presentChromeURL(publicURL(figures.result(z.string().parse(input)).url).href);
 			return true;
+		case "importPrivatePDF": {
+			const pdf = await privatePDFs.import(input);
+			const next = await presenter.update("addPresenterPDF", pdf);
+			send("presenterChanged", next);
+			companion.broadcast("presenterChanged", next);
+			return pdf;
+		}
+		case "readPrivatePDF": {
+			const id = z.string().uuid().parse(input);
+			if (!presenter.state.pdfs?.some((p) => p.id === id))
+				throw Error("This PDF is no longer in this presentation.");
+			return privatePDFs.read(id);
+		}
+		case "presentationJob":
+			return presentationPlanner.job;
+		case "cancelPresentationDraft":
+			return presentationPlanner.cancel();
+		case "draftPresentation": {
+			const request = presentationRequestSchema.parse(input);
+			const pdf = presenter.state.pdfs?.find((p) => p.id === request.pdfId);
+			if (!pdf || request.pages.some((p) => p.page > pdf.pages))
+				throw Error("Choose pages from an imported PDF.");
+			if (request.baseVersion !== presenter.state.notesVersion)
+				throw Error("Notes changed. Refresh before drafting.");
+			if (!(await figures.settings.hasKey()))
+				throw Error("Add an OpenAI key in Settings → Setup first.");
+			const catalog = [
+				...Object.values(store.state.assets).map((a) => ({
+					key: `image:${a.id}`,
+					name: a.name || "Saved image",
+				})),
+				...(store.state.memes ?? []).map((m) => ({
+					key: `meme:${m.id}`,
+					name: m.name,
+					tags: m.tags,
+				})),
+				...boardSoundList().sounds.map((s) => ({ key: `sound:${s.id}`, name: s.name })),
+				...presenter.state.links.map((l) => ({ key: `link:${l.id}`, name: l.name })),
+				...charts.charts.map((c) => ({ key: `chart:${c.id}`, name: c.name })),
+			];
+			return presentationPlanner.start(request, catalog, presenter.state.notes.body);
+		}
+		case "applyPresentationDraft": {
+			const next = await applyPresentationDraft(input, {
+				job: presentationPlanner.job,
+				presenter,
+				charts,
+				board: store.state,
+				sounds: boardSoundList().sounds,
+			});
+			presentationPlanner.applied();
+			send("presenterChanged", next);
+			companion.broadcast("presenterChanged", next);
+			return next;
+		}
 		case "presenterInfo":
 			return presenter.state;
+		case "manageTalkingSets":
+		case "removePresenterPDF":
 		case "saveTalkingNotes":
 		case "savePresenterLink":
 		case "removePresenterLink":
@@ -925,6 +990,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				presenter: presenter.state,
 				sounds: await exportPresentationSounds(),
 				charts: await charts.exportBundle(),
+				privatePDFs: await privatePDFs.bundle(presenter.state.pdfs ?? []),
 			});
 		case "savePresentation": {
 			const name = presentationName(data.name);
@@ -961,6 +1027,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				.object({ bundle: z.unknown(), confirmed: z.literal(true) })
 				.parse(input);
 			const bundle = validatePresentationBundle(request.bundle);
+			await privatePDFs.restore(bundle.privatePDFs, bundle.presenter.pdfs ?? []);
 			fitPresentation(bundle.board, store.state.width, store.state.height);
 			loadingPresentation = true;
 			try {
@@ -972,7 +1039,13 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				try {
 					for (const m of bundle.board.memes ?? [])
 						if (m.soundId) m.soundId = sounds.mapping[m.soundId] ?? "";
-					for (const ref of Object.values(bundle.presenter.notes.references))
+					for (const ref of [
+						bundle.presenter.notes,
+						...(bundle.presenter.noteSets ?? []).flatMap((s) => [
+							s.notes,
+							...(s.previous ? [s.previous] : []),
+						]),
+					].flatMap((n) => Object.values(n.references)))
 						if (ref.kind === "sound") ref.id = sounds.mapping[ref.id] ?? ref.id;
 					for (const scene of [
 						...Object.values(bundle.board.scenes),
@@ -1737,6 +1810,15 @@ export async function registerBoard() {
 	store = new BoardStore(path.join(app.getPath("userData"), "drawing-board"));
 	presenter = new PresenterStore(store.root);
 	await presenter.load().catch((e) => console.error("[presenter] Could not load notes", e));
+	privatePDFs = new PresentationPDFStore(store.root);
+	presentationPlanner = new PresentationPlanner(
+		async () =>
+			new OpenAI({ apiKey: await figures.settings.key(), maxRetries: 0, timeout: 120000 }),
+		(job) => {
+			send("presentationJob", job);
+			companion?.broadcast("presentationJob", job);
+		},
+	);
 	figures = new FigureService(
 		new FigureSettings(path.join(app.getPath("userData"), "figures"), safeStorage),
 		(state) => {
@@ -1962,4 +2044,20 @@ function updateEscape() {
 /** Scene media shares the clean capture surface, including single-window recordings. */
 export async function enableSceneMediaSurface() {
 	await action("annotate", undefined);
+}
+
+/** Removing a shared sound makes every linked meme silent, preserving its visual settings. */
+export async function detachMemeSound(id: string) {
+	if (!store) return;
+	let changed = false;
+	for (const meme of store.state.memes ?? [])
+		if (meme.soundId === id) {
+			meme.soundId = "";
+			changed = true;
+		}
+	if (changed) {
+		store.state.revision++;
+		await store.save();
+		publish("desktop");
+	}
 }

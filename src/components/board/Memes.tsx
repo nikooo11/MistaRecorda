@@ -336,9 +336,9 @@ export function MemeLibrary({
 						</label>
 					)}
 					<label>
-						Sound on placement
+						Sound on placement · choose from library
 						<select
-							value={edit.soundId}
+							data-help="Choose No sound for a silent meme, select another library clip, or upload your own sound below. Save settings to use this choice in future projects." value={edit.soundId}
 							onChange={(e) => setEdit({ ...edit, soundId: e.target.value })}
 						>
 							<option value="">No sound</option>
@@ -349,6 +349,19 @@ export function MemeLibrary({
 							))}
 						</select>
 					</label>
+					{edit.soundId && (
+						<button
+							type="button"
+							disabled={busy}
+							onClick={() => setEdit({ ...edit, soundId: "" })}
+						>
+							Remove attached sound
+						</button>
+					)}
+					<small>
+						Choose No sound to make this meme silent. Save settings to keep your choice
+						across projects.
+					</small>
 					<label className="board-import">
 						＋ Upload sound
 						<input

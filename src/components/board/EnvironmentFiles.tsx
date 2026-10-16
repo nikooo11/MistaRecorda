@@ -34,8 +34,9 @@ export function EnvironmentFiles({
 		<section className="presenter-settings" aria-label="Saved environments">
 			<p className="presenter-help">
 				Save both canvases, public and shadow objects, talking points, images, memes and
-				sounds. Download one file to transfer or back up your setup. Account keys are never
-				included.
+				sounds, all talking-point sets and private PDFs. Private PDFs are included in this
+				backup, never in video. Download one file to transfer or back up your setup. Account
+				keys are never included.
 			</p>
 			<label>
 				Environment name

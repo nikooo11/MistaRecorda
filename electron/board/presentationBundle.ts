@@ -1,3 +1,5 @@
+import { pdfBundleSchema, validatePDF } from "./presentationPDF";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { emptyBoardScene, type BoardState } from "../../src/types/board";
 import type { PresenterDocument } from "../../src/types/presenter";
@@ -44,6 +46,7 @@ export interface PresentationBundle {
 	sounds: BundledSound[];
 	/** Optional so environments saved before AI charts still load. */
 	charts?: ChartBundle;
+	privatePDFs?: Record<string, string>;
 }
 export function validatePresentationBundle(input: unknown): PresentationBundle {
 	if (!input || JSON.stringify(input).length > 44 * 1024 * 1024)
@@ -68,8 +71,14 @@ export function validatePresentationBundle(input: unknown): PresentationBundle {
 			presenter: documentSchema,
 			sounds: z.array(soundBundleSchema).max(200),
 			charts: chartBundleSchema.optional(),
+			privatePDFs: pdfBundleSchema.optional(),
 		})
 		.parse(input);
+	for (const pdf of value.presenter.pdfs ?? []) {
+		const bytes = validatePDF(value.privatePDFs?.[pdf.id] ?? "");
+		if (createHash("sha256").update(bytes).digest("hex") !== pdf.hash)
+			throw Error("Presentation has a missing or damaged private PDF.");
+	}
 	const board = value.board as PresentationBundle["board"];
 	const screen = validateScene(board.scenes.screen),
 		whiteboard = validateScene(board.scenes.board);

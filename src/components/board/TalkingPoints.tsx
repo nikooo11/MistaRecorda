@@ -1,4 +1,6 @@
 import {
+	lazy,
+	Suspense,
 	useEffect,
 	useMemo,
 	useRef,
@@ -20,6 +22,9 @@ import { ObjectIcon, PresenterObjects, validNoteLink } from "./PresenterObjects"
 import "./presenter.css";
 import type { ChartDocument } from "../../types/charts";
 import { EnvironmentFiles } from "./EnvironmentFiles";
+const PrivatePDFPanel = lazy(() =>
+	import("./PrivatePDFPanel").then((m) => ({ default: m.PrivatePDFPanel })),
+);
 export interface PlacementPoint {
 	x: number;
 	y: number;
@@ -49,9 +54,11 @@ export function TalkingPoints({
 	useEffect(() => {
 		if (openRequest > 0) setOpen(true);
 	}, [openRequest]);
-	const [tab, setTab] = useState<"notes" | "objects" | "environments">("notes");
+	const [tab, setTab] = useState<"notes" | "objects" | "environments" | "pdf">("notes");
 	const [doc, setDoc] = useState(emptyPresenterDocument);
 	const [loaded, setLoaded] = useState(false);
+	const [setName, setSetName] = useState("");
+	const [pdfVisited, setPDFVisited] = useState(false);
 	const [notes, setNotes] = useState<TalkingNotes>({ body: "", references: {} });
 	const [version, setVersion] = useState(0);
 	const [editing, setEditing] = useState(false);
@@ -163,6 +170,29 @@ export function TalkingPoints({
 			setBusy(false);
 		}
 	}
+	async function manageSet(action: string, extra: Record<string, unknown> = {}) {
+		if (dirty) {
+			setNotice("Save your edits before switching or changing note sets.");
+			return;
+		}
+		setBusy(true);
+		try {
+			const next = await transport.request<PresenterDocument>("manageTalkingSets", {
+				action,
+				version: doc.notesVersion,
+				...extra,
+			});
+			setDoc(next);
+			setNotes(next.notes);
+			setVersion(next.notesVersion);
+			setSetName("");
+			setNotice("");
+		} catch (e) {
+			setNotice(String(e));
+		} finally {
+			setBusy(false);
+		}
+	}
 	async function activateObject(object: PresenterObject, point?: PlacementPoint) {
 		try {
 			setNotice("");
@@ -204,7 +234,10 @@ export function TalkingPoints({
 				</button>
 			)}
 			{open && (
-				<aside className="talking-panel" aria-label="Points to talk about">
+				<aside
+					className={`talking-panel ${tab === "pdf" ? "pdf-open" : ""}`}
+					aria-label="Points to talk about"
+				>
 					<header>
 						<strong>Points to talk about</strong>
 						<button aria-label="Close talking points" onClick={() => setOpen(false)}>
@@ -212,6 +245,15 @@ export function TalkingPoints({
 						</button>
 					</header>
 					<nav>
+						<button
+							aria-pressed={tab === "pdf"}
+							onClick={() => {
+								setPDFVisited(true);
+								setTab("pdf");
+							}}
+						>
+							PDFs
+						</button>
 						<button aria-pressed={tab === "notes"} onClick={() => setTab("notes")}>
 							Talking points
 						</button>
@@ -226,9 +268,34 @@ export function TalkingPoints({
 						</button>
 					</nav>
 					<div className="talking-content">
+						{pdfVisited && (
+							<div hidden={tab !== "pdf"}>
+								<Suspense fallback={<p>Loading PDF tools…</p>}>
+									<PrivatePDFPanel
+										objects={objects}
+										transport={transport}
+										document={doc}
+										dirty={dirty}
+										onChanged={(next) => {
+											setDoc(next);
+											if (!dirtyRef.current) {
+												setNotes(next.notes);
+												setVersion(next.notesVersion);
+											}
+										}}
+										onDone={() => {
+											setTab("notes");
+											setNotice(
+												"Presentation saved. Use Undo AI changes to restore the previous notes.",
+											);
+										}}
+									/>
+								</Suspense>
+							</div>
+						)}
 						{!loaded ? (
 							<p>Loading notes…</p>
-						) : tab === "environments" ? (
+						) : tab === "pdf" ? null : tab === "environments" ? (
 							<EnvironmentFiles transport={transport} onError={setNotice} />
 						) : tab === "objects" ? (
 							<PresenterObjects
@@ -256,6 +323,101 @@ export function TalkingPoints({
 							/>
 						) : (
 							<>
+								<div className="talking-sets">
+									<label>
+										Talking-point set
+										<select
+											aria-label="Talking-point set"
+											disabled={busy || dirty}
+											value={doc.activeSetId ?? "original"}
+											onChange={(e) =>
+												void manageSet("select", { id: e.target.value })
+											}
+										>
+											{(
+												doc.noteSets ?? [
+													{
+														id: "original",
+														name: "My talking points",
+														notes: doc.notes,
+													},
+												]
+											).map((s) => (
+												<option key={s.id} value={s.id}>
+													{s.name}
+												</option>
+											))}
+										</select>
+									</label>
+									<details>
+										<summary>Manage sets</summary>
+										<input
+											aria-label="Note set name"
+											placeholder="Name for new or renamed set"
+											value={setName}
+											maxLength={80}
+											onChange={(e) => setSetName(e.target.value)}
+										/>
+										<div className="pdf-toolbar">
+											<button
+												data-help="Create an empty talking-point set. Your other sets stay saved."
+												disabled={busy || dirty}
+												onClick={() =>
+													void manageSet("new", {
+														name: setName || "New talking points",
+													})
+												}
+											>
+												New
+											</button>
+											<button
+												data-help="Rename the selected set using the name above."
+												disabled={busy || dirty || !setName.trim()}
+												onClick={() =>
+													void manageSet("rename", { name: setName })
+												}
+											>
+												Rename
+											</button>
+											<button
+												data-help="Copy the current points and their object references into a new set."
+												disabled={busy || dirty}
+												onClick={() =>
+													void manageSet("duplicate", {
+														name: setName || "Copy of talking points",
+													})
+												}
+											>
+												Duplicate
+											</button>
+											<button
+												data-help="Remove the selected talking-point set after confirmation. Other sets stay saved."
+												disabled={
+													busy || dirty || (doc.noteSets?.length ?? 1) < 2
+												}
+												onClick={() => {
+													if (
+														window.confirm(
+															"Delete the current talking-point set?",
+														)
+													)
+														void manageSet("delete");
+												}}
+											>
+												Delete
+											</button>
+										</div>
+									</details>
+									{doc.noteSets?.find((s) => s.id === doc.activeSetId)
+										?.previous && (
+										<button
+											disabled={busy || dirty}
+											onClick={() => void manageSet("undo")}
+										>
+											Undo AI changes
+										</button>
+									)}
+								</div>
 								<p className="presenter-help">
 									Edit here or on your Mac. Save points to sync the same notes
 									across devices. Use @object name to reference images, memes,

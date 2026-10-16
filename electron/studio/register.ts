@@ -36,6 +36,7 @@ import {
 import type { AudioRegion } from "../../src/components/video-editor/types";
 import type { StudioInfo, StudioSettings, StudioSource } from "../../src/types/studio";
 import {
+	detachMemeSound,
 	refreshCompanionCapture,
 	assertBoardCaptureSource,
 	boardCaptureExclusions,
@@ -1525,6 +1526,7 @@ export function registerStudio() {
 			return info();
 		}
 		if (method === "removeSound") {
+			await detachMemeSound(String(input));
 			const next = { ...settings, sounds: settings.sounds.filter((s) => s.id !== input) };
 			bindAll(next);
 			settings = next;

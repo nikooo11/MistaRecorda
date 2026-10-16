@@ -59,6 +59,36 @@ function electronMainCjsGuardPlugin(): Plugin {
 export default defineConfig({
 	plugins: [
 		{
+			name: "local-pdf-assets",
+			configureServer(server) {
+				server.middlewares.use("/pdfjs/", (req, res, next) => {
+					const root = path.resolve(__dirname, "node_modules/pdfjs-dist");
+					const relative = (req.url?.split("?")[0] ?? "").replace(/^\//, "");
+					if (!/^(cmaps|standard_fonts|wasm)\/[a-zA-Z0-9_.-]+$/.test(relative))
+						return next();
+					const target = path.join(root, relative);
+					if (!fs.existsSync(target)) return next();
+					res.setHeader(
+						"Content-Type",
+						target.endsWith(".wasm")
+							? "application/wasm"
+							: target.endsWith(".js")
+								? "text/javascript"
+								: "application/octet-stream",
+					);
+					fs.createReadStream(target).pipe(res);
+				});
+			},
+			closeBundle() {
+				for (const dir of ["cmaps", "standard_fonts", "wasm"])
+					fs.cpSync(
+						path.resolve(__dirname, "node_modules/pdfjs-dist", dir),
+						path.resolve(__dirname, "dist/pdfjs", dir),
+						{ recursive: true },
+					);
+			},
+		},
+		{
 			name: "local-excalidraw-fonts",
 			configureServer(server) {
 				server.middlewares.use("/excalidraw/", (req, res, next) => {

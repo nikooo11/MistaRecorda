@@ -2,6 +2,57 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import "./hoverHelp.css";
 const explanations: Record<string, string> = {
+	PDFs: "Read imported PDFs privately, or ask AI to turn selected pages into a presentation draft. The PDF viewer is not recorded.",
+	"Import PDF":
+		"Copy a PDF from this device to your Mac. It stays private and can be read on connected iPads. Up to 6 MB and 500 pages.",
+	"Remove PDF":
+		"Remove this PDF from the current presentation. Existing talking points are kept.",
+	"Private PDF": "Switch between the PDFs saved with this presentation.",
+	"PDF page number":
+		"Jump to a page in the private PDF. This does not change what your audience sees.",
+	"Previous PDF page": "Read the previous PDF page privately.",
+	"Next PDF page": "Read the next PDF page privately.",
+	"PDF zoom": "Make the PDF easier to read on this device. It does not zoom your recording.",
+	"Search PDF text":
+		"Find a word or phrase in the PDF's selectable text. Scanned image pages may not contain searchable text.",
+	"Find next":
+		"Jump to the next page containing your search text, wrapping back to the beginning.",
+	"Make presentation with AI":
+		"Choose pages and a goal, then review suggested talking points and supporting objects before saving anything.",
+	"Draft talking points":
+		"Send only the selected PDF pages, notes and library names to OpenAI. Uses your API credits; your saved notes stay unchanged until you apply the draft.",
+	"Cancel analysis":
+		"Stop preparing the AI draft. Your PDF and saved notes stay intact. Work already processed by the provider may still cost credits.",
+	"Draft title":
+		"Name the presentation draft. This becomes the note-set name when you choose Save as new set.",
+	"Add to notes":
+		"Append the draft and its selected object references to the current talking points. Keep everything already there.",
+	"Replace notes":
+		"Replace the current talking points with this draft. Undo AI changes restores the previous notes.",
+	"Save as new set":
+		"Save this draft as a separate named set, keeping your current talking points.",
+	"Dismiss draft": "Hide the draft review. Your saved notes remain unchanged.",
+	"Talking-point set":
+		"Switch between saved note sets. The selected set and saved edits sync between Mac and iPad.",
+	"Manage sets":
+		"Create, rename, copy or delete a talking-point set. Save unfinished edits before switching sets.",
+	"Note set name":
+		"Enter the name to use when creating, copying or renaming a talking-point set.",
+	"Undo AI changes":
+		"Restore the notes from before your last AI Add or Replace. Saved PDF and library objects remain available.",
+	"Talking points":
+		"Read and edit your private presenter notes. Save points to share changes between your Mac and iPad.",
+	Objects:
+		"Find images, memes, charts, sounds and links to reference in your notes or place during a presentation.",
+	Environments:
+		"Save or import your presentation setup, including canvases, note sets, objects and private PDFs. API keys are never included.",
+	"Remove attached sound":
+		"Make this meme silent without deleting the sound from your library. Save the meme settings to keep the change.",
+	"Preview suggestion":
+		"Inspect this proposed object or chart data. Previewing does not deploy it or play its audio.",
+	"Source evidence":
+		"Read the PDF excerpt behind this point and check its page before presenting it as a fact.",
+
 	Record: "Start recording your selected screen or window after the countdown. Stop to open the take in the editor.",
 	Board: "Open or put away the whiteboard. Drawings on the board and screen are kept separately until you clear them.",
 	"Voice Change":
@@ -50,7 +101,7 @@ export function HoverHelp() {
 			const target =
 				event.target instanceof Element
 					? event.target.closest<HTMLElement>(
-							"button, input, select, summary, [role=button], [role=switch], [role=slider], [data-help], label[title]",
+							"button, input, select, textarea, summary, [role=button], [role=switch], [role=slider], [data-help], label[title]",
 						)
 					: null;
 			if (target === active) return;

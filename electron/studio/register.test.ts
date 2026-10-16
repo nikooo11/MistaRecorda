@@ -156,6 +156,7 @@ vi.mock("../ipc/project/manager", () => ({
 }));
 vi.mock("../screenCaptureAccess", () => ({ requireScreenRecordingAccess: vi.fn() }));
 vi.mock("../board/register", () => ({
+	detachMemeSound: vi.fn(),
 	assertBoardCaptureSource: vi.fn(),
 	refreshCompanionCapture: vi.fn(),
 	boardDisplayId: () => 7,
@@ -604,6 +605,7 @@ test("startup persists bundled defaults and exposes playable clips to Mac and iP
 	);
 	expect(persisted.installedDefaultSoundIds).toHaveLength(22);
 	await request("removeSound", listed[0].id);
+	expect((await import("../board/register")).detachMemeSound).toHaveBeenCalledWith(listed[0].id);
 	registerStudio();
 	await request("info");
 	expect(boardSoundList().sounds).toHaveLength(21);
