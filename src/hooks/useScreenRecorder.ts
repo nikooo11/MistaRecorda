@@ -1469,6 +1469,22 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			}
 
 			await window.electronAPI.board.request("validateCapture", selectedSource);
+			const keyChecks =
+				await window.electronAPI.board.request<
+					import("../types/apiKeyHealth").ApiKeyCheck[]
+				>("apiCheckKeys");
+			const keyIssues = keyChecks.filter(
+				(check) => check.status === "invalid" || check.status === "restricted",
+			);
+			if (
+				keyIssues.length &&
+				!window.confirm(
+					`${keyIssues.map((check) => check.message).join("\n\n")}\n\nRecord anyway without these AI features? Cancel to update your keys.`,
+				)
+			) {
+				await window.electronAPI.studio.request("open", "setup");
+				return;
+			}
 			const permissionsReady = await preparePermissions();
 			if (!permissionsReady) {
 				return;

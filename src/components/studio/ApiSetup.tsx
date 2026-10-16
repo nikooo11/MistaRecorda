@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FigureState } from "../../types/figures";
 import { unwrapVoice } from "../../types/voice";
+import { ApiKeyWarnings, useApiKeyHealth } from "./ApiKeyWarnings";
 
 type Provider = "OpenAI" | "ElevenLabs";
 function KeyCard({ provider }: { provider: Provider }) {
@@ -9,6 +10,12 @@ function KeyCard({ provider }: { provider: Provider }) {
 	const [busy, setBusy] = useState(false);
 	const [message, setMessage] = useState("");
 	const [error, setError] = useState(false);
+	const health = useApiKeyHealth().find((check) => check.provider === provider);
+	useEffect(() => {
+		if (!health || health.status === "missing") return;
+		setError(health.status !== "valid");
+		setMessage(health.status === "valid" ? "Connection verified." : health.message);
+	}, [health]);
 	useEffect(() => {
 		let disposed = false;
 		const read = async () => {
@@ -50,11 +57,13 @@ function KeyCard({ provider }: { provider: Provider }) {
 					setSaved(state.hasKey);
 					setKey("");
 					setMessage("Key imported securely on this computer.");
+					void window.electronAPI.board.request("apiCheckKeys").catch(() => undefined);
 				}
 			} else if (action === "test") {
 				if (provider === "OpenAI") await window.electronAPI.board.request("aiTestKey");
 				else unwrapVoice(await window.electronAPI.voice.request("testKey", undefined));
 				setMessage("Connection verified.");
+				void window.electronAPI.board.request("apiCheckKeys").catch(() => undefined);
 			} else {
 				const value = action === "remove" ? "" : key.trim();
 				const state =
@@ -63,6 +72,7 @@ function KeyCard({ provider }: { provider: Provider }) {
 						: unwrapVoice(await window.electronAPI.voice.request("setKey", value));
 				setSaved(state.hasKey);
 				setKey("");
+				void window.electronAPI.board.request("apiCheckKeys").catch(() => undefined);
 				setMessage(
 					action === "remove"
 						? "Key removed from this computer."
@@ -162,6 +172,7 @@ export function ApiSetup() {
 	return (
 		<section className="api-setup" aria-label="API setup">
 			<h2>Setup</h2>
+			<ApiKeyWarnings />
 			<p>
 				Connect your own accounts once. Keys stay encrypted on this computer between
 				launches and are never included in projects or shared environments.
@@ -169,9 +180,10 @@ export function ApiSetup() {
 			<KeyCard provider="OpenAI" />
 			<KeyCard provider="ElevenLabs" />
 			<p className="capture-note">
-				Keep using a saved key until it expires, is revoked, or you remove it. Use Replace
-				key to update it. Set up your keys again on a new computer. API usage is billed by
-				each provider.
+				Keys stay saved until you remove or replace them, including after the app closes. We
+				check saved keys at startup and before recording. If a provider expires or revokes a
+				key, use Replace key to update it. Set up keys again on a new computer. API usage is
+				billed by each provider.
 			</p>
 		</section>
 	);

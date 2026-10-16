@@ -36,6 +36,8 @@ import {
 import { FigureService } from "../figures/service";
 import { FigureSettings } from "../figures/settings";
 import { importOpenAIKey } from "../figures/importKey";
+import { ApiKeyHealth, verifyProviderKey } from "../apiKeyHealth";
+import { VoiceSettingsStore } from "../ipc/voice/settings";
 import { publicURL } from "../figures/sources";
 import { nativeCaptureProcess, selectedSource } from "../ipc/state";
 import { shouldHidePanel, showCapturePanel } from "../panelToggle";
@@ -104,6 +106,7 @@ let store: BoardStore;
 let presenter: PresenterStore;
 let charts: ChartStore;
 let figures: FigureService;
+let keyHealth: ApiKeyHealth;
 let preview: CompanionPreview;
 let escapeReady = false;
 let lastEscape = 0;
@@ -746,6 +749,10 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		}
 		case "aiInfo":
 			return figures.info();
+		case "apiKeyHealth":
+		case "apiCheckKeys":
+			if (!/^desktop(?::\d+)?$/.test(actor)) throw Error("Check API keys on the Mac.");
+			return method === "apiCheckKeys" ? keyHealth.check() : keyHealth.state;
 		case "aiSetKey":
 			return figures.setKey(input);
 		case "aiImportKey": {
@@ -1779,6 +1786,32 @@ export async function registerBoard() {
 		if (!trusted(e)) throw Error("Untrusted board request");
 		return action(method, input, `desktop:${e.sender.id}`);
 	});
+	const voiceKeys = new VoiceSettingsStore(app.getPath("userData"), safeStorage);
+	keyHealth = new ApiKeyHealth(
+		[
+			{
+				provider: "OpenAI",
+				key: async () =>
+					(await figures.settings.hasKey()) ? figures.settings.key() : undefined,
+				verify: (key) => verifyProviderKey("OpenAI", key),
+			},
+			{
+				provider: "ElevenLabs",
+				key: async () => {
+					if (!(await voiceKeys.hasKey())) return undefined;
+					const key = await voiceKeys.key();
+					if (!key) throw Error("Secure storage unavailable");
+					return key;
+				},
+				verify: (key) => verifyProviderKey("ElevenLabs", key),
+			},
+		],
+		(state) => {
+			for (const window of BrowserWindow.getAllWindows())
+				if (!window.isDestroyed()) window.webContents.send("board:apiKeyHealth", state);
+		},
+	);
+	void keyHealth.check();
 	// Drawing windows are created on demand, before enabling the overlay.
 	displayId = screen.getPrimaryDisplay().id;
 	for (const [key, control] of [

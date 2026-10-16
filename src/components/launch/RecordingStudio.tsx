@@ -38,6 +38,7 @@ import { RecordingScenes } from "../studio/RecordingScenes";
 import { LayerSources } from "../studio/LayerSources";
 import { formatShortcut } from "../studio/shortcuts";
 import { RecordingZoomControl } from "../recording-zoom/RecordingZoomSettings";
+import { ApiKeyWarnings } from "../studio/ApiKeyWarnings";
 import "../studio/studio.css";
 import "./recordingStudio.css";
 
@@ -169,6 +170,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 					<MinusIcon size={18} />
 				</button>
 			</WindowHeader>
+			<ApiKeyWarnings />
 			<nav className="studio-tools studio-dock" aria-label="Recording tools">
 				<h2 className="studio-dock-title">
 					<SquaresFourIcon size={15} /> Presenter tools

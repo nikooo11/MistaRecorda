@@ -1041,6 +1041,29 @@
 .api-key-card .api-connection-verified {
 	color: #8ce3bb;
 }
+.api-key-warning {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 14px;
+	color: #ffd28a;
+	background: #38312a;
+	border: 1px solid #776044;
+}
+.api-key-warning p {
+	margin: 4px 0;
+	font-size: 12px;
+}
+.recording-studio .api-key-warning {
+	position: fixed;
+	top: 48px;
+	right: 12px;
+	z-index: 1000;
+	max-width: min(600px, calc(100vw - 24px));
+	max-height: 30vh;
+	overflow: auto;
+	box-shadow: 0 4px 18px #0006;
+}
 .api-key-card label {
 	display: grid;
 	gap: 6px;
