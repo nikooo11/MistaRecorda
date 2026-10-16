@@ -2,6 +2,7 @@ import { BrowserPresentation } from "./browserPresentation";
 import { migrateWindowShortcuts } from "./sceneMigration";
 import { withStarterScene } from "./starterScene";
 import { setStudioCaptureVisibility, studioCaptureWindowId } from "./captureVisibility";
+import { launchScene } from "./launchScene";
 import { importSceneMedia, sceneMediaPath, SceneMediaTake } from "./sceneMedia";
 import { StudioLivePreview } from "./livePreview";
 import { buildMediaUrl, ensureMediaServer } from "../mediaServer";
@@ -20,7 +21,6 @@ import {
 	globalShortcut,
 	ipcMain,
 	Menu,
-	screen,
 } from "electron";
 import { z } from "zod";
 import {
@@ -39,6 +39,7 @@ import {
 	refreshCompanionCapture,
 	assertBoardCaptureSource,
 	boardCaptureExclusions,
+	boardDisplayId,
 	enableSceneMediaSurface,
 	isDrawingSurfaceWindow,
 	sendRecordingControl,
@@ -566,6 +567,61 @@ async function applyScene(id: string) {
 	message = `Scene: ${scene.name}${focusWarning ? `. ${focusWarning}` : ""}`;
 	publish();
 }
+let launchPrepared = false;
+// Runs once per launch so the studio opens on a recordable screen scene.
+async function prepareLaunchScene() {
+	if (launchPrepared || isCursorCaptureActive || switching || selectedSource?.id) return info();
+	launchPrepared = true;
+	try {
+		requireScreenRecordingAccess();
+		const displayId = String(boardDisplayId());
+		const displays = await desktopCapturer.getSources({
+			types: ["screen"],
+			thumbnailSize: { width: 0, height: 0 },
+		});
+		const display = displays.find((s) => s.display_id === displayId) ?? displays[0];
+		if (isCursorCaptureActive || switching || selectedSource?.id) return info();
+		if (display) {
+			const next = withStarterScene(
+				settings,
+				sourceSchema.parse({
+					id: display.id,
+					name: display.name || "Main screen",
+					display_id: display.display_id || undefined,
+					sourceType: "screen",
+				}),
+			);
+			if (next !== settings) {
+				settings = next;
+				await save();
+			}
+		}
+		const scene = launchScene(settings.scenes, displayId);
+		try {
+			if (!scene) throw Error("No screen is available.");
+			await applyScene(scene.id);
+		} catch (e) {
+			// A saved scene can point at a closed window; still open on the full screen.
+			if (!display) throw e;
+			const next = {
+				id: display.id,
+				name: display.name || "Entire screen",
+				display_id: display.display_id || undefined,
+				sourceType: "screen" as const,
+			};
+			assertBoardCaptureSource(next);
+			setSelectedSource(next);
+			for (const w of BrowserWindow.getAllWindows())
+				w.webContents.send("selected-source-changed", next);
+			message = `Sharing ${next.name}. ${(e as Error).message}`;
+			publish();
+		}
+	} catch (e) {
+		message = `Choose a screen to record. ${(e as Error).message}`;
+		publish();
+	}
+	return info();
+}
 function leaveScene() {
 	if (isCursorCaptureActive) mediaTake.switch([], getCursorCaptureElapsedMs());
 	activeSceneId = undefined;
@@ -975,6 +1031,8 @@ export function registerStudio() {
 			return livePreview.cameraNeeded && camera.status.enabled;
 		}
 		if (method === "openSettingsGuide") return openSettingsGuide();
+		if (method === "prepareLaunch" || method === "initializeStudio")
+			return settingsReadable ? prepareLaunchScene() : info();
 		if (method === "endSettingsHelp") {
 			if (guideTour?.token === input) guideTour = undefined;
 			publish();
@@ -1052,40 +1110,6 @@ export function registerStudio() {
 			return info();
 		}
 		if (method === "info") return info();
-		if (method === "initializeStudio") {
-			if (!settingsReadable) return info();
-			if (
-				isCursorCaptureActive ||
-				switching ||
-				(settings.starterSceneCreated && selectedSource)
-			)
-				return info();
-			requireScreenRecordingAccess();
-			const displays = await desktopCapturer.getSources({
-				types: ["screen"],
-				thumbnailSize: { width: 0, height: 0 },
-			});
-			if (isCursorCaptureActive || switching) return info();
-			const primary =
-				displays.find((s) => s.display_id === String(screen.getPrimaryDisplay().id)) ??
-				displays[0];
-			if (!primary) return info();
-			const source = sourceSchema.parse({
-				id: primary.id,
-				name: primary.name || "Main screen",
-				display_id: primary.display_id,
-				sourceType: "screen",
-			});
-			const wasEmpty = !settings.scenes.length && !settings.starterSceneCreated;
-			const next = withStarterScene(settings, source);
-			if (next !== settings) {
-				settings = next;
-				await save();
-			}
-			if (wasEmpty) await applyScene(settings.scenes[0].id);
-			else if (!selectedSource) await switchWindow(source);
-			return info();
-		}
 		if (method === "endURLPresentation") {
 			await browserPresentation.finish();
 			return info();

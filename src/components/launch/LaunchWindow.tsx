@@ -92,6 +92,10 @@ export function LaunchWindow() {
 			resetRecordingDefaults,
 		],
 	);
+	// After the control listener is attached, so the launch scene's mic and audio apply here.
+	useEffect(() => {
+		void window.electronAPI.studio.request("prepareLaunch").catch(() => undefined);
+	}, []);
 	useEffect(() => {
 		void window.electronAPI.studio
 			.request("audioStatus", {

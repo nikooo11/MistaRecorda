@@ -42,6 +42,7 @@ import { useChartClock, useCharts } from "./charts/useCharts";
 import "./charts/charts.css";
 import { BoardLaser } from "./BoardLaser";
 import { clearCanvas } from "./clearCanvas";
+import { selectionBox, touchSelection } from "./touchSelection";
 import { useTabletPanels, toggleTabletPanel } from "./tabletPanels";
 import { FigureAssistant } from "./FigureAssistant";
 import {
@@ -1257,6 +1258,30 @@ export function BoardCanvas({
 								? old
 								: view.selectedElementIds,
 						);
+						// A selection box selects everything it touches, not only what it encloses.
+						if (
+							api &&
+							!clean &&
+							view.selectionElement &&
+							view.activeTool.type === "selection" &&
+							!view.editingLinearElement
+						) {
+							const touched = touchSelection(
+								elements as unknown as BoardElement[],
+								selectionBox(
+									view.selectionElement as unknown as Record<string, unknown>,
+								),
+								view,
+							);
+							if (touched)
+								api.updateScene({
+									appState: touched as Pick<
+										AppState,
+										"selectedElementIds" | "selectedGroupIds"
+									>,
+									captureUpdate: CaptureUpdateAction.NEVER,
+								});
+						}
 						const placedCharts = (elements as unknown as BoardElement[]).filter(
 							(e) => !e.isDeleted && chartMeta(e),
 						);

@@ -1233,6 +1233,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 					} catch (bgError) {
 						console.error("Error in background finalization:", bgError);
 					} finally {
+						window.electronAPI?.clips?.recordingFinalized(finalPath);
 						// After all background tasks are done (webcam, mic sidecars, muxing),
 						// we can safely close the HUD window to release hardware and resources.
 						if (typeof window.electronAPI?.hudOverlayClose === "function") {
@@ -1987,6 +1988,7 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 									});
 								}
 							} finally {
+								window.electronAPI?.clips?.recordingFinalized(finalVideoPath);
 								// After all background tasks are done (webcam),
 								// we can safely close the HUD window to release hardware and resources.
 								if (typeof window.electronAPI?.hudOverlayClose === "function") {

@@ -35,6 +35,7 @@ import {
 	killWindowsCaptureProcess,
 	registerIpcHandlers,
 } from "./ipc/handlers";
+import { registerClipHandlers } from "./ipc/register/clips";
 import { openVoiceWindow } from "./ipc/voice/register";
 import { ensureMediaServer } from "./mediaServer";
 import { hardenWebContentsNavigation, shouldHardenWebContentsType } from "./navigationPolicy";
@@ -1074,6 +1075,20 @@ app.whenReady().then(async () => {
 	);
 
 	registerExtensionIpcHandlers();
+	registerClipHandlers({
+		showRecorder: () => {
+			const hud = getHudOverlayWindow();
+			if (!hud) return createWindow();
+			mainWindow = hud;
+			showHudOverlayFromTray();
+		},
+		showEditor: () => {
+			getHudOverlayWindow()?.hide();
+			createEditorWindowWrapper();
+		},
+		hideEditor: (editor) => editor.hide(),
+		closeEditor: (editor) => closeEditorWindowBypassingUnsavedPrompt(editor),
+	});
 	await registerBoard();
 
 	if (IS_SMOKE_EXPORT || process.env.RECORDLY_DEV_OPEN_RECORDING_INPUT) {

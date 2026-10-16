@@ -157,6 +157,7 @@ vi.mock("../screenCaptureAccess", () => ({ requireScreenRecordingAccess: vi.fn()
 vi.mock("../board/register", () => ({
 	assertBoardCaptureSource: vi.fn(),
 	refreshCompanionCapture: vi.fn(),
+	boardDisplayId: () => 7,
 	enableSceneMediaSurface: vi.fn(),
 	sendRecordingControl: host.control,
 	isDrawingSurfaceWindow: (w: TestWindow) =>
@@ -857,4 +858,47 @@ test("current source overlays autosave without refocusing the desktop; reset pre
 		"Stop recording",
 	);
 	await expect(request("resetRecordingDefaults")).rejects.toThrow("Stop recording");
+});
+
+test("launch creates and applies a screen-sharing presentation scene once", async () => {
+	host.root = await fs.mkdtemp(path.join(os.tmpdir(), "studio-launch-"));
+	await fs.mkdir(path.join(host.root, "studio"));
+	await fs.writeFile(
+		path.join(host.root, "studio/settings.json"),
+		JSON.stringify({ glow: true, windows: [], sounds: [] }),
+	);
+	host.selected = null;
+	host.control.mockClear();
+	registerStudio();
+	const frame = { url: "http://127.0.0.1:9876/?windowType=studio" };
+	const event = { senderFrame: frame, sender: { mainFrame: frame } };
+	const request = (method: string, input?: unknown) =>
+		host.handlers.get("studio:request")!(event, method, input);
+	host.sources = [
+		{ id: "screen:3:0", name: "Screen 2", display_id: "3" },
+		{ id: "screen:7:0", name: "Built-in Display", display_id: "7" },
+	];
+	const ready = await request("prepareLaunch");
+	expect(ready.settings.scenes).toMatchObject([
+		{
+			name: "Screen explainer",
+			camera: true,
+			audio: { microphone: true, system: true },
+			source: { id: "screen:7:0", display_id: "7", sourceType: "screen" },
+		},
+	]);
+	expect(ready.activeSceneId).toBe(ready.settings.scenes[0].id);
+	expect(host.selected).toMatchObject({ id: "screen:7:0" });
+	expect(host.control).toHaveBeenCalledWith("microphone-on");
+	expect(host.control).toHaveBeenCalledWith("system-audio-on");
+	expect(host.control).toHaveBeenLastCalledWith("webcam-on");
+	const saved = JSON.parse(
+		await fs.readFile(path.join(host.root, "studio/settings.json"), "utf8"),
+	);
+	expect(saved.scenes).toHaveLength(1);
+	host.selected = null;
+	host.control.mockClear();
+	await request("prepareLaunch");
+	expect(host.selected).toBeNull();
+	expect(host.control).not.toHaveBeenCalled();
 });

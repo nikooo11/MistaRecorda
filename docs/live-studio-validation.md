@@ -13,7 +13,8 @@
 
 ## Validation
 
-- All 1,365 tests in 177 files passed. TypeScript, Electron CJS entry smoke and persistent-identity signed packaging passed; the signed app was installed and deep signature verification passed.
+- All 1,387 tests in 181 files passed after integrating the concurrent editor-clip and touch-selection changes. TypeScript, Electron CJS entry smoke and persistent-identity signed packaging passed; the signed app was installed and deep signature verification passed.
+- Launch initialization is consolidated so the ready-to-record scene applies once after recorder listeners attach. Existing saved drawings are retained; startup does not clear them.
 - Automated coverage includes split/oversized preview frames, stale source and camera frames, idle cleanup, preview restart, legacy shortcut migration, non-destructive starter scene creation, scene-media IPC trust and source validation, URL override restoration/cancellation/failure, and preview movement/size bounds.
 - Native app playtest confirmed continuously changing clock/animation in the selected Chrome window, facecam frame placement, image import and inclusion in the preview, quick Memes access, and whiteboard open/close.
 - A 264.6-second test recording switched Chrome → display → Chrome. Inspected native output frames before/during/after switching: image overlay returns with the window scene; studio controls are absent from the display recording. Output is a playable H.264/AAC file and opened in the editor. Saved as QA Live studio source switching.
