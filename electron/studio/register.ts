@@ -1,3 +1,6 @@
+import { importSceneMedia, sceneMediaPath, SceneMediaTake } from "./sceneMedia";
+import { buildMediaUrl, ensureMediaServer } from "../mediaServer";
+import type { SceneMediaPlayback } from "../../src/types/studio";
 import { execFile } from "node:child_process";
 import type { BundledSound } from "../board/presentationBundle";
 import fs from "node:fs/promises";
@@ -28,6 +31,7 @@ import type { AudioRegion } from "../../src/components/video-editor/types";
 import type { StudioInfo, StudioSettings, StudioSource } from "../../src/types/studio";
 import {
 	assertBoardCaptureSource,
+	enableSceneMediaSurface,
 	isDrawingSurfaceWindow,
 	sendRecordingControl,
 } from "../board/register";
@@ -112,6 +116,36 @@ const camera = new CaptureCamera(
 		);
 	},
 );
+let activeSceneId: string | undefined;
+let mediaStartedMs = 0;
+const mediaTake = new SceneMediaTake();
+const currentMedia = () => settings.scenes.find((s) => s.id === activeSceneId)?.media ?? [];
+
+export async function getSceneMediaFile(id: string) {
+	const source = settings.scenes.flatMap((s) => s.media ?? []).find((s) => s.id === id);
+	if (!source) throw Error("Scene media not found.");
+	return sceneMediaPath(source);
+}
+export async function sceneMediaPlayback(): Promise<SceneMediaPlayback> {
+	const base = currentMedia().length ? await ensureMediaServer() : "";
+	const sources = await Promise.all(
+		currentMedia()
+			.filter((s) => s.enabled)
+			.map(async (s) => {
+				const file = await sceneMediaPath(s);
+				rememberApprovedLocalReadPath(file);
+				return { ...s, url: buildMediaUrl(base, file) };
+			}),
+	);
+	return {
+		sceneId: activeSceneId,
+		sources,
+		elapsedMs: isCursorCaptureActive
+			? Math.max(0, getCursorCaptureElapsedMs() - mediaStartedMs)
+			: 0,
+		playing: isCursorCaptureActive && !isCursorCapturePaused(),
+	};
+}
 let panelTab: import("../../src/types/studio").StudioTab = "layers";
 let guideTour: StudioInfo["guideTour"];
 let guideTourToken = 0;
@@ -143,6 +177,7 @@ const bindings = new Set<string>();
 const root = () => path.join(app.getPath("userData"), "studio");
 const info = (): StudioInfo => ({
 	settings,
+	activeSceneId,
 	camera: camera.status,
 	panelTab,
 	guideTour,
@@ -171,6 +206,20 @@ async function save() {
 	await fs.writeFile(tmp, JSON.stringify(settings), { mode: 0o600 });
 	await fs.rename(tmp, path.join(root(), "settings.json"));
 	publish();
+}
+export async function setSoundPreference(input: unknown) {
+	const { id, kind, value } = z
+		.object({ id: z.string().uuid(), kind: z.enum(["favorite", "love"]), value: z.boolean() })
+		.parse(input);
+	if (!settings.sounds.some((s) => s.id === id)) throw Error("Sound not found.");
+	settings = {
+		...settings,
+		sounds: settings.sounds.map((s) =>
+			s.id === id ? { ...s, [kind === "love" ? "loved" : "favorite"]: value } : s,
+		),
+	};
+	await save();
+	return info();
 }
 export async function fireSound(id: string) {
 	const sound = settings.sounds.find((s) => s.id === id);
@@ -234,7 +283,11 @@ export function boardSoundList() {
 		paused: isCursorCapturePaused(),
 		includeSoundboardInRecording: settings.includeSoundboardInRecording !== false,
 		sounds: [...settings.sounds]
-			.sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite))
+			.sort(
+				(a, b) =>
+					Number(!!b.loved) - Number(!!a.loved) ||
+					Number(!!b.favorite) - Number(!!a.favorite),
+			)
 			.map(({ file: _file, ...sound }) => sound),
 	};
 }
@@ -420,6 +473,8 @@ async function applyScene(id: string) {
 	const scene = settings.scenes.find((s) => s.id === id);
 	if (!scene) throw Error("Choose a saved scene.");
 	if (switching) throw Error("A source switch is already in progress.");
+	// Resolve every asset before changing the current scene.
+	await Promise.all((scene.media ?? []).map(sceneMediaPath));
 	const targetAudio = scene.audio ?? audioState;
 	const changesAudio =
 		targetAudio.microphone !== audioState.microphone ||
@@ -468,6 +523,7 @@ async function applyScene(id: string) {
 		for (const w of BrowserWindow.getAllWindows())
 			w.webContents.send("selected-source-changed", next);
 	}
+	if (scene.media?.some((s) => s.enabled)) await enableSceneMediaSurface();
 	if (scene.cameraLayout) {
 		settings = { ...settings, cameraLayout: scene.cameraLayout };
 		camera.record(scene.cameraLayout);
@@ -483,9 +539,16 @@ async function applyScene(id: string) {
 		await sendRecordingControl(targetAudio.system ? "system-audio-on" : "system-audio-off");
 		audioState = { ...targetAudio };
 	}
+	activeSceneId = scene.id;
+	mediaStartedMs = isCursorCaptureActive ? getCursorCaptureElapsedMs() : 0;
+	if (isCursorCaptureActive) mediaTake.switch(currentMedia(), mediaStartedMs);
 	sendRecordingControl(scene.camera ? "webcam-on" : "webcam-off");
 	message = `Scene: ${scene.name}${focusWarning ? `. ${focusWarning}` : ""}`;
 	publish();
+}
+function leaveScene() {
+	if (isCursorCaptureActive) mediaTake.switch([], getCursorCaptureElapsedMs());
+	activeSceneId = undefined;
 }
 export async function switchWindow(input: StudioSource) {
 	if (switching) throw Error("A source switch is already in progress.");
@@ -520,6 +583,7 @@ export async function switchWindow(input: StudioSource) {
 			setSelectedWindowBounds(null);
 			for (const w of BrowserWindow.getAllWindows())
 				w.webContents.send("selected-source-changed", next);
+			leaveScene();
 			message = `Recording source: ${next.name}`;
 			return;
 		}
@@ -581,6 +645,7 @@ export async function switchWindow(input: StudioSource) {
 			});
 			closeHeldZoom(getCursorCaptureElapsedMs());
 		}
+		leaveScene();
 		setSelectedSource({ ...next });
 		glowPulse = isCursorCaptureActive;
 		await startWindowBoundsCapture();
@@ -599,6 +664,8 @@ export async function switchWindow(input: StudioSource) {
 	}
 }
 export function startStudioTake() {
+	mediaStartedMs = 0;
+	mediaTake.start(currentMedia());
 	startVoiceCues();
 	camera.start();
 	setCaptureCanvasAspect(
@@ -656,6 +723,11 @@ export function startStudioTake() {
 	publish();
 }
 export function stopStudioTake() {
+	if (settings.sounds.some((s) => s.favorite)) {
+		settings = { ...settings, sounds: settings.sounds.map((s) => ({ ...s, favorite: false })) };
+		void save().catch((e) => console.error("Could not reset take favorites", e));
+	}
+	mediaTake.switch([], getCursorCaptureElapsedMs());
 	setCaptureCanvasAspect(null);
 	clearInterval(glowTimer);
 	glow?.hide();
@@ -663,29 +735,44 @@ export function stopStudioTake() {
 }
 export async function persistStudioTake(videoPath: string) {
 	if (persistedTake) return persistedTake;
+	// Native capture can save its file before set-recording-state(false) arrives.
+	// Close the final media interval here too; switching an empty take is idempotent.
+	mediaTake.switch([], getCursorCaptureElapsedMs());
 	persistedTake = persistSounds(videoPath);
 	return persistedTake;
 }
 async function persistSounds(videoPath: string) {
 	await persistVoiceCues(videoPath);
-	if (!take.regions.length || (savedPath && savedPath !== videoPath)) return;
+	if (savedPath && savedPath !== videoPath) return;
+	const sceneAudio = await mediaTake.renderAudio(videoPath, (name, error) => {
+		message = `Could not add scene audio “${name}”. The recording was kept. Re-import that source before your next take.`;
+		console.error(message, error);
+		publish();
+	});
+	if (!take.regions.length && !sceneAudio.length) return;
 	savedPath = videoPath;
 	// Keep sounds beside the recording so moving the original imports cannot break a project.
 	const files = new Map<string, string>();
-	for (const r of take.regions)
+	for (const r of [...take.regions, ...sceneAudio])
 		if (!files.has(r.audioPath)) {
 			const copy = `${videoPath}.sound-${files.size}.wav`;
 			await fs.copyFile(r.audioPath, copy);
 			files.set(r.audioPath, copy);
 		}
-	const regions = take.regions.map((r) => ({
+	const regions = [...take.regions, ...sceneAudio].map((r) => ({
 		...r,
 		audioPath: path.basename(files.get(r.audioPath)!),
 	}));
 	await fs.writeFile(`${videoPath}.sounds.json`, JSON.stringify({ version: 1, regions }));
-	if (includeSounds) {
+	if (includeSounds || sceneAudio.length) {
 		try {
-			await bakeSounds(videoPath, take.regions);
+			await bakeSounds(
+				videoPath,
+				[...(includeSounds ? take.regions : []), ...sceneAudio],
+				!includeSounds
+					? regions.filter((r) => take.regions.some((t) => t.id === r.id))
+					: [],
+			);
 		} catch (error) {
 			// Keep the copied clips available if final mixing fails. Never discard sound cues.
 			message = "Sound mixing failed. Your sounds were kept as editable clips in the editor.";
@@ -861,7 +948,9 @@ export function registerStudio() {
 			return info();
 		}
 		if (method === "panelTab") {
-			panelTab = z.enum(["windows", "sounds", "controls", "scenes", "layers"]).parse(input);
+			panelTab = z
+				.enum(["windows", "sounds", "controls", "scenes", "layers", "setup"])
+				.parse(input);
 			publish();
 			return info();
 		}
@@ -879,6 +968,7 @@ export function registerStudio() {
 		if (method === "streamStart") return startStream(input);
 		if (method === "streamStop") return stopStream();
 		if (method === "info") return info();
+		if (method === "setSoundPreference") return setSoundPreference(input);
 		if (method === "recordingVoices") return recordingVoiceList(input === true);
 		if (method === "selectRecordingVoice")
 			return selectRecordingVoice(z.string().max(100).parse(input));
@@ -945,6 +1035,8 @@ export function registerStudio() {
 			return info();
 		}
 		if (method === "prepareCapture") {
+			if (settings.scenes.some((s) => s.media?.some((m) => m.enabled)))
+				await enableSceneMediaSurface();
 			await prepareStudioCapture(process.platform === "darwin" && input?.nativeMac === true);
 			return info();
 		}
@@ -959,7 +1051,7 @@ export function registerStudio() {
 			return info();
 		}
 		if (method === "open" || method === "togglePanel") {
-			if (["windows", "sounds", "controls", "scenes", "layers"].includes(input))
+			if (["windows", "sounds", "controls", "scenes", "layers", "setup"].includes(input))
 				panelTab = input;
 			await openPanel();
 			publish();
@@ -1044,20 +1136,32 @@ export function registerStudio() {
 			await save();
 			return info();
 		}
+		if (method === "importSceneMedia")
+			return importSceneMedia(z.enum(["image", "video", "audio"]).parse(input));
 		if (method === "cameraShortcut" || method === "saveScene" || method === "removeScene") {
 			const next = studioSettingsSchema.parse({
 				...settings,
 				...(method === "cameraShortcut" ? { cameraShortcut: input } : {}),
 				...(method === "saveScene"
-					? { scenes: [...settings.scenes.filter((s) => s.id !== input?.id), input] }
+					? {
+							scenes: settings.scenes.some((s) => s.id === input?.id)
+								? settings.scenes.map((s) => (s.id === input.id ? input : s))
+								: [...settings.scenes, input],
+						}
 					: {}),
 				...(method === "removeScene"
 					? { scenes: settings.scenes.filter((s) => s.id !== input) }
 					: {}),
 			});
+			if (method === "saveScene")
+				await Promise.all(
+					(next.scenes.find((s) => s.id === input.id)?.media ?? []).map(sceneMediaPath),
+				);
 			bindAll(next);
 			settings = next;
+			if (method === "removeScene" && activeSceneId === input) activeSceneId = undefined;
 			await save();
+			if (method === "saveScene" && activeSceneId === input.id) await applyScene(input.id);
 			return info();
 		}
 		if (method === "assignWindow") {
@@ -1181,6 +1285,7 @@ export function registerStudio() {
 								shortcut: input.shortcut,
 								volume: input.volume,
 								favorite: input.favorite ?? s.favorite,
+								loved: input.loved ?? s.loved,
 								color: input.color ?? s.color,
 							}
 						: s,

@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { AudioRegion } from "../../src/components/video-editor/types";
+import { ffmpeg } from "../ipc/voice/chunker";
+import { sceneMediaSchema } from "./model";
 
 type Handler = (event: unknown, method: string, input?: unknown) => Promise<unknown>;
 interface TestWindow {
@@ -153,6 +155,7 @@ vi.mock("../ipc/project/manager", () => ({
 vi.mock("../screenCaptureAccess", () => ({ requireScreenRecordingAccess: vi.fn() }));
 vi.mock("../board/register", () => ({
 	assertBoardCaptureSource: vi.fn(),
+	enableSceneMediaSurface: vi.fn(),
 	sendRecordingControl: host.control,
 	isDrawingSurfaceWindow: (w: TestWindow) =>
 		w.webContents.getURL().includes("windowType=board-surface"),
@@ -659,4 +662,123 @@ test("native application exclusion keeps the studio usable without exposing othe
 	expect(recorder.hide).not.toHaveBeenCalled();
 	expect(settings.hide).toHaveBeenCalledOnce();
 	expect(surface.hide).not.toHaveBeenCalled();
+});
+
+test("sound love persists across takes while favorites reset and both can change during recording", async () => {
+	host.root = await fs.mkdtemp(path.join(os.tmpdir(), "studio-preferences-"));
+	const id = crypto.randomUUID();
+	await fs.mkdir(path.join(host.root, "studio"));
+	await fs.writeFile(
+		path.join(host.root, "studio/settings.json"),
+		JSON.stringify({
+			glow: true,
+			windows: [],
+			sounds: [
+				{ id, file: `${id}.wav`, name: "Cue", durationMs: 500, volume: 1, shortcut: "" },
+			],
+		}),
+	);
+	registerStudio();
+	const frame = { url: "http://127.0.0.1:9876/?windowType=studio" };
+	const request = (method: string, input?: unknown) =>
+		host.handlers.get("studio:request")!(
+			{ senderFrame: frame, sender: { mainFrame: frame } },
+			method,
+			input,
+		);
+	await request("info");
+	startStudioTake();
+	host.active = true;
+	await request("setSoundPreference", { id, kind: "love", value: true });
+	await request("setSoundPreference", { id, kind: "favorite", value: true });
+	expect(boardSoundList().sounds[0]).toMatchObject({ favorite: true, loved: true });
+	stopStudioTake();
+	host.active = false;
+	expect(boardSoundList().sounds[0]).toMatchObject({ favorite: false, loved: true });
+	await vi.waitFor(async () =>
+		expect(
+			JSON.parse(await fs.readFile(path.join(host.root, "studio/settings.json"), "utf8"))
+				.sounds[0],
+		).toMatchObject({ favorite: false, loved: true }),
+	);
+	registerStudio();
+	await request("info");
+	expect(boardSoundList().sounds[0]).toMatchObject({ favorite: false, loved: true });
+});
+
+test("native persistence includes the last scene audio interval before the stopped event arrives", async () => {
+	host.root = await fs.mkdtemp(path.join(os.tmpdir(), "studio-scene-finalize-"));
+	await fs.mkdir(path.join(host.root, "studio/media"), { recursive: true });
+	const id = crypto.randomUUID();
+	const media = sceneMediaSchema.parse({
+		id,
+		file: `${id}.m4a`,
+		name: "Tone",
+		kind: "audio",
+		enabled: true,
+		x: 0,
+		y: 0,
+		width: 0.5,
+		height: 0.5,
+		opacity: 1,
+		volume: 0.5,
+		loop: true,
+		hasAudio: true,
+		durationMs: 400,
+	});
+	const scene = {
+		id: crypto.randomUUID(),
+		name: "Audio test",
+		camera: false,
+		shortcut: "",
+		source: { id: "screen:1:0", name: "Test screen", sourceType: "screen" },
+		media: [media],
+	};
+	await fs.writeFile(
+		path.join(host.root, "studio/settings.json"),
+		JSON.stringify({
+			glow: false,
+			windows: [],
+			sounds: [],
+			scenes: [scene],
+		}),
+	);
+	await ffmpeg([
+		"-f",
+		"lavfi",
+		"-i",
+		"sine=frequency=523:duration=0.4",
+		"-c:a",
+		"aac",
+		path.join(host.root, "studio/media", media.file),
+	]);
+	const video = path.join(host.root, "native.mp4");
+	await ffmpeg(["-f", "lavfi", "-i", "color=blue:s=64x64:d=1.2", "-c:v", "libx264", video]);
+	host.active = false;
+	host.sources = [scene.source];
+	registerStudio();
+	const frame = { url: "http://127.0.0.1:9876/?windowType=studio" };
+	const request = (method: string, input?: unknown) =>
+		host.handlers.get("studio:request")!(
+			{ senderFrame: frame, sender: { mainFrame: frame } },
+			method,
+			input,
+		);
+	await request("info");
+	await request("applyScene", scene.id);
+	startStudioTake();
+	host.active = true;
+	host.time = 1200;
+	await persistStudioTake(video);
+	const firstAudio = await fs.readFile(path.join(host.root, "native.system.m4a"));
+	expect(firstAudio.length).toBeGreaterThan(5000);
+	expect(JSON.parse(await fs.readFile(`${video}.sounds.json`, "utf8"))).toMatchObject({
+		regions: [],
+		includedInRecording: true,
+	});
+	// The later stopped event and repeated persistence must not mix it twice.
+	host.active = false;
+	stopStudioTake();
+	await persistStudioTake(video);
+	expect(await fs.readFile(path.join(host.root, "native.system.m4a"))).toEqual(firstAudio);
 });

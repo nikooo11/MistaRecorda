@@ -226,6 +226,8 @@ interface WebcamLayoutCache {
 	positionY: number;
 	radius: number;
 	shadowStrength: number;
+	borderWidth?: number;
+	borderColor?: string;
 	mirror: boolean;
 }
 
@@ -395,6 +397,7 @@ export class FrameRenderer {
 	private overlayContainer: Container | null = null;
 	private annotationContainer: Container | null = null;
 	private captionContainer: Container | null = null;
+	private webcamBorderGraphics: Graphics | null = null;
 	private webcamRootContainer: Container | null = null;
 	private webcamContainer: Container | null = null;
 	private videoSprite: Sprite | null = null;
@@ -582,6 +585,8 @@ export class FrameRenderer {
 			WEBCAM_SHADOW_LAYER_PROFILES,
 		);
 		this.webcamRootContainer.addChild(this.webcamContainer);
+		this.webcamBorderGraphics = new Graphics();
+		this.webcamContainer.addChild(this.webcamBorderGraphics);
 		this.webcamRootContainer.visible = false;
 
 		this.overlayContainer.addChild(this.webcamRootContainer);
@@ -2609,6 +2614,8 @@ export class FrameRenderer {
 
 		return (
 			previousLayout.mirror === nextLayout.mirror &&
+			previousLayout.borderWidth === nextLayout.borderWidth &&
+			previousLayout.borderColor === nextLayout.borderColor &&
 			areNearlyEqual(previousLayout.sourceWidth, nextLayout.sourceWidth) &&
 			areNearlyEqual(previousLayout.sourceHeight, nextLayout.sourceHeight) &&
 			areNearlyEqual(previousLayout.width, nextLayout.width) &&
@@ -2647,6 +2654,25 @@ export class FrameRenderer {
 			radius: nextLayout.radius,
 		});
 		this.webcamMaskGraphics.fill({ color: 0xffffff });
+		if (this.webcamBorderGraphics) {
+			this.webcamBorderGraphics.clear();
+			if ((nextLayout.borderWidth ?? 0) > 0) {
+				drawSquircleOnGraphics(this.webcamBorderGraphics, {
+					x: 0,
+					y: 0,
+					width: nextLayout.width,
+					height: nextLayout.height,
+					radius: nextLayout.radius,
+				});
+				this.webcamBorderGraphics.stroke({
+					color: nextLayout.borderColor ?? "#ffffff",
+					width:
+						(Math.min(nextLayout.width, nextLayout.height) *
+							(nextLayout.borderWidth ?? 0)) /
+						50,
+				});
+			}
+		}
 
 		for (const layer of this.webcamShadowLayers) {
 			if (nextLayout.shadowStrength <= 0) {
@@ -2972,6 +2998,8 @@ export class FrameRenderer {
 			positionY: position.y,
 			radius,
 			shadowStrength,
+			borderWidth: webcam.borderWidth,
+			borderColor: webcam.borderColor,
 			mirror: webcam.mirror,
 		};
 
@@ -3948,6 +3976,7 @@ export class FrameRenderer {
 		this.annotationContainer = null;
 		this.captionContainer = null;
 		this.webcamRootContainer = null;
+		this.webcamBorderGraphics = null;
 		this.webcamContainer = null;
 		this.videoSprite = null;
 		this.videoTextureSource = null;

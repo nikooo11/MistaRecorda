@@ -102,6 +102,34 @@ export function CameraOverlay() {
 					clipPath: `path('${getSquircleSvgPath({ x: 0, y: 0, width: size.width, height: size.height, radius: layout.roundness })}')`,
 				}}
 			/>
+			{(layout.borderWidth ?? 0) > 0 && (
+				<svg
+					aria-hidden="true"
+					style={{
+						position: "absolute",
+						inset: 0,
+						width: "100%",
+						height: "100%",
+						pointerEvents: "none",
+						clipPath: `path('${getSquircleSvgPath({ x: 0, y: 0, width: size.width, height: size.height, radius: layout.roundness })}')`,
+					}}
+				>
+					<path
+						d={getSquircleSvgPath({
+							x: 0,
+							y: 0,
+							width: size.width,
+							height: size.height,
+							radius: layout.roundness,
+						})}
+						fill="none"
+						stroke={layout.borderColor ?? "#ffffff"}
+						strokeWidth={
+							(Math.min(size.width, size.height) * (layout.borderWidth ?? 0)) / 50
+						}
+					/>
+				</svg>
+			)}
 			{error && <span className="camera-error">{error}</span>}
 			<button
 				className="camera-layout-button"

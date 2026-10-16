@@ -129,6 +129,8 @@ export type WebcamPositionPreset =
 	| "custom";
 
 export interface WebcamOverlaySettings {
+	borderWidth?: number;
+	borderColor?: string;
 	layoutCues?: import("../../lib/cameraLayout").CameraLayoutCue[];
 	visibility?: import("../../lib/webcamVisibility").WebcamVisibilityEvent[];
 	enabled: boolean;

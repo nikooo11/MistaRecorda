@@ -144,7 +144,7 @@ export function MemeLibrary({
 								disabled={busy}
 								aria-label={`${asset.loved ? "Unlove" : "Love"} ${asset.name}`}
 								aria-pressed={!!asset.loved}
-								title="Love · keep at the top across projects"
+								title="Love ♥ — keep this meme near the top across all projects and recordings until you unlove it."
 								onClick={() => void preference(asset.id, "love", !asset.loved)}
 							>
 								<HeartIcon size={17} weight={asset.loved ? "fill" : "regular"} />
@@ -153,7 +153,7 @@ export function MemeLibrary({
 								disabled={busy}
 								aria-label={`${state.favoriteMemeIds?.includes(asset.id) ? "Unfavorite" : "Favorite"} ${asset.name}`}
 								aria-pressed={!!state.favoriteMemeIds?.includes(asset.id)}
-								title="Favorite · this take or saved environment only"
+								title="Favorite ★ — pin this meme for this recording or saved environment only. Favorites reset after the take; Love keeps it across projects."
 								onClick={() =>
 									void preference(
 										asset.id,

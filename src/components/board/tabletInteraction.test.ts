@@ -11,6 +11,7 @@ describe("tablet screen annotations", () => {
 	it("follows a hidden overlay and screen-only output instead of retaining the whiteboard", () => {
 		const state = emptyBoardState();
 		state.mode = "board";
+		state.enabled = false;
 		expect(tabletSceneMode(state)).toBe("screen");
 		state.enabled = true;
 		expect(tabletSceneMode(state)).toBe("board");

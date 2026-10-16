@@ -1074,6 +1074,14 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 			shadow: isFiniteNumber(webcam.shadow)
 				? clamp(webcam.shadow, 0, 1)
 				: DEFAULT_WEBCAM_SHADOW,
+			borderWidth:
+				typeof webcam.borderWidth === "number" && Number.isFinite(webcam.borderWidth)
+					? Math.max(0, Math.min(4, webcam.borderWidth))
+					: 0,
+			borderColor:
+				typeof webcam.borderColor === "string" && /^#[a-f0-9]{6}$/i.test(webcam.borderColor)
+					? webcam.borderColor
+					: "#ffffff",
 			visibility: normalizeWebcamVisibility(webcam.visibility),
 			layoutCues: normalizeCameraCues(webcam.layoutCues),
 			timeOffsetMs: isFiniteNumber(webcam.timeOffsetMs)

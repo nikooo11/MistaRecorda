@@ -81,8 +81,11 @@ export class VoiceSettingsStore {
 		}
 	}
 	async key() {
-		const injected = this.environmentKey();
-		if (injected) return injected;
+		const localOnly = await fs
+			.stat(path.join(this.dir, "voice-key-local-only"))
+			.then(() => true)
+			.catch(() => false);
+		const injected = localOnly ? undefined : this.environmentKey();
 		try {
 			// Read first: querying secure storage itself can open a Keychain prompt.
 			const encrypted = await fs.readFile(path.join(this.dir, "voice-key.enc"));
@@ -93,11 +96,15 @@ export class VoiceSettingsStore {
 				return undefined;
 			return this.storage.decryptString(encrypted);
 		} catch {
-			return undefined;
+			return injected;
 		}
 	}
 	async hasKey() {
-		if (this.environmentKey()) return true;
+		const localOnly = await fs
+			.stat(path.join(this.dir, "voice-key-local-only"))
+			.then(() => true)
+			.catch(() => false);
+		if (!localOnly && this.environmentKey()) return true;
 		// Presence is enough for "key saved". Validate/decrypt only for a voice action.
 		const file = await fs.stat(path.join(this.dir, "voice-key.enc")).catch(() => null);
 		return Boolean(file?.isFile() && file.size > 0);
@@ -105,6 +112,7 @@ export class VoiceSettingsStore {
 	async setKey(key: unknown) {
 		if (typeof key !== "string" || key.length > 4096) throw new Error("invalidKey");
 		if (!key.trim()) {
+			await this.write("voice-key-local-only", Buffer.from("1"));
 			await fs.rm(path.join(this.dir, "voice-key.enc"), { force: true });
 			return { hasKey: Boolean(await this.key()) };
 		}
@@ -114,6 +122,7 @@ export class VoiceSettingsStore {
 		)
 			throw new Error("secureStorageUnavailable");
 		await this.write("voice-key.enc", this.storage.encryptString(key.trim()));
+		await this.write("voice-key-local-only", Buffer.from("1"));
 		return { hasKey: true };
 	}
 	async publicSettings() {

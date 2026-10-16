@@ -148,3 +148,32 @@ describe("recorded camera layout", () => {
 		).toEqual({ x: 0, y: 1 });
 	});
 });
+
+it("preserves recorded border/shadow styles and allows an editor style override without moving the camera", () => {
+	const layout = {
+		...DEFAULT_CAMERA_LAYOUT,
+		borderWidth: 1.5,
+		borderColor: "#91d5cb",
+		shadow: 0.25,
+	};
+	const webcam = { ...DEFAULT_WEBCAM_OVERLAY, layoutCues: [{ timeMs: 0, layout }] };
+	expect(cameraOverlayAt(webcam, 1000)).toMatchObject({
+		borderWidth: 1.5,
+		borderColor: "#91d5cb",
+		shadow: 0.25,
+	});
+	expect(normalizeCameraCues(webcam.layoutCues)).toEqual(webcam.layoutCues);
+	const edited = editCameraOverlayAt(webcam, 1000, { shadow: 0, borderWidth: 0 });
+	expect(cameraOverlayAt(edited, 1000)).toMatchObject({
+		shadow: 0,
+		borderWidth: 0,
+		positionX: layout.x,
+		positionY: layout.y,
+	});
+	const moved = editCameraOverlayAt(webcam, 1000, { positionX: 0.5 });
+	expect(cameraOverlayAt(moved, 1000)).toMatchObject({
+		borderWidth: 1.5,
+		borderColor: "#91d5cb",
+		shadow: 0.25,
+	});
+});

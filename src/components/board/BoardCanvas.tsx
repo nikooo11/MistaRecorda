@@ -1,3 +1,5 @@
+import { useDesktopToolbar } from "./desktopToolbar";
+import { SceneMediaLayer } from "./SceneMediaLayer";
 import {
 	CaptureUpdateAction,
 	convertToExcalidrawElements,
@@ -218,6 +220,7 @@ export function BoardCanvas({
 		: clean && state.output === "board"
 			? "board"
 			: state.mode;
+	useDesktopToolbar(stage, !tablet && !clean, transport, cleanMode);
 	const showMaterial = (cleanMode === "board" || boardClosing) && !(tablet && streamed);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: These layout values determine the cached DOM origin refreshed by the imperative API.
 	useLayoutEffect(() => {
@@ -1036,6 +1039,17 @@ export function BoardCanvas({
 					{background}
 				</div>
 			)}
+			<SceneMediaLayer
+				transport={transport}
+				audible={clean}
+				visible={cleanMode === "screen" && state.output !== "screen"}
+				width={state.width}
+				height={state.height}
+				scale={fit.scale}
+				left={fit.left}
+				top={fit.top}
+				view={tablet ? tabletView : { x: 0, y: 0, zoom: 1 }}
+			/>
 			{!(clean && state.output === "screen") && showMaterial && (
 				<div
 					className={`physical-board ${boardClosing ? "is-closing" : ""}`}

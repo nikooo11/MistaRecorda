@@ -81,7 +81,7 @@ export function FigureAssistant({
 				</button>
 			</header>
 			{!state?.hasKey ? (
-				<p>Add your OpenAI key on the Mac in Drawing → Setup → AI figures.</p>
+				<p>Add your OpenAI key on the Mac in Capture settings → Setup.</p>
 			) : (
 				<>
 					<div className="figure-input">
@@ -263,75 +263,5 @@ export function FigureAssistant({
 				</p>
 			)}
 		</aside>
-	);
-}
-export function FigureSettingsPanel({ transport }: { transport: BoardAPI }) {
-	const [key, setKey] = useState("");
-	const [hasKey, setHasKey] = useState(false);
-	const [message, setMessage] = useState("");
-	const [busy, setBusy] = useState(false);
-	useEffect(() => {
-		void transport
-			.request<FigureState>("aiInfo")
-			.then((s) => setHasKey(s.hasKey))
-			.catch((e) => setMessage(String(e)));
-	}, [transport]);
-	async function run(method: string, input?: unknown) {
-		setBusy(true);
-		try {
-			const value = await transport.request(method, input);
-			if (method === "aiSetKey") {
-				setHasKey((value as FigureState).hasKey);
-				setKey("");
-			}
-			setMessage(
-				method === "aiTestKey"
-					? "Key and model access verified."
-					: method === "aiSetKey"
-						? input
-							? "Key saved securely on this Mac."
-							: "Key removed."
-						: "Cleanup requested.",
-			);
-		} catch (e) {
-			setMessage(String(e));
-		} finally {
-			setBusy(false);
-		}
-	}
-	return (
-		<section className="figure-settings">
-			<h2>AI figures</h2>
-			<p>
-				GPT-6 Astra · Search, charts, visual ideas and memes from your library. OpenAI bills
-				your API account. Search limit: $1 per request; speech and images billed separately.
-			</p>
-			<label className="studio-field">
-				Your OpenAI API key
-				<input
-					type="password"
-					autoComplete="off"
-					spellCheck={false}
-					value={key}
-					placeholder={hasKey ? "Key saved" : "sk-…"}
-					onChange={(e) => setKey(e.target.value)}
-				/>
-			</label>
-			<div className="studio-action-grid">
-				<button disabled={busy || !key.trim()} onClick={() => void run("aiSetKey", key)}>
-					Save key
-				</button>
-				<button disabled={busy || !hasKey} onClick={() => void run("aiTestKey")}>
-					Test key
-				</button>
-				<button disabled={busy || !hasKey} onClick={() => void run("aiSetKey", "")}>
-					Remove key
-				</button>
-				<button disabled={busy || !hasKey} onClick={() => void run("aiCleanup")}>
-					Retry cleanup
-				</button>
-			</div>
-			<p role="status">{message}</p>
-		</section>
 	);
 }

@@ -35,6 +35,7 @@ export interface BoardState {
 	version: 1;
 	revision: number;
 	enabled: boolean;
+	drawingDefaultsVersion?: 1;
 	mode: BoardMode;
 	output: "screen" | "screen-board" | "board";
 	width: number;
@@ -53,7 +54,8 @@ export const emptyBoardScene = (): BoardScene => ({
 export const emptyBoardState = (): BoardState => ({
 	version: 1,
 	revision: 0,
-	enabled: false,
+	enabled: true,
+	drawingDefaultsVersion: 1,
 	mode: "screen",
 	output: "screen-board",
 	width: 1280,

@@ -14,6 +14,7 @@ vi.mock("electron", () => ({
 		setContentProtection = vi.fn();
 		setVisibleOnAllWorkspaces = vi.fn();
 		setMovable = vi.fn();
+		setHasShadow = vi.fn();
 		hide = vi.fn();
 		showInactive = vi.fn();
 		destroy = vi.fn();

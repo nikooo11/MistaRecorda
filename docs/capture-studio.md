@@ -2,11 +2,11 @@
 
 ## Simple defaults
 
-MistaRecorda is a screen recorder first. New installations use automatic capture quality, a three-second countdown, the default microphone enabled, system audio and face camera off, and the capture glow on. Existing audio choices are preserved. Choose the screen or application window you want to show; scenes are optional. macOS still requires the initial device/capture approvals.
+MistaRecorda is a screen recorder first. New installations use automatic capture quality, a three-second countdown, microphone and computer audio enabled, face camera off, and the capture glow on. New scenes start with facecam and both audio inputs on. Existing audio choices are preserved. Choose the screen or application window you want to show; scenes are optional. macOS still requires the initial device/capture approvals.
 
 ## Record a take
 
-Choose your source, microphone and computer audio in the recorder. Starting a take hides MistaRecorda's open panels and recorder toolbar before capture begins. **⌘/Ctrl + Shift + H** brings the recorder back. **⌘/Ctrl + Shift + R** starts or stops the take using the same shortcut; **⌘/Ctrl + Shift + P** pauses or resumes.
+Choose your source, microphone and computer audio in the recorder. Native Mac recording keeps the recording studio available and excludes it from capture. Other utility panels hide when a take starts and can be reopened. Alternate capture paths hide the recorder before capture begins. **⌘/Ctrl + Shift + H** brings the recorder back. **⌘/Ctrl + Shift + R** starts or stops the take using the same shortcut; **⌘/Ctrl + Shift + P** pauses or resumes.
 
 On macOS, the **Recording** menu also restores the recorder, starts/stops a take, pauses/resumes, toggles the drawing board, and opens iPad pairing.
 
@@ -23,13 +23,13 @@ Pause, stop and window changes end an active zoom. A bare Z is also delivered to
 
 ## Drawing studio
 
-Open **Board** and enable the drawing overlay before starting. Choose the same **full display** in both the recorder and Drawing studio.
+**Include drawings in recording** is on by default. It includes screen ink, the whiteboard, laser pointer and deployed objects. Presenter controls and shadow notes stay private. The desktop remains clickable until you choose **Draw on screen**. Choose the matching display in Drawing options; native Mac window recording also includes the whiteboard and annotations.
 
 Move to the far-left edge to reveal a narrow board handle, then **click** it. The framed whiteboard swings into view. **Put board away** swings it back left and retains the drawing. **⌘/Ctrl + Shift + B** toggles it from another app. Hovering alone does not deploy it.
 
-**Draw on screen** opens the transparent drawing editor; **Done drawing** gives the mouse back to the desktop. The editor's tools remain excluded from the recording. The recorded clean surface contains the drawings. The screen scene and whiteboard scene retain separate content.
+**Draw on screen** opens the transparent drawing editor; **Done drawing** gives the mouse back to the desktop. The editor's tools remain excluded from the recording. The recorded clean surface contains the drawings. The screen scene and whiteboard scene retain separate content. On the Mac, drag the dotted grip at the left of the hand/selection toolbar to move it. It stays inside the usable screen and resets near the top when reopened; moving controls does not move your drawings.
 
-In the **iPad** tab, generate a pairing QR. Scan it on an iPad on the same private Wi-Fi, approve that device on the computer, then start the screen preview on the iPad. Use a finger or Apple Pencil to draw. The connection uses local WebRTC, with a lower-frame-rate preview fallback. Actual latency depends on the computer, iPad and network.
+In the **iPad** tab, generate a pairing QR. Scan it on an iPad on the same private Wi-Fi, approve that device on the computer, and the screen preview starts automatically in Pan & zoom mode. Enable **Draw** to draw with a finger or Apple Pencil. The connection uses local WebRTC, with a lower-frame-rate preview fallback. Actual latency depends on the computer, iPad and network.
 
 Use **Drawings** to save and load drawings; **Settings** selects the display and recording output. Physical iPad/Pencil testing is still required for this build.
 
@@ -37,21 +37,23 @@ Use **Drawings** to save and load drawings; **Settings** selects the display and
 
 Open **Capture settings → Recording** to view the main shortcuts. **⌘/Ctrl + Shift + W** toggles the face camera; click the shortcut to change it. Camera visibility and movement are recorded as source-time cues and are respected by preview, saved projects and export. The camera can first be enabled after recording starts. Drawing capture also keeps the camera as a separate editable video layer.
 
-**Recording scenes → Add scene** saves a name, one screen/window source, camera on/off state and the current camera placement. Click its shortcut field to assign a key, or click **Use**. Microphone and system audio remain the current recorder choices. Scenes never start a recording automatically. During native macOS window capture, window scenes can change the source. Switching to a different display requires stopping first. A missing source leaves the existing source and camera untouched.
+**Scenes → New scene** starts with a screen/window, facecam, both audio inputs, and a soft camera frame. **Sources & layout → Add source** adds images/GIFs, videos, or music; imports are copied into app storage. Use each source’s gear to rename, position, resize, set opacity, volume or looping, and change order. The first media item is on top, with drawings and facecam above media. The whiteboard covers screen media while open. Music starts at 20% volume. Videos and music start at recording start or scene recall, and pause with the take; non-looping clips hold their final frame. Scene audio is included in the finished recording. Use headphones to avoid speaker playback entering the microphone.
+
+Each scene saves audio on/off and camera placement/frame. **Clean**, **Soft frame**, and **Accent** frames remain editable; border and shadow follow the camera into preview and export. Assign a shortcut beside a scene or click it to recall. Scenes do not start recording. During native Mac window capture, window scenes can change the source and bring it forward. Switching to a different display requires stopping first. The central source snapshot is not a live composite preview.
 
 ## Window shortcuts and sounds
 
 Open the gear button for **Capture settings**.
 
-**Window shortcuts:** assign up to six open application windows. Defaults are **⌘/Ctrl + Alt + 1–6**; click a shortcut field and press your preferred combination. Tab moves to the next field; Backspace clears a shortcut. Start a native Mac **window recording**, then use these shortcuts to change the captured window without ending the take. Differently sized windows fit the original video frame. Desktop drawing currently requires full-display capture, so window switching and drawing overlays are separate capture modes.
+**Window shortcuts:** assign up to six open application windows. Defaults are **⌘/Ctrl + Alt + 1–6**; click a shortcut field and press your preferred combination. Tab moves to the next field; Backspace clears a shortcut. Start a native Mac **window recording**, then use these shortcuts to change the captured window without ending the take. Differently sized windows fit the original video frame. Native Mac window capture also composites the whiteboard and screen drawings.
 
-**Sound effects:** import WAV, MP3, M4A, OGG, FLAC or AAC files up to 25 MB and two minutes. Preview before recording, set volume and assign shortcuts. Triggers add editable audio clips at the recording time; playback and export mix them in. They are not played aloud during capture, avoiding duplicate recording through computer audio. Paused triggers are ignored. Keep the original recording and its `.sounds.json`/`.sound-N.wav` sidecars together until saving a project.
+**Sound effects:** import WAV, MP3, M4A, OGG, FLAC or AAC files up to 25 MB and two minutes. Preview before recording, set volume and assign shortcuts. Sounds play on the Mac. **Include soundboard in recording** is on by default and mixes them into the recording once. Turn it off to keep movable sound clips in the editor; use headphones so monitoring does not enter the microphone. Paused triggers are ignored. **Love** keeps an item near the top across projects; **Favorite** marks it for the current take and resets afterward. Hover these controls for their explanations. Keep the original recording and its `.sounds.json`/`.sound-N.wav` sidecars together until saving a project.
 
 **Recording:** review shortcuts and enable or disable the subtle capture glow. Settings that change a take are locked while recording. Help appears after hovering or focusing a supported control for three seconds.
 
 ## ElevenLabs voices and sharing
 
-Voice controls appear **only after recording, in the editor**. Open the waveform **Voice / ElevenLabs** sidebar. Its compact tuning controls stay in place while only the voice list scrolls. Use **My voices**, **Library**, **Favorites**, or **Presets**, and search to narrow the list. The play button auditions a sample without selecting it.
+Voice processing controls appear after recording in the editor; the recording soundboard can also queue voice choices for later processing. Open the waveform **Voice / ElevenLabs** sidebar. Its compact tuning controls stay in place while only the voice list scrolls. Use **My voices**, **Library**, **Favorites**, or **Presets**, and search to narrow the list. The play button auditions a sample without selecting it.
 
 Recording always captures the original microphone. Click **Use** to select a voice; the row shows **Selected**. Selecting, favoriting, importing, or saving tuning never processes audio. Click **Process voice via ElevenLabs** explicitly when ready. Successful processing switches playback and export to the changed microphone; **Mic audio → Original** restores the original. Computer audio and the original microphone remain intact. Takes without an isolated microphone explain why conversion is unavailable.
 
@@ -75,7 +77,7 @@ Local builds now use the persistent **MistaRecorda Local Development** certifica
 
 ## Interface conventions
 
-Capture settings uses a fixed category sidebar: Recording, Recording scenes, Window shortcuts and Sound effects. Settings apply through their existing controls; shortcut edits have explicit Save and Cancel buttons. The footer identifies the selected recording source. Drawing, iPad pairing and saved drawings share compact tabs with a fixed recording transport. Voice conversion remains in the editor after recording.
+Capture settings uses a fixed category sidebar, including one **Setup** tab for OpenAI and ElevenLabs keys. Paste and save each key once; encrypted keys stay on this computer until replaced or removed. A new computer needs its own setup. Expired or revoked keys must be replaced. Testing a key contacts its provider only when requested. Settings apply through their existing controls; shortcut fields capture a key or combination on release and explain conflicts. The footer identifies the selected recording source. Drawing, iPad pairing and saved drawings share compact tabs with a fixed recording transport. Voice conversion remains in the editor after recording.
 
 Visual references: [OBS settings](https://obsproject.com/kb/OBS-Studio-Overview) for category navigation and aligned controls; [DaVinci Resolve Fairlight](https://www.blackmagicdesign.com/products/davinciresolve/fairlight) for compact grouping and restrained status colors. Reference images inform layout; they are not shipped as application assets.
 
@@ -87,7 +89,7 @@ In the editor, **Layers** lists text, images, shapes and blur overlays, plus the
 
 ## Recorder panel buttons
 
-Board, iPad, Capture settings and Zoom toggle their menus. Click once to open, then again to hide. Choosing another tool replaces the visible menu. Switching between Board and iPad opens the requested tab rather than hiding the shared panel. The editor sidebar and its Connect iPad button also toggle open/closed. Menu-bar commands explicitly open their destination.
+Board, iPad, Capture settings and Zoom toggle their menus. Click once to open, then again to hide. Opening Settings, iPad or Zoom leaves the recording studio visible and opens a companion window. Repeating its button closes that panel. Switching between Board and iPad opens the requested tab rather than hiding the shared panel. The editor sidebar and its Connect iPad button also toggle open/closed. Menu-bar commands explicitly open their destination.
 
 
 ## Studio backgrounds

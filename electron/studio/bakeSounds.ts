@@ -10,7 +10,11 @@ import {
 import { audioDuration, ffmpeg } from "../ipc/voice/chunker";
 
 /** Monitor audio is excluded at capture. Mix each trigger exactly once, preserving the isolated mic. */
-export async function bakeSounds(videoPath: string, regions: AudioRegion[]) {
+export async function bakeSounds(
+	videoPath: string,
+	regions: AudioRegion[],
+	editableRegions: AudioRegion[] = [],
+) {
 	if (!regions.length) return;
 	const meta = await prepareRecordingAudio(videoPath);
 	const duration = await audioDuration(videoPath);
@@ -110,7 +114,11 @@ export async function bakeSounds(videoPath: string, regions: AudioRegion[]) {
 			await writeAudioMetadata({ ...meta, systemAudioPath: target, systemOffsetMs: 0 });
 			await fs.writeFile(
 				`${videoPath}.sounds.json`,
-				JSON.stringify({ version: 1, regions: [], includedInRecording: true }),
+				JSON.stringify({
+					version: 1,
+					regions: editableRegions,
+					includedInRecording: editableRegions.length === 0,
+				}),
 			);
 		} catch (error) {
 			for (const backup of backups) {

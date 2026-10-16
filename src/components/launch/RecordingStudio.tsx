@@ -42,7 +42,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 	const [sources, setSources] = useState<StudioSource[]>([]);
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState(false);
-	const [tab, setTab] = useState<"scenes" | "sources">("sources");
+	const [tab, setTab] = useState<"scenes" | "sources">("scenes");
 	const [countdown, setCountdown] = useState<number | null>(null);
 	const [discard, setDiscard] = useState(false);
 	const [library, setLibrary] = useState(false);
@@ -137,20 +137,28 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 					<PencilSimpleIcon size={18} /> Board
 				</button>
 				<button
+					data-help="Open iPad pairing in a separate window. Scan the QR code and approve the connection on your Mac to control drawings, media and presenter tools. Click again to close the panel."
 					onClick={() =>
 						void window.electronAPI.board.request("togglePanel", { tab: "ipad" })
 					}
 				>
 					<DeviceTabletIcon size={18} /> iPad
 				</button>
-				<button onClick={() => void run("togglePanel", "sounds")}>
+				<button
+					data-help="Open sound effects and voice cues in a separate window. Click again to close it. Sounds can be included in the recording or kept as editable clips."
+					onClick={() => void run("togglePanel", "sounds")}
+				>
 					<SpeakerHighIcon size={18} /> Sounds
 				</button>
-				<button onClick={() => void run("togglePanel", "controls")}>
+				<button
+					data-help="Open recording preferences, shortcuts, scenes and API Setup in a separate window. Click again to close Settings while the recording studio stays open."
+					onClick={() => void run("togglePanel", "controls")}
+				>
 					<GearSixIcon size={18} /> Settings
 				</button>
 				<span className="studio-toolbar-spacer" />
 				<button
+					data-help="Open an existing recording or saved project in the editor. Finish the current take before opening another project."
 					disabled={locked}
 					onClick={() => {
 						setLibrary(!library);
@@ -162,11 +170,19 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 			</nav>
 			<aside className="studio-sources">
 				<nav className="studio-section-tabs" aria-label="Scene and source panels">
-					<button aria-pressed={tab === "scenes"} onClick={() => setTab("scenes")}>
+					<button
+						data-help="Save a screen or window, facecam layout, media and audio choices as a scene. Switch scenes with one click or an assigned shortcut."
+						aria-pressed={tab === "scenes"}
+						onClick={() => setTab("scenes")}
+					>
 						Scenes
 					</button>
-					<button aria-pressed={tab === "sources"} onClick={() => setTab("sources")}>
-						Sources
+					<button
+						data-help="Choose which open window or display to capture. A window recording follows that window; a display recording includes the whole screen."
+						aria-pressed={tab === "sources"}
+						onClick={() => setTab("sources")}
+					>
+						Screens & windows
 					</button>
 				</nav>
 				<div className="studio-source-scroll">
@@ -277,6 +293,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 				</div>
 				<button
 					className="studio-record"
+					data-help="Start recording the selected scene after the countdown. Click again to stop and open your take in the editor."
 					disabled={
 						r.finalizing ||
 						r.countdownActive ||
@@ -300,6 +317,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 				</button>
 				<button
 					className="studio-pause"
+					data-help="Pause without ending this take. Paused time is left out of the saved video, and scene media pauses too. Click Resume when ready."
 					disabled={!r.recording || r.finalizing}
 					onClick={r.paused ? r.resumeRecording : r.pauseRecording}
 				>
@@ -311,6 +329,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 					<TimerIcon size={17} /> Start after
 					<select
 						aria-label="Countdown before recording"
+						data-help="Wait this many seconds before recording starts. Three seconds gives you time to prepare; choose No countdown for an immediate start."
 						disabled={locked}
 						value={r.countdownDelay}
 						onChange={(e) => r.setCountdownDelay(Number(e.target.value))}
@@ -325,6 +344,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 				<hr />
 				<button
 					className="studio-input-toggle"
+					data-help="Show your face camera on screen and in the recording. Drag it on your desktop to reposition it. Right-click it or use its shortcut to hide it during a take."
 					aria-pressed={r.webcamEnabled}
 					onClick={() => r.setWebcamEnabled(!r.webcamEnabled)}
 					disabled={r.starting || r.countdownActive || r.finalizing}
@@ -340,9 +360,12 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 					{info && formatShortcut(info.settings.cameraShortcut, mac)}
 				</kbd>
 				<details className="studio-device-details">
-					<summary>Camera device & layout</summary>
+					<summary data-help="Choose your camera before recording. Open layout settings to set its size, border, shadow and show/hide shortcut.">
+						Camera device & layout
+					</summary>
 					<select
 						aria-label="Facecam device"
+						data-help="Choose the camera to use for your facecam. Select a connected webcam here before recording."
 						value={r.webcamDeviceId ?? "default"}
 						disabled={locked}
 						onChange={(e) => {
@@ -365,7 +388,10 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 						Drag the facecam on your desktop. Right-click it to hide, or use its
 						shortcut.
 					</p>
-					<button onClick={() => void run("togglePanel", "layers")}>
+					<button
+						data-help="Open facecam size, border and shadow controls, plus the shortcut for showing and hiding it during a take."
+						onClick={() => void run("togglePanel", "layers")}
+					>
 						Facecam layout & shortcuts
 					</button>
 				</details>
@@ -373,6 +399,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 				<h2>Inputs</h2>
 				<button
 					className="studio-input-toggle"
+					data-help="Record your voice from the selected microphone. Turn it off for silent demos. Use headphones when playing media so the microphone does not record speaker playback again."
 					aria-pressed={r.microphoneEnabled}
 					onClick={() => r.setMicrophoneEnabled(!r.microphoneEnabled)}
 					disabled={r.starting || r.countdownActive || r.finalizing}
@@ -386,6 +413,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 				</button>
 				<select
 					aria-label="Microphone device"
+					data-help="Choose the microphone that records your voice. A headset or USB microphone is useful for clear narration; Default microphone follows your computer’s selection."
 					value={r.microphoneDeviceId ?? "default"}
 					disabled={locked}
 					onChange={(e) => {
@@ -406,6 +434,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 				</select>
 				<button
 					className="studio-input-toggle"
+					data-help="Record audio from apps on your computer, such as a video, music or game. Turn it off for a voice-only walkthrough. This is separate from your microphone. Start with it on if you want to mute and restore it during the take."
 					aria-pressed={r.systemAudioEnabled}
 					onClick={() => r.setSystemAudioEnabled(!r.systemAudioEnabled)}
 					disabled={r.starting || r.countdownActive || r.finalizing}

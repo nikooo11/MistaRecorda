@@ -17,6 +17,7 @@ export interface SoundEffect {
 	shortcut: string;
 	volume: number;
 	favorite?: boolean;
+	loved?: boolean;
 	color?: string;
 }
 export interface WindowSlot {
@@ -36,6 +37,7 @@ export interface StudioSettings {
 	scenes: RecordingScene[];
 }
 export interface RecordingScene {
+	media?: SceneMediaSource[];
 	audio?: { microphone: boolean; system: boolean };
 	id: string;
 	name: string;
@@ -44,8 +46,31 @@ export interface RecordingScene {
 	cameraLayout?: import("../lib/cameraLayout").CameraLayout;
 	shortcut: string;
 }
-export type StudioTab = "windows" | "sounds" | "controls" | "scenes" | "layers";
+export interface SceneMediaSource {
+	id: string;
+	name: string;
+	kind: "image" | "video" | "audio";
+	file: string;
+	enabled: boolean;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	opacity: number;
+	volume: number;
+	loop: boolean;
+	durationMs?: number;
+	hasAudio: boolean;
+}
+export interface SceneMediaPlayback {
+	sceneId?: string;
+	elapsedMs: number;
+	playing: boolean;
+	sources: Array<SceneMediaSource & { url: string }>;
+}
+export type StudioTab = "windows" | "sounds" | "controls" | "scenes" | "layers" | "setup";
 export interface StudioInfo {
+	activeSceneId?: string;
 	audio?: { microphone: boolean; system: boolean };
 	guideTour?: import("../components/settings-guide/settingHelpContent").SettingsTourRequest;
 	panelTab?: StudioTab;

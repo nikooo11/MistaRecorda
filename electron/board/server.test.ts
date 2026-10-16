@@ -209,3 +209,38 @@ test("bundled animated memes load on iPad and preference changes require pairing
 		expect(action).toHaveBeenLastCalledWith(method, {}, device.deviceId);
 	}
 });
+
+test("scene media requires an approved device and supports seeking without exposing other files", async () => {
+	root = await fs.mkdtemp(path.join(os.tmpdir(), "board-media-"));
+	const id = "07a3895e-594f-4fb5-bcc8-28c535dcd400";
+	const file = path.join(root, "clip.mp4");
+	await fs.writeFile(file, "0123456789");
+	const read = vi.fn(async (requested: string) => {
+		if (requested !== id) throw Error("Missing");
+		return file;
+	});
+	server = new CompanionServer(
+		root,
+		async () => null,
+		() => {},
+		read,
+	);
+	await server.start();
+	server.devices.set("test", {
+		id: "test",
+		name: "iPad",
+		approved: true,
+		token: "approved-device-token",
+	});
+	const base = `http://127.0.0.1:${server.port}`;
+	expect((await fetch(`${base}/scene-media/${id}`)).status).toBe(403);
+	expect(read).not.toHaveBeenCalled();
+	const response = await fetch(base + server.sceneMediaUrl(id, "test"), {
+		headers: { Range: "bytes=2-5" },
+	});
+	expect(response.status).toBe(206);
+	expect(response.headers.get("Content-Range")).toBe("bytes 2-5/10");
+	expect(await response.text()).toBe("2345");
+	server.devices.get("test")!.approved = false;
+	expect((await fetch(`${base}/scene-media/${id}?token=approved-device-token`)).status).toBe(403);
+});

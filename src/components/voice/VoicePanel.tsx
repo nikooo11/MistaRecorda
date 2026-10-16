@@ -1,6 +1,5 @@
 import { CaretDownIcon, DeviceTabletIcon, KeyIcon, WaveformIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useScopedT } from "@/contexts/I18nContext";
 import {
 	defaultVoiceSettings,
@@ -30,12 +29,10 @@ export function VoicePanel({
 	const request = window.electronAPI.voice.request;
 	const [settings, setSettings] = useState<VoiceSettings>(defaultVoiceSettings);
 	const [hasKey, setHasKey] = useState(false);
-	const [key, setKey] = useState("");
 	const [message, setMessage] = useState("");
 	const [busy, setBusy] = useState(false);
 	const busyRef = useRef(false);
 	const [applyingId, setApplyingId] = useState("");
-	const [connect, setConnect] = useState(false);
 	const [expanded, setExpanded] = useState(true);
 	const [models, setModels] = useState<VoiceModel[]>(fallbackVoiceModels);
 	const [modelNotice, setModelNotice] = useState("Connect to load live voice-conversion models.");
@@ -117,7 +114,9 @@ export function VoicePanel({
 	useEffect(() => window.electronAPI.voice.onImportRequested(() => setExpanded(true)), []);
 	const check = () => {
 		if (!hasKey) {
-			setConnect(true);
+			void window.electronAPI.studio
+				.request("open", "setup")
+				.catch(() => setMessage("Could not open Setup."));
 			throw new Error("missingKey");
 		}
 		if (!videoPath || !recording?.micPath) throw new Error("missingMic");
@@ -176,11 +175,15 @@ export function VoicePanel({
 				<button
 					type="button"
 					className="voice-key-button"
-					onClick={() => setConnect(true)}
-					data-help="Manage your secure ElevenLabs API key."
+					onClick={() =>
+						void window.electronAPI.studio
+							.request("open", "setup")
+							.catch(() => setMessage("Could not open Setup."))
+					}
+					data-help="Open Setup to manage OpenAI and ElevenLabs keys together."
 				>
 					<KeyIcon size={14} />
-					{hasKey ? "Connected" : "Connect"}
+					{hasKey ? "Key saved · Setup" : "Open Setup"}
 				</button>
 			</header>
 			<div className="voice-fixed-controls">
@@ -442,51 +445,6 @@ export function VoicePanel({
 					<DeviceTabletIcon size={16} />
 				</button>
 			</footer>
-			<Dialog open={connect} onOpenChange={setConnect}>
-				<DialogContent className="voice-studio voice-modal" aria-describedby={undefined}>
-					<DialogTitle>ElevenLabs connection</DialogTitle>
-					<p>Your key is encrypted on this computer and excluded from shared presets.</p>
-					<label>
-						API key
-						<input
-							type="password"
-							autoComplete="off"
-							value={key}
-							onChange={(e) => setKey(e.target.value)}
-							placeholder={hasKey ? "Enter replacement key" : "Enter API key"}
-						/>
-					</label>
-					<div className="voice-toolbar">
-						<button
-							type="button"
-							disabled={busy || !key.trim()}
-							onClick={() =>
-								void run(async () => {
-									setHasKey(unwrapVoice(await request("setKey", key)).hasKey);
-									setKey("");
-									setMessage("API key saved.");
-									setConnect(false);
-								})
-							}
-						>
-							Save key
-						</button>
-						<button
-							type="button"
-							disabled={busy || !hasKey}
-							onClick={() =>
-								void run(async () => {
-									unwrapVoice(await request("testKey", undefined));
-									setMessage("ElevenLabs connection verified.");
-								})
-							}
-						>
-							Test connection
-						</button>
-					</div>
-					<p role="status">{t(`voice.${message}`, message)}</p>
-				</DialogContent>
-			</Dialog>
 		</main>
 	);
 }

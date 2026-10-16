@@ -893,3 +893,161 @@
 .scene-bank .scene-description strong {
 	max-width: 100%;
 }
+
+.scene-source-editor {
+	min-width: 0;
+	display: grid;
+	gap: 8px;
+}
+.scene-source-heading,
+.scene-source-row,
+.scene-media-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.scene-source-heading {
+	justify-content: space-between;
+	flex-wrap: wrap;
+}
+.scene-source-heading select {
+	max-width: 100%;
+}
+.scene-source-row {
+	padding: 8px;
+	border-radius: 7px;
+	background: #ffffff07;
+}
+.scene-source-row > span {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.scene-source-row small {
+	display: block;
+	color: #a7adb8;
+	font-size: 11px;
+}
+.scene-source-row button {
+	padding: 6px;
+	display: inline-flex;
+}
+.scene-source-row svg,
+.scene-media-actions svg {
+	flex-shrink: 0;
+}
+.scene-media-fields {
+	padding: 10px;
+	border: 1px solid #ffffff16;
+	display: grid;
+	gap: 8px;
+}
+.scene-media-fields label {
+	min-width: 0;
+}
+.scene-media-fields input[type="range"] {
+	width: 100%;
+}
+.scene-media-fields input:not([type="range"]):not([type="checkbox"]) {
+	width: 100%;
+}
+.scene-media-fields output {
+	float: right;
+	color: #bccbd6;
+}
+.scene-media-actions {
+	flex-wrap: wrap;
+}
+.scene-media-actions button {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+.scene-screen-source span {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+.scene-screen-source select {
+	width: 100%;
+	min-width: 0;
+}
+.camera-frame-settings {
+	display: grid;
+	gap: 10px;
+	padding: 10px 0;
+	min-width: 0;
+}
+.camera-frame-settings label {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+.camera-frame-settings small {
+	color: #acb3bf;
+	line-height: 1.5;
+}
+.camera-frame-presets {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+.camera-frame-presets button {
+	display: grid;
+	justify-items: center;
+	gap: 6px;
+	flex: 1;
+	font-size: 12px;
+}
+.camera-frame-presets i {
+	display: block;
+	width: 36px;
+	height: 36px;
+	border-radius: 13px;
+	background: linear-gradient(135deg, #577484, #31343e);
+}
+
+.scene-edit-fields {
+	border: 0;
+	padding: 0;
+	margin: 0;
+	min-width: 0;
+	display: grid;
+	gap: 12px;
+}
+
+.api-setup {
+	display: grid;
+	gap: 12px;
+	max-width: 720px;
+}
+.api-key-card {
+	border: 1px solid #4a5058;
+	background: #30343b;
+	padding: 16px;
+	border-radius: 10px;
+}
+.api-key-card header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+}
+.api-key-card header span {
+	color: #aac6ce;
+	font-size: 12px;
+}
+.api-key-card label {
+	display: grid;
+	gap: 6px;
+	margin: 14px 0;
+}
+.api-key-card input {
+	width: 100%;
+}
+.api-key-actions {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}

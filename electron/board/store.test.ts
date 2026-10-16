@@ -34,7 +34,7 @@ test("screen and opaque board retain independent drawings and shared viewports a
 	await s.save();
 	const reopened = new BoardStore(s.root);
 	await reopened.load();
-	expect(reopened.state.enabled).toBe(false);
+	expect(reopened.state.enabled).toBe(process.platform !== "linux");
 	expect(reopened.state.scenes.board.zoom).toBe(1.8);
 	expect(reopened.state.scenes.board.elements[0].id).toBe("a");
 	expect(reopened.state.scenes.screen.elements[0].id).toBe("b");
@@ -193,4 +193,16 @@ test("whiteboard tabs keep independent drawings and media across disk restart an
 	await again.load();
 	expect(again.state.activeWhiteboardId).toBe("second");
 	expect(again.state.scenes.board.files.privateImage).toBeDefined();
+});
+
+test("drawing visibility defaults on, persists an explicit off choice and never reopens the whiteboard at launch", async () => {
+	const s = await store();
+	expect(s.state.enabled).toBe(process.platform !== "linux");
+	s.state.enabled = false;
+	s.state.mode = "board";
+	await s.save();
+	const next = new BoardStore(s.root);
+	await next.load();
+	expect(next.state.enabled).toBe(false);
+	expect(next.state.mode).toBe("screen");
 });

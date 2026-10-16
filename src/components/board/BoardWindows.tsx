@@ -19,7 +19,7 @@ import type { BoardInfo, BoardStatus } from "../../types/board";
 import { EnvironmentFiles } from "./EnvironmentFiles";
 import { BoardCanvas } from "./BoardCanvas";
 import { BoardStream } from "./BoardStream";
-import { FigureAssistant, FigureSettingsPanel } from "./FigureAssistant";
+import { FigureAssistant } from "./FigureAssistant";
 import { FigureMicrophone } from "./FigureMicrophone";
 import { MemeLibrary } from "./Memes";
 import { Soundboard } from "./Soundboard";
@@ -215,7 +215,7 @@ export function BoardWindow({ kind }: { kind: string }) {
 								{ id: "draw", label: "Draw", Icon: PencilSimpleIcon },
 								{ id: "ipad", label: "iPad", Icon: DeviceTabletIcon },
 								{ id: "scenes", label: "Drawings", Icon: StackIcon },
-								{ id: "settings", label: "Setup", Icon: GearSixIcon },
+								{ id: "settings", label: "Options", Icon: GearSixIcon },
 							] as const
 						).map(({ id, label, Icon }) => (
 							<button
@@ -248,18 +248,29 @@ export function BoardWindow({ kind }: { kind: string }) {
 						{tab === "draw" && (
 							<>
 								<div className="board-intro">
-									<h2>Screen annotations</h2>
-									<p>Draw over the display or open a separate whiteboard.</p>
+									<h2>Draw on your screen</h2>
+									<p>
+										Add drawings, circles or text over your screen, or open a
+										separate whiteboard. Your mouse still clicks and types
+										normally until you choose Draw.
+									</p>
 								</div>
-								<label className="studio-switch-row">
+								<label
+									className="studio-switch-row"
+									data-help="Show and record drawings, circles, text and placed objects over your screen or whiteboard. Off hides this layer on your Mac and in the recording without deleting it. Your mouse clicks and typing work normally until you choose Draw."
+								>
 									<span>
-										<strong>Drawing overlay</strong>
-										<small>Included in your recording</small>
+										<strong>Include drawings in recording</strong>
+										<small>
+											Shows your drawings on the Mac and records them.
+										</small>
 									</span>
 									<input
 										type="checkbox"
 										role="switch"
-										checked={info.state.enabled}
+										checked={
+											info.state.enabled && info.state.output !== "screen"
+										}
 										disabled={info.status.recording}
 										onChange={(e) => void run("enable", e.target.checked)}
 									/>
@@ -492,7 +503,15 @@ export function BoardWindow({ kind }: { kind: string }) {
 									<summary>Presentation environments</summary>
 									<EnvironmentFiles transport={transport} onError={setNotice} />
 								</details>
-								<FigureSettingsPanel transport={transport} />
+								<button
+									onClick={() =>
+										void window.electronAPI.studio
+											.request("open", "setup")
+											.catch((e) => setNotice(String(e)))
+									}
+								>
+									Open API Setup · OpenAI &amp; ElevenLabs
+								</button>
 								<h2>Drawing settings</h2>
 								<label className="studio-field">
 									Display

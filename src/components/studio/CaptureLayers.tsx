@@ -1,3 +1,4 @@
+import { CameraFrameSettings } from "./CameraFrameSettings";
 import { HelpTarget, SettingHelp } from "../settings-guide/SettingHelp";
 import { useEffect, useState } from "react";
 import type { StudioInfo } from "../../types/studio";
@@ -108,6 +109,7 @@ export function CaptureLayers({
 					</label>
 				</div>
 			</div>
+			<CameraFrameSettings layout={layout} change={change} />
 			<p className="capture-note">
 				Drag the floating camera to place it anywhere, including during a take. Its movement
 				is saved with your recording. Hover over the camera for its settings button.

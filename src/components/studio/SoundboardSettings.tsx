@@ -89,12 +89,34 @@ function SoundRow({
 				<small>{(sound.durationMs / 1000).toFixed(1)} seconds</small>
 			</div>
 			<button
+				title="Favorite ★ — pin this sound for the current recording. Favorites reset after the take; Love keeps it across projects."
 				aria-label={`${sound.favorite ? "Unfavorite" : "Favorite"} ${sound.name}`}
 				aria-pressed={!!sound.favorite}
-				disabled={busy || info.recording}
-				onClick={() => void update({ favorite: !sound.favorite })}
+				disabled={busy}
+				onClick={() =>
+					void run("setSoundPreference", {
+						id: sound.id,
+						kind: "favorite",
+						value: !sound.favorite,
+					})
+				}
 			>
 				{sound.favorite ? "★" : "☆"}
+			</button>
+			<button
+				title="Love ♥ — keep this sound near the top across all projects and recordings until you unlove it."
+				aria-label={`${sound.loved ? "Unlove" : "Love"} ${sound.name}`}
+				aria-pressed={!!sound.loved}
+				disabled={busy}
+				onClick={() =>
+					void run("setSoundPreference", {
+						id: sound.id,
+						kind: "love",
+						value: !sound.loved,
+					})
+				}
+			>
+				{sound.loved ? "♥" : "♡"}
 			</button>
 			<input
 				type="color"
@@ -164,7 +186,11 @@ export function SoundboardSettings({
 	const [search, setSearch] = useState("");
 	const [tab, setTab] = useState<"sounds" | "voices" | "stream">("sounds");
 	const sounds = [...info.settings.sounds]
-		.sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite))
+		.sort(
+			(a, b) =>
+				Number(!!b.loved) - Number(!!a.loved) ||
+				Number(!!b.favorite) - Number(!!a.favorite),
+		)
 		.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()));
 	return (
 		<>

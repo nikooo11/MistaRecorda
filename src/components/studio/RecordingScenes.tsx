@@ -1,3 +1,5 @@
+import { CameraFrameSettings, SOFT_CAMERA_FRAME } from "./CameraFrameSettings";
+import { SceneSources } from "./SceneSources";
 import { HelpTarget, SettingHelp } from "../settings-guide/SettingHelp";
 import { defaultEnvironmentAudio } from "./environmentAudio";
 import { useState } from "react";
@@ -24,6 +26,7 @@ export function RecordingScenes({
 	const [draft, setDraft] = useState<RecordingScene>();
 	const [error, setError] = useState("");
 	const [saving, setSaving] = useState(false);
+	const [importing, setImporting] = useState(false);
 	const scenes = info.settings.scenes;
 	return (
 		<HelpTarget id="environments">
@@ -35,26 +38,27 @@ export function RecordingScenes({
 					<p>
 						{compact
 							? "Click a scene to switch your recording setup."
-							: "Save a source, camera layout, and audio inputs. Recall with one click or shortcut."}
+							: "Organize screen, facecam, media and audio in scenes. Recall with one click or shortcut."}
 					</p>
 				</div>
 				<button
 					title="Save a screen or window, camera layout, and audio on/off."
-					disabled={busy || info.recording || scenes.length >= 6}
+					disabled={busy || importing || saving || info.recording || scenes.length >= 6}
 					onClick={() => {
 						setError("");
 						setDraft({
 							id: crypto.randomUUID(),
-							name: "",
+							name: `Scene ${scenes.length + 1}`,
 							source: info.selectedSource ?? sources[0],
-							camera: info.camera?.enabled ?? false,
+							camera: true,
+							media: [],
 							audio: { ...defaultEnvironmentAudio },
-							cameraLayout: info.settings.cameraLayout,
+							cameraLayout: { ...info.settings.cameraLayout, ...SOFT_CAMERA_FRAME },
 							shortcut: "",
 						});
 					}}
 				>
-					{compact ? "+ Save setup" : "Save current setup"}
+					+ New scene
 				</button>
 			</div>
 			<details className="scene-help">
@@ -71,168 +75,147 @@ export function RecordingScenes({
 					className="recording-scene-form"
 					onSubmit={(e) => {
 						e.preventDefault();
-						if (saving) return;
+						if (saving || importing) return;
 						setSaving(true);
 						setError("");
 						void saveShortcut("saveScene", {
 							...draft,
 							cameraLayout: draft.cameraLayout ?? info.settings.cameraLayout,
 						})
-							.then(() => setDraft(undefined))
+							.then(async () => {
+								await saveShortcut("applyScene", draft.id);
+								setDraft(undefined);
+							})
 							.catch((e) => setError(e.message))
 							.finally(() => setSaving(false));
 					}}
 				>
-					<label>
-						Name
-						<input
-							autoFocus
-							title="Give this recording setup a short, recognizable name."
-							maxLength={60}
-							required
-							placeholder="e.g. Tutorial with camera"
-							value={draft.name}
-							onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+					<fieldset disabled={importing || saving} className="scene-edit-fields">
+						<label>
+							Name
+							<input
+								autoFocus
+								title="Give this recording setup a short, recognizable name."
+								maxLength={60}
+								required
+								placeholder="e.g. Tutorial with camera"
+								value={draft.name}
+								onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+							/>
+						</label>
+						<SceneSources
+							scene={draft}
+							sources={sources}
+							change={setDraft}
+							onBusy={setImporting}
 						/>
-					</label>
-					<label>
-						Source
-						<select
-							title="Choose the display or application window this scene records."
-							required
-							value={draft.source?.id ?? ""}
-							onChange={(e) => {
-								const source = sources.find((s) => s.id === e.target.value);
-								if (source) setDraft({ ...draft, source });
-							}}
-						>
-							<option value="">Choose a screen or window…</option>
-							{draft.source && !sources.some((s) => s.id === draft.source.id) && (
-								<option value={draft.source.id}>
-									{draft.source.name} (unavailable)
-								</option>
-							)}
-							{sources.map((s) => (
-								<option key={s.id} value={s.id}>
-									{s.name}
-								</option>
-							))}
-						</select>
-					</label>
-					<label className="scene-camera">
-						<input
-							type="checkbox"
-							title="Turn the selected face camera on when this scene is used. Leave off for screen-only scenes."
-							checked={draft.camera}
-							onChange={(e) => setDraft({ ...draft, camera: e.target.checked })}
-						/>
-						Face camera
-					</label>
-					<div className="scene-audio-controls">
-						{(["microphone", "system"] as const).map((key) => (
-							<label key={key}>
-								<input
-									type="checkbox"
-									checked={draft.audio?.[key] ?? true}
-									onChange={(e) =>
-										setDraft({
-											...draft,
-											audio: {
-												microphone: draft.audio?.microphone ?? true,
-												system: draft.audio?.system ?? true,
-												[key]: e.target.checked,
-											},
-										})
-									}
-								/>
-								{key === "microphone" ? "Microphone" : "Computer audio"}
-							</label>
-						))}
-					</div>
-					{draft.camera && (
-						<div className="scene-layout-editor">
-							<label>
-								Camera position
-								<select
-									aria-label="Environment camera position"
-									value={`${draft.cameraLayout?.x ?? 0.97},${draft.cameraLayout?.y ?? 0.97}`}
-									onChange={(e) => {
-										const [x, y] = e.target.value.split(",").map(Number);
+						{draft.camera && (
+							<div className="scene-layout-editor">
+								<CameraFrameSettings
+									layout={draft.cameraLayout ?? info.settings.cameraLayout}
+									change={(patch) =>
 										setDraft({
 											...draft,
 											cameraLayout: {
 												...(draft.cameraLayout ??
 													info.settings.cameraLayout),
-												x,
-												y,
+												...patch,
 											},
-										});
-									}}
+										})
+									}
+								/>
+								<label>
+									Camera position
+									<select
+										aria-label="Environment camera position"
+										value={`${draft.cameraLayout?.x ?? 0.97},${draft.cameraLayout?.y ?? 0.97}`}
+										onChange={(e) => {
+											const [x, y] = e.target.value.split(",").map(Number);
+											setDraft({
+												...draft,
+												cameraLayout: {
+													...(draft.cameraLayout ??
+														info.settings.cameraLayout),
+													x,
+													y,
+												},
+											});
+										}}
+									>
+										{!["0,0", "1,0", "0,1", "1,1", "0.5,0.5"].includes(
+											`${draft.cameraLayout?.x ?? 0.97},${draft.cameraLayout?.y ?? 0.97}`,
+										) && (
+											<option
+												value={`${draft.cameraLayout?.x ?? 0.97},${draft.cameraLayout?.y ?? 0.97}`}
+											>
+												Custom position
+											</option>
+										)}
+										<option value="0,0">Top left</option>
+										<option value="1,0">Top right</option>
+										<option value="0,1">Bottom left</option>
+										<option value="1,1">Bottom right</option>
+										<option value="0.5,0.5">Center</option>
+									</select>
+								</label>
+								<label>
+									Camera size
+									<input
+										aria-label="Environment camera size"
+										type="range"
+										min="10"
+										max="60"
+										value={draft.cameraLayout?.size ?? 26}
+										onChange={(e) =>
+											setDraft({
+												...draft,
+												cameraLayout: {
+													...(draft.cameraLayout ??
+														info.settings.cameraLayout),
+													size: Number(e.target.value),
+												},
+											})
+										}
+									/>
+								</label>
+								<button
+									type="button"
+									onClick={() =>
+										setDraft({
+											...draft,
+											cameraLayout: info.settings.cameraLayout,
+										})
+									}
 								>
-									{!["0,0", "1,0", "0,1", "1,1", "0.5,0.5"].includes(
-										`${draft.cameraLayout?.x ?? 0.97},${draft.cameraLayout?.y ?? 0.97}`,
-									) && (
-										<option
-											value={`${draft.cameraLayout?.x ?? 0.97},${draft.cameraLayout?.y ?? 0.97}`}
-										>
-											Custom position
-										</option>
-									)}
-									<option value="0,0">Top left</option>
-									<option value="1,0">Top right</option>
-									<option value="0,1">Bottom left</option>
-									<option value="1,1">Bottom right</option>
-									<option value="0.5,0.5">Center</option>
-								</select>
-							</label>
-							<label>
-								Camera size
-								<input
-									aria-label="Environment camera size"
-									type="range"
-									min="10"
-									max="60"
-									value={draft.cameraLayout?.size ?? 26}
-									onChange={(e) =>
-										setDraft({
-											...draft,
-											cameraLayout: {
-												...(draft.cameraLayout ??
-													info.settings.cameraLayout),
-												size: Number(e.target.value),
-											},
-										})
-									}
-								/>
-							</label>
+									Use current camera layout
+								</button>
+							</div>
+						)}
+
+						<div>
 							<button
-								type="button"
-								onClick={() =>
-									setDraft({ ...draft, cameraLayout: info.settings.cameraLayout })
+								type="submit"
+								title="Save this scene. You can assign its shortcut in the scene list."
+								disabled={
+									!draft.source ||
+									!draft.name.trim() ||
+									busy ||
+									saving ||
+									importing
 								}
 							>
-								Use current camera layout
+								{saving ? "Saving…" : "Save & use scene"}
+							</button>{" "}
+							<button
+								type="button"
+								title="Discard these scene edits."
+								disabled={saving || importing}
+								onClick={() => setDraft(undefined)}
+							>
+								Cancel
 							</button>
 						</div>
-					)}
-
-					<div>
-						<button
-							type="submit"
-							title="Save this scene. You can assign its shortcut in the scene list."
-							disabled={!draft.source || !draft.name.trim() || busy || saving}
-						>
-							{saving ? "Saving…" : "Save environment"}
-						</button>{" "}
-						<button
-							type="button"
-							title="Discard these scene edits."
-							disabled={saving}
-							onClick={() => setDraft(undefined)}
-						>
-							Cancel
-						</button>
-					</div>
+					</fieldset>
 				</form>
 			)}
 			{error && (
@@ -242,8 +225,11 @@ export function RecordingScenes({
 			)}
 			{!scenes.length && !draft && (
 				<div className="sound-empty">
-					<h3>No saved environments yet</h3>
-					<p>Set up your source and camera, then save an environment you use often.</p>
+					<h3>No scenes yet</h3>
+					<p>
+						Create a scene with screen, facecam and audio ready to go. Add images,
+						videos or music from its Sources menu.
+					</p>
 				</div>
 			)}
 			{scenes.map((scene) => {
@@ -269,7 +255,8 @@ export function RecordingScenes({
 								{scene.name}
 							</strong>
 							<small>
-								{scene.source.name} · Camera {scene.camera ? "on" : "off"}
+								{scene.source.name} · {scene.media?.length ?? 0} media · Camera{" "}
+								{scene.camera ? "on" : "off"}
 								{scene.audio
 									? ` · Mic ${scene.audio.microphone ? "on" : "off"} · Computer ${scene.audio.system ? "on" : "off"}`
 									: " · Audio unchanged"}
@@ -298,11 +285,11 @@ export function RecordingScenes({
 							}
 						/>
 						<button
-							disabled={busy || info.recording}
+							disabled={busy || importing || saving || info.recording}
 							title="Edit this environment’s source, camera layout, and audio settings."
 							onClick={() => setDraft(scene)}
 						>
-							Edit
+							Sources & layout
 						</button>
 						<button
 							disabled={busy || info.recording}

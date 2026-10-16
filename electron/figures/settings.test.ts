@@ -27,6 +27,8 @@ test("stores only encrypted bytes and status never decrypts", async () => {
 	expect(await settings.hasKey()).toBe(true);
 	expect(storage.decryptString).not.toHaveBeenCalled();
 	expect(await settings.key()).toBe("sk-unit-test");
+	await settings.setKey("sk-replacement-test");
+	expect(await new FigureSettings(root, storage).key()).toBe("sk-replacement-test");
 	await settings.setKey("");
 	expect(await settings.hasKey()).toBe(false);
 });

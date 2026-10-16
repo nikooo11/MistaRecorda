@@ -1610,3 +1610,59 @@ html[data-window-type^="board-"] #root {
 	/* Allow the notes panel to share the same stacking order as other movable panels. */
 	z-index: auto;
 }
+.soundboard-item {
+	min-width: 0;
+}
+.soundboard-item > button {
+	width: 100%;
+}
+.soundboard-preferences {
+	display: flex;
+	justify-content: flex-end;
+	gap: 4px;
+}
+.soundboard-preferences button {
+	min-height: 28px !important;
+	padding: 3px 9px !important;
+}
+
+/* Native editor controls use the work area; recorded ink stays at display origin. */
+.board-stage:not(.board-tablet) .excalidraw .App-toolbar.desktop-drawing-toolbar {
+	position: fixed !important;
+	right: auto !important;
+	bottom: auto !important;
+	transform: none !important;
+	z-index: 200;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	width: max-content;
+	margin: 0;
+	overflow: auto;
+	padding: 4px;
+}
+.desktop-drawing-toolbar > .Stack {
+	flex-wrap: wrap;
+}
+.desktop-drawing-toolbar .desktop-toolbar-grip {
+	align-self: stretch;
+	min-width: 26px;
+	border: 0;
+	border-radius: 6px;
+	color: #52616a;
+	background: #edf0f3;
+	cursor: grab;
+	touch-action: none;
+	font-size: 22px;
+}
+.desktop-drawing-toolbar .desktop-toolbar-grip:active {
+	cursor: grabbing;
+}
+.desktop-drawing-toolbar .desktop-toolbar-grip:focus-visible {
+	outline: 2px solid #6559c9;
+	outline-offset: -2px;
+}
+
+.board-stage:not(.board-tablet) .board-object-tools {
+	top: 104px;
+}

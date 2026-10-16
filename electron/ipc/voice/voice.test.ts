@@ -273,6 +273,21 @@ describe("settings and secrets", () => {
 			"private-test-key",
 		);
 	});
+	test("replacement and removal survive relaunch without falling back to an environment key", async () => {
+		const dir = await temp();
+		const storage = {
+			isEncryptionAvailable: () => true,
+			encryptString: (s: string) => Buffer.from(s.split("").reverse().join("")),
+			decryptString: (b: Buffer) => b.toString().split("").reverse().join(""),
+		};
+		const create = () => new VoiceSettingsStore(dir, storage, () => "injected-test-key");
+		expect(await create().key()).toBe("injected-test-key");
+		await create().setKey("replacement-test-key");
+		expect(await create().key()).toBe("replacement-test-key");
+		await create().setKey("");
+		expect(await create().hasKey()).toBe(false);
+		expect(await create().key()).toBeUndefined();
+	});
 	test("rejects insecure storage and strips unrecognized fields", async () => {
 		const store = new VoiceSettingsStore(
 			await temp(),

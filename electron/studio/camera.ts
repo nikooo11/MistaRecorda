@@ -144,6 +144,7 @@ export class CaptureCamera {
 				this.applyingBounds = false;
 			}
 		}
+		win.setHasShadow((this.getLayout().shadow ?? 0) > 0);
 		win.setMovable(!this.getLayout().locked);
 		win.webContents.send("camera:status", this.status);
 	}

@@ -1,6 +1,10 @@
 import type { WebcamOverlaySettings } from "../components/video-editor/types";
 
 export interface CameraLayout {
+	/** Border thickness as a percentage of the camera’s shorter edge. */
+	borderWidth?: number;
+	borderColor?: string;
+	shadow?: number;
 	x: number;
 	y: number;
 	size: number;
@@ -35,6 +39,11 @@ export function normalizeCameraLayout(value: unknown): CameraLayout {
 		roundness: num("roundness", 0, 100),
 		mirror: typeof v.mirror === "boolean" ? v.mirror : true,
 		locked: typeof v.locked === "boolean" ? v.locked : false,
+		...(Number.isFinite(v.borderWidth) ? { borderWidth: clamp(v.borderWidth!, 0, 4) } : {}),
+		...(typeof v.borderColor === "string" && /^#[a-f0-9]{6}$/i.test(v.borderColor)
+			? { borderColor: v.borderColor }
+			: {}),
+		...(Number.isFinite(v.shadow) ? { shadow: clamp(v.shadow!, 0, 1) } : {}),
 		...(Number.isFinite(v.width) ? { width: clamp(v.width!, 10, 100) } : {}),
 		...(Number.isFinite(v.height) ? { height: clamp(v.height!, 10, 100) } : {}),
 		...(Number.isFinite(v.margin) ? { margin: clamp(v.margin!, 0, 96) } : {}),
@@ -102,6 +111,9 @@ export function cameraOverlayAt<T extends WebcamOverlaySettings>(webcam: T, time
 		width: layout.width ?? layout.size,
 		height: layout.height ?? layout.size,
 		margin: layout.margin ?? 0,
+		...(layout.borderWidth !== undefined ? { borderWidth: layout.borderWidth } : {}),
+		...(layout.borderColor ? { borderColor: layout.borderColor } : {}),
+		...(layout.shadow !== undefined ? { shadow: layout.shadow } : {}),
 		cornerRadius: layout.roundness,
 		mirror: layout.mirror,
 	};
@@ -124,7 +136,25 @@ export function editCameraOverlayAt<T extends WebcamOverlaySettings>(
 		"mirror",
 		"margin",
 	];
-	if (!placement.some((key) => key in patch)) return { ...webcam, ...patch };
+	if (!placement.some((key) => key in patch)) {
+		const keys = (["shadow", "borderWidth", "borderColor"] as const).filter(
+			(key) => key in patch,
+		);
+		return {
+			...webcam,
+			...patch,
+			...(keys.length &&
+			webcam.layoutCues?.some((cue) => keys.some((key) => key in cue.layout))
+				? {
+						layoutCues: webcam.layoutCues.map((cue) => {
+							const layout = { ...cue.layout };
+							for (const key of keys) delete layout[key];
+							return { ...cue, layout };
+						}),
+					}
+				: {}),
+		};
+	}
 	const time = Math.max(0, Math.round(timeMs));
 	const at = cameraOverlayAt(webcam, time);
 	const base = normalizeCameraLayout({
@@ -147,6 +177,15 @@ export function editCameraOverlayAt<T extends WebcamOverlaySettings>(
 		roundness: next.cornerRadius,
 		mirror: next.mirror,
 		margin: next.margin,
+		...(webcam.layoutCues?.length
+			? (() => {
+					const { borderWidth, borderColor, shadow } = cameraLayoutAt(
+						webcam.layoutCues,
+						time,
+					);
+					return { borderWidth, borderColor, shadow };
+				})()
+			: {}),
 	});
 	const cues = webcam.layoutCues?.length ? webcam.layoutCues : [{ timeMs: 0, layout: base }];
 	return {

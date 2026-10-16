@@ -3,6 +3,7 @@ import { isSelectedSource } from "./sourceSwitching";
 
 export function isCurrentScene(scene: RecordingScene, info: StudioInfo) {
 	return (
+		(!info.activeSceneId || info.activeSceneId === scene.id) &&
 		isSelectedSource(scene.source, info.selectedSource) &&
 		scene.camera === !!info.camera?.enabled &&
 		(!scene.audio ||

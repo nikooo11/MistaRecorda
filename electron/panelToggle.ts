@@ -2,23 +2,36 @@ export function shouldHidePanel(visible: boolean, currentTab: string, requestedT
 	return visible && currentTab === requestedTab;
 }
 
-/** Recorder tools share one active menu; drawing/camera surfaces stay visible. */
+/** Tools are independent companion windows; opening one never dismisses another. */
 export function showCapturePanel<
 	T extends {
 		isDestroyed(): boolean;
-		hide(): void;
 		show(): void;
 		focus(): void;
+		isMinimized?(): boolean;
+		restore?(): void;
+		setParentWindow?(parent: T | null): void;
 		webContents: { getURL(): string };
 	},
 >(panel: T, windows: T[]) {
-	for (const other of windows) {
-		if (other === panel || other.isDestroyed()) continue;
-		const kind = new URL(other.webContents.getURL() || "about:blank").searchParams.get(
-			"windowType",
-		);
-		if (["board-panel", "studio", "zoom-settings", "settings-guide"].includes(kind ?? "")) other.hide();
+	const studio = windows.find((window) => {
+		if (window === panel || window.isDestroyed()) return false;
+		try {
+			return (
+				new URL(window.webContents.getURL()).searchParams.get("windowType") ===
+				"hud-overlay"
+			);
+		} catch {
+			return false;
+		}
+	});
+	// Associate tools with the studio (including macOS Stage Manager) without
+	// making them modal. The studio remains clickable and owns the recorder.
+	if (studio && !studio.isMinimized?.()) {
+		panel.setParentWindow?.(studio);
+		studio.show();
 	}
+	if (panel.isMinimized?.()) panel.restore?.();
 	panel.show();
 	panel.focus();
 }

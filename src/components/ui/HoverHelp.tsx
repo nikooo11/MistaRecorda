@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import "./hoverHelp.css";
 const explanations: Record<string, string> = {
-	Record: "Start recording your selected screen or window. Settings panels close before capture begins.",
-	Board: "Open Drawing studio to annotate your screen, open a whiteboard, or pair your iPad.",
+	Record: "Start recording your selected screen or window after the countdown. Stop to open the take in the editor.",
+	Board: "Open or put away the whiteboard. Drawings on the board and screen are kept separately until you clear them.",
 	"Voice Change":
 		"Choose an ElevenLabs voice, import a shared preset, or process a finished microphone recording.",
 	"Hide HUD": "Hide the recorder toolbar. Press Command/Control + Shift + H to bring it back.",
@@ -59,12 +59,17 @@ export function HoverHelp() {
 			active = target;
 			title = target.getAttribute("title");
 			oldDescribed = target.getAttribute("aria-describedby");
-			const label = target.getAttribute("aria-label") || target.textContent?.trim() || "";
+			const label =
+				target.getAttribute("aria-label") ||
+				target.closest("label")?.textContent?.trim() ||
+				target.textContent?.trim() ||
+				"";
 			const help =
 				target.dataset.help ||
 				target.closest<HTMLElement>("[data-help]")?.dataset.help ||
 				explanations[label] ||
-				title;
+				title ||
+				target.closest("label[title]")?.getAttribute("title");
 			if (!help) return;
 			// Prevent the browser's immediate native title from competing with the delayed explanation.
 			target.removeAttribute("title");

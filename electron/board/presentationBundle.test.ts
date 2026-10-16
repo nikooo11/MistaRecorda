@@ -90,7 +90,8 @@ test("imported privacy and reference data survive a real on-disk app restart", a
 		expect(reopened.state.placedMemes?.board[0].shadow).toBe(true);
 		expect(notes.state.canvasNotes).toEqual(bundle.presenter.canvasNotes);
 		expect(notes.state.notes.references).toEqual(bundle.presenter.notes.references);
-		expect(reopened.state.enabled).toBe(false);
+		expect(reopened.state.enabled).toBe(process.platform !== "linux");
+		expect(reopened.state.mode).toBe("screen");
 	} finally {
 		await fs.rm(root, { recursive: true, force: true });
 	}

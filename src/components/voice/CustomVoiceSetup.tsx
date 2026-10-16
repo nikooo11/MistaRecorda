@@ -135,7 +135,7 @@ export function CustomVoiceSetup({
 						verification, and wait for training to finish.
 					</li>
 					<li>
-						Return here and refresh My voices. Use the same account’s API key in Voice
+						Return here and refresh My voices. Use the same account’s API key in Setup
 						settings.
 					</li>
 					<li>

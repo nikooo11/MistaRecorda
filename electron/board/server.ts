@@ -1,5 +1,8 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import fs from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { resolveHttpByteRange } from "../mediaServer";
+import { getMediaContentType } from "../mediaTypes";
 import { createServer, type Server } from "node:http";
 import { networkInterfaces } from "node:os";
 import path from "node:path";
@@ -20,7 +23,13 @@ export class CompanionServer {
 		readonly root: string,
 		readonly action: (method: string, input: unknown, actor: string) => Promise<unknown>,
 		readonly changed: () => void,
+		readonly sceneMediaFile?: (id: string) => Promise<string>,
 	) {}
+	sceneMediaUrl(id: string, actor: string) {
+		const device = this.devices.get(actor);
+		if (!device?.approved) throw Error("Approve this iPad first.");
+		return `/scene-media/${encodeURIComponent(id)}?token=${encodeURIComponent(device.token)}`;
+	}
 	async start() {
 		if (this.server) return this.pairing();
 		this.code = randomBytes(24).toString("base64url");
@@ -32,6 +41,48 @@ export class CompanionServer {
 					return;
 				}
 				const url = new URL(req.url ?? "/", "http://localhost");
+				if (url.pathname.startsWith("/scene-media/") && this.sceneMediaFile) {
+					const token = url.searchParams.get("token") ?? "";
+					if (
+						![...this.devices.values()].some((d) => d.approved && equal(d.token, token))
+					) {
+						res.writeHead(403).end();
+						return;
+					}
+					const id = url.pathname.slice("/scene-media/".length);
+					if (!/^[a-f0-9-]{36}$/.test(id)) {
+						res.writeHead(404).end();
+						return;
+					}
+					const file = await this.sceneMediaFile(id);
+					const stat = await fs.stat(file);
+					const range = req.headers.range
+						? resolveHttpByteRange(req.headers.range, stat.size)
+						: undefined;
+					if (range === null) {
+						res.writeHead(416, { "Content-Range": `bytes */${stat.size}` }).end();
+						return;
+					}
+					res.writeHead(range ? 206 : 200, {
+						"Content-Type": getMediaContentType(file),
+						"Cache-Control": "no-store",
+						"Referrer-Policy": "no-referrer",
+						"X-Content-Type-Options": "nosniff",
+						"Accept-Ranges": "bytes",
+						"Content-Length": range ? range.end - range.start + 1 : stat.size,
+						...(range
+							? { "Content-Range": `bytes ${range.start}-${range.end}/${stat.size}` }
+							: {}),
+					});
+					if (req.method === "HEAD") res.end();
+					else {
+						const stream = createReadStream(file, range || undefined);
+						stream.on("error", () => res.destroy());
+						res.on("close", () => stream.destroy());
+						stream.pipe(res);
+					}
+					return;
+				}
 				const relative =
 					url.pathname === "/"
 						? "tablet.html"
@@ -238,6 +289,8 @@ export class CompanionServer {
 								"captureStill",
 								"laser",
 								"soundboard",
+								"setSoundPreference",
+								"sceneMedia",
 								"recordingVoices",
 								"selectRecordingVoice",
 								"streamInfo",

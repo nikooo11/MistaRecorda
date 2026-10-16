@@ -25,6 +25,13 @@ export function Soundboard({ transport, onClose }: { transport: BoardAPI; onClos
 		const timer = setInterval(refresh, 1500);
 		return () => clearInterval(timer);
 	}, [transport]);
+	const preference = async (id: string, kind: "favorite" | "love", value: boolean) => {
+		try {
+			setInfo(await transport.request("setSoundPreference", { id, kind, value }));
+		} catch (e) {
+			setNotice(String(e));
+		}
+	};
 	const play = async (id: string) => {
 		clearTimeout(noticeTimer.current);
 		try {
@@ -100,20 +107,41 @@ export function Soundboard({ transport, onClose }: { transport: BoardAPI; onClos
 						{info?.sounds
 							.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()))
 							.map((s) => (
-								<button
-									key={s.id}
-									style={{ borderLeft: `5px solid ${s.color || "#466784"}` }}
-									disabled={info.paused}
-									onClick={() => void play(s.id)}
-								>
-									<strong>
-										{s.favorite ? "★ " : "▶ "}
-										{s.name}
-									</strong>
-									<small>
-										{s.shortcut || `${(s.durationMs / 1000).toFixed(1)}s`}
-									</small>
-								</button>
+								<div key={s.id} className="soundboard-item">
+									<button
+										style={{ borderLeft: `5px solid ${s.color || "#466784"}` }}
+										disabled={info.paused}
+										onClick={() => void play(s.id)}
+									>
+										<strong>
+											{s.favorite ? "★ " : "▶ "}
+											{s.name}
+										</strong>
+										<small>
+											{s.shortcut || `${(s.durationMs / 1000).toFixed(1)}s`}
+										</small>
+									</button>
+									<div className="soundboard-preferences">
+										<button
+											title="Favorite ★ — pin for the current recording. Resets after the take; Love keeps it across projects."
+											aria-label={`${s.favorite ? "Unfavorite" : "Favorite"} ${s.name}`}
+											aria-pressed={!!s.favorite}
+											onClick={() =>
+												void preference(s.id, "favorite", !s.favorite)
+											}
+										>
+											{s.favorite ? "★" : "☆"}
+										</button>
+										<button
+											title="Love ♥ — keep near the top across all projects and recordings until you unlove it."
+											aria-label={`${s.loved ? "Unlove" : "Love"} ${s.name}`}
+											aria-pressed={!!s.loved}
+											onClick={() => void preference(s.id, "love", !s.loved)}
+										>
+											{s.loved ? "♥" : "♡"}
+										</button>
+									</div>
+								</div>
 							))}
 					</div>
 					{info && !info.sounds.length && <p>No sounds imported yet.</p>}

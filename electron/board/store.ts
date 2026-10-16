@@ -127,7 +127,9 @@ export function validateWhiteboards(s: BoardState) {
 export class BoardStore {
 	state = emptyBoardState();
 	private writes = Promise.resolve();
-	constructor(readonly root: string) {}
+	constructor(readonly root: string) {
+		if (process.platform === "linux") this.state.enabled = false;
+	}
 	async load() {
 		try {
 			const s = JSON.parse(
@@ -148,7 +150,12 @@ export class BoardStore {
 						...(s.assets ?? {}),
 					},
 				}).files,
-				enabled: false,
+				enabled:
+					process.platform !== "linux" &&
+					(s.drawingDefaultsVersion === 1 ? s.enabled : true),
+				drawingDefaultsVersion: 1,
+				mode: "screen",
+				output: s.drawingDefaultsVersion === 1 ? s.output : "screen-board",
 				scenes: {
 					screen: validateScene(s.scenes.screen),
 					board: validateScene(s.scenes.board),

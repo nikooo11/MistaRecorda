@@ -2539,6 +2539,22 @@ export class FrameRenderer {
 		}
 		bubbleCtx.restore();
 
+		if ((webcam.borderWidth ?? 0) > 0) {
+			bubbleCtx.save();
+			drawSquircleOnCanvas(bubbleCtx, {
+				x: 0,
+				y: 0,
+				width: dimensions.width,
+				height: dimensions.height,
+				radius,
+			});
+			bubbleCtx.clip();
+			bubbleCtx.strokeStyle = webcam.borderColor ?? "#ffffff";
+			bubbleCtx.lineWidth =
+				(Math.min(dimensions.width, dimensions.height) * (webcam.borderWidth ?? 0)) / 50;
+			bubbleCtx.stroke();
+			bubbleCtx.restore();
+		}
 		if ((webcam.shadow ?? 0) > 0) {
 			const shadow = Math.max(0, Math.min(1, webcam.shadow));
 			const shadowSize = Math.min(dimensions.width, dimensions.height);

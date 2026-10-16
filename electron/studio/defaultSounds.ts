@@ -68,6 +68,7 @@ export async function seedDefaultSounds(
 				color: sound.color,
 				volume: 1,
 				favorite: false,
+				loved: false,
 				shortcut: "",
 			})),
 		],

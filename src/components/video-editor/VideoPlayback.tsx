@@ -544,6 +544,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 		const focusIndicatorRef = useRef<HTMLDivElement | null>(null);
 		const webcamVideoRef = useRef<HTMLVideoElement | null>(null);
 		const webcamBubbleRef = useRef<HTMLDivElement | null>(null);
+		const webcamBorderRef = useRef<SVGPathElement | null>(null);
 		const webcamBubbleInnerRef = useRef<HTMLDivElement | null>(null);
 		const [webcamVideoDimensions, setWebcamVideoDimensions] = useState<{
 			width: number;
@@ -1034,10 +1035,23 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 				const shadowSize = Math.min(scaledDimensions.width, scaledDimensions.height);
 				bubble.style.filter = `drop-shadow(0 ${Math.round(shadowSize * 0.06)}px ${Math.round(
 					shadowSize * 0.22,
-				)}px rgba(0, 0, 0, ${webcamShadow}))`;
+				)}px rgba(0, 0, 0, ${placed?.shadow ?? webcamShadow}))`;
 				bubble.style.borderRadius = "0px";
 				bubble.style.boxShadow = "none";
 
+				const border = webcamBorderRef.current;
+				if (border) {
+					border.setAttribute("d", squirclePath);
+					border.setAttribute("stroke", placed?.borderColor ?? "#ffffff");
+					border.setAttribute(
+						"stroke-width",
+						String(
+							(Math.min(scaledDimensions.width, scaledDimensions.height) *
+								(placed?.borderWidth ?? 0)) /
+								50,
+						),
+					);
+				}
 				bubbleInner.style.borderRadius = "0px";
 				bubbleInner.style.overflow = "hidden";
 				bubbleInner.style.contain = "paint";
@@ -3153,6 +3167,9 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 											/>
 										</div>
 									</div>
+									<svg className="pointer-events-none absolute inset-0 h-full w-full">
+										<path ref={webcamBorderRef} fill="none" />
+									</svg>
 								</div>
 							</div>
 						) : null}

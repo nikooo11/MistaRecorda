@@ -15,8 +15,7 @@ export class FigureSettings {
 	}
 	async key() {
 		const data = await fs.readFile(this.file).catch(() => null);
-		if (!data)
-			throw Error("Add your OpenAI API key in Drawing → Setup → AI figures on the Mac.");
+		if (!data) throw Error("Add your OpenAI API key in Capture settings → Setup on the Mac.");
 		this.requireStorage();
 		return this.storage.decryptString(data);
 	}

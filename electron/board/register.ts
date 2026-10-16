@@ -31,6 +31,9 @@ import { requireScreenRecordingAccess } from "../screenCaptureAccess";
 import { recorderCommand } from "../studio/nativeCommand";
 import {
 	boardSoundList,
+	setSoundPreference,
+	sceneMediaPlayback,
+	getSceneMediaFile,
 	boardSoundPreview,
 	fireSound,
 	updateBoardSound,
@@ -131,6 +134,16 @@ const windows = () =>
 function bounds() {
 	return (screen.getAllDisplays().find((d) => d.id === displayId) ?? screen.getPrimaryDisplay())
 		.bounds;
+}
+function editorWorkArea() {
+	const display =
+		screen.getAllDisplays().find((d) => d.id === displayId) ?? screen.getPrimaryDisplay();
+	return {
+		left: display.workArea.x - display.bounds.x,
+		top: display.workArea.y - display.bounds.y,
+		width: display.workArea.width,
+		height: display.workArea.height,
+	};
 }
 function tabletInfo() {
 	return { state: store.state, status };
@@ -246,6 +259,8 @@ async function prepare() {
 		enableLargerThanScreen: true,
 	});
 	editor.setBounds(b);
+	editor.on("show", () => editor?.webContents.send("board:toolbarReset", editorWorkArea()));
+	editor.on("resize", () => editor?.webContents.send("board:toolbarBounds", editorWorkArea()));
 	panel = makeWindow(BOARD_CONTROL_TITLES[1], "board-panel", {
 		width: 440,
 		height: Math.min(660, b.height - 70),
@@ -376,6 +391,8 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 	switch (method) {
 		case "info":
 			return info();
+		case "editorWorkArea":
+			return editorWorkArea();
 		case "tabletInfo":
 			return tabletInfo();
 		case "panelTab":
@@ -403,6 +420,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			if (status.recording) throw Error("Enable drawing before starting a recording");
 			await prepare();
 			store.state.enabled = !!input;
+			if (input && store.state.output === "screen") store.state.output = "screen-board";
 			store.state.revision++;
 			applyVisibility();
 			publish(actor);
@@ -940,6 +958,18 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				actor,
 			);
 		}
+		case "sceneMedia": {
+			const playback = await sceneMediaPlayback();
+			if (companion.devices.has(actor))
+				playback.sources = playback.sources.map((s) => ({
+					...s,
+					url: companion.sceneMediaUrl(s.id, actor),
+				}));
+			return playback;
+		}
+		case "setSoundPreference":
+			await setSoundPreference(input);
+			return boardSoundList();
 		case "soundboard":
 			return boardSoundList();
 		case "streamInfo":
@@ -1410,7 +1440,12 @@ export async function registerBoard() {
 	} catch (e) {
 		console.error("[drawing-board] Could not load saved board or default memes", e);
 	}
-	companion = new CompanionServer(path.join(app.getAppPath(), "dist"), action, devicesChanged);
+	companion = new CompanionServer(
+		path.join(app.getAppPath(), "dist"),
+		action,
+		devicesChanged,
+		getSceneMediaFile,
+	);
 	preview = new CompanionPreview((id, data) => companion.send(id, "signal", data));
 	mcp = new DrawingMcpServer((method, input) => action(method, input, "codex"));
 	ipcMain.handle("board:request", async (e, method, input) => {
@@ -1560,4 +1595,9 @@ function updateEscape() {
 		globalShortcut.unregister("Escape");
 		escapeReady = false;
 	}
+}
+
+/** Scene media shares the clean capture surface, including single-window recordings. */
+export async function enableSceneMediaSurface() {
+	await action("annotate", undefined);
 }

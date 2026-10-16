@@ -83,7 +83,7 @@ export function VoiceCuePicker({
 				))}
 			</div>
 			{info && !info.hasKey && (
-				<p>Connect ElevenLabs in the Mac editor → Voice to load your voices.</p>
+				<p>Connect ElevenLabs in the Mac Capture settings → Setup to load your voices.</p>
 			)}
 			{info?.recording && !info.voices.length && (
 				<p>

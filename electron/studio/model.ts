@@ -27,18 +27,41 @@ export const soundSchema = z.object({
 	shortcut: shortcutSchema,
 	volume: z.number().min(0).max(2),
 	favorite: z.boolean().default(false),
+	loved: z.boolean().default(false),
 	color: z
 		.string()
 		.regex(/^#[0-9a-fA-F]{6}$/)
 		.default("#466784"),
 });
 export const cameraLayoutSchema = z.object({
+	borderWidth: z.number().min(0).max(4).optional(),
+	borderColor: z
+		.string()
+		.regex(/^#[0-9a-fA-F]{6}$/)
+		.optional(),
+	shadow: z.number().min(0).max(1).optional(),
 	x: z.number().min(0).max(1),
 	y: z.number().min(0).max(1),
 	size: z.number().min(10).max(60),
 	roundness: z.number().min(0).max(100),
 	mirror: z.boolean(),
 	locked: z.boolean(),
+});
+export const sceneMediaSchema = z.object({
+	id: z.string().uuid(),
+	name: z.string().trim().min(1).max(100),
+	kind: z.enum(["image", "video", "audio"]),
+	file: z.string().regex(/^[a-f0-9-]{36}\.(png|jpg|jpeg|gif|webp|mp4|m4a)$/),
+	enabled: z.boolean(),
+	x: z.number().min(0).max(1),
+	y: z.number().min(0).max(1),
+	width: z.number().min(0.05).max(1),
+	height: z.number().min(0.05).max(1),
+	opacity: z.number().min(0).max(1),
+	volume: z.number().min(0).max(1),
+	loop: z.boolean(),
+	durationMs: z.number().positive().max(3600000).optional(),
+	hasAudio: z.boolean(),
 });
 export const studioSettingsSchema = z.object({
 	sourceAliases: z
@@ -66,6 +89,7 @@ export const studioSettingsSchema = z.object({
 				audio: z.object({ microphone: z.boolean(), system: z.boolean() }).optional(),
 				cameraLayout: cameraLayoutSchema.optional(),
 				shortcut: shortcutSchema,
+				media: z.array(sceneMediaSchema).max(24).default([]),
 			}),
 		)
 		.max(6)

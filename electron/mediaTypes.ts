@@ -1,6 +1,9 @@
 import path from "node:path";
 
 export const MEDIA_CONTENT_TYPES: Record<string, string> = {
+	".m4a": "audio/mp4",
+	".gif": "image/gif",
+	".webp": "image/webp",
 	".mp4": "video/mp4",
 	".webm": "video/webm",
 	".mov": "video/quicktime",

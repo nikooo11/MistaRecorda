@@ -1,3 +1,4 @@
+import { ApiSetup } from "./ApiSetup";
 import {
 	GearSixIcon,
 	KeyboardIcon,
@@ -89,6 +90,7 @@ export function StudioPanel() {
 				<nav className="capture-tabs" aria-label="Capture settings">
 					{(
 						[
+							{ id: "setup", label: "Setup", Icon: GearSixIcon },
 							{ id: "controls", label: "Recording", Icon: KeyboardIcon },
 							{ id: "layers", label: "Layers", Icon: StackIcon },
 							{ id: "scenes", label: "Environments", Icon: StackIcon },
@@ -105,6 +107,7 @@ export function StudioPanel() {
 							}}
 							title={
 								{
+									setup: "Manage your OpenAI and ElevenLabs API keys in one place.",
 									layers: "Choose screens and windows, assign shortcuts, and save environments.",
 									windows:
 										"Assign hotkeys to switch the recorded application window during a take.",
@@ -121,6 +124,7 @@ export function StudioPanel() {
 					))}
 				</nav>
 				<div className="capture-content" ref={content}>
+					{tab === "setup" && <ApiSetup />}
 					{(tab === "layers" || tab === "scenes") && (
 						<SceneWorkspace
 							key={tab}
