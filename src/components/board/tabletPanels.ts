@@ -23,6 +23,8 @@ const dockedPanels = new Set([
 	"Points to talk about",
 	"Standby images",
 	"Object editing",
+	"AI Chart",
+	"Present chart",
 ]);
 export function toggleTabletPanel(root: HTMLElement | null, name: string) {
 	const panel =
@@ -93,7 +95,15 @@ export function useTabletPanels(stage: RefObject<HTMLDivElement>, enabled: boole
 								? { x: bounds.right - 156, y: bounds.top + 6 }
 								: fallback === "Actions"
 									? { x: bounds.right - 156, y: bounds.bottom - 44 }
-									: {
+									: name === "AI Chart"
+										? // Between the left (memes, notes) and right (sounds, AI) docks.
+											bounds.width >= 1000
+											? { x: bounds.left + Math.max(66, bounds.width / 2 - 200), y: bounds.top + 54 }
+											: // Portrait: under the soundboard in the right column.
+												{ x: bounds.right - 366, y: bounds.top + 310 }
+										: name === "Present chart"
+											? { x: bounds.left + 66, y: bounds.bottom - 300 }
+											: {
 											x: ["Memes", "Points to talk about"].includes(name)
 												? bounds.left + 66
 												: bounds.right - 366,
@@ -257,9 +267,10 @@ export function useTabletPanels(stage: RefObject<HTMLDivElement>, enabled: boole
 					mounted.delete(panel);
 				}
 			for (const [selector, title] of selectors)
-				root.querySelectorAll<HTMLElement>(selector).forEach((panel) =>
-					attach(panel, title),
-				);
+				root.querySelectorAll<HTMLElement>(selector).forEach((panel) => {
+					// Controls attached to a canvas object follow that object, not the dock.
+					if (panel.dataset.panelAttached !== "true") attach(panel, title);
+				});
 		};
 		const observer = new MutationObserver(scan);
 		observer.observe(root, { childList: true, subtree: true });

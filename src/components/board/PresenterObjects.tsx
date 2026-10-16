@@ -6,6 +6,7 @@ import {
 	SpeakerHighIcon,
 	GearSixIcon,
 	NoteIcon,
+	ChartLineUpIcon,
 } from "@phosphor-icons/react";
 import type { BoardAPI } from "../../types/board";
 import {
@@ -26,6 +27,7 @@ export function ObjectIcon({ kind }: { kind: PresenterObject["kind"] }) {
 		meme: FilmStripIcon,
 		sound: SpeakerHighIcon,
 		note: NoteIcon,
+		chart: ChartLineUpIcon,
 	}[kind];
 	return <Icon size={18} aria-hidden="true" />;
 }
@@ -60,9 +62,11 @@ export function PresenterObjects({
 	onChanged,
 	onChoose,
 	onMemeSettings,
+	onChartSettings,
 	onImportMeme,
 	onError,
 }: {
+	onChartSettings?: (id: string) => void;
 	objects: PresenterObject[];
 	document: PresenterDocument;
 	sounds: Omit<SoundEffect, "file">[];
@@ -98,6 +102,10 @@ export function PresenterObjects({
 	function edit(o: PresenterObject) {
 		if (o.kind === "meme") {
 			onMemeSettings(o.id);
+			return;
+		}
+		if (o.kind === "chart") {
+			onChartSettings?.(o.id);
 			return;
 		}
 		setEditing(o);
@@ -432,7 +440,7 @@ export function PresenterObjects({
 					value={filter}
 					onChange={(e) => setFilter(e.target.value)}
 				>
-					{["all", "image", "meme", "sound", "link", "note"].map((kind) => (
+					{["all", "image", "meme", "sound", "link", "note", "chart"].map((kind) => (
 						<option key={kind} value={kind}>
 							{kind === "all" ? "All types" : kind[0].toUpperCase() + kind.slice(1)}
 						</option>

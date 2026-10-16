@@ -32,7 +32,14 @@ import type { MemeAsset } from "../../types/memes";
 import { MemeLayer, MemeLibrary } from "./Memes";
 import "@excalidraw/excalidraw/index.css";
 import "./board.css";
-import { MicrophoneIcon, SparkleIcon } from "@phosphor-icons/react";
+import { ChartLineUpIcon, MicrophoneIcon, SparkleIcon } from "@phosphor-icons/react";
+import type { ChartDocument } from "../../types/charts";
+import { ChartLayer } from "./charts/ChartLayer";
+import { ChartPanel, type ChartImport } from "./charts/ChartPanel";
+import { ChartPresenter } from "./charts/ChartPresenter";
+import { carrierNeedsReset, chartMeta, normalizeChartCarrier } from "./charts/chartModel";
+import { useChartClock, useCharts } from "./charts/useCharts";
+import "./charts/charts.css";
 import { BoardLaser } from "./BoardLaser";
 import { clearCanvas } from "./clearCanvas";
 import { useTabletPanels, toggleTabletPanel } from "./tabletPanels";
@@ -116,6 +123,15 @@ export function BoardCanvas({
 	const [pendingCard, setPendingCard] = useState<PresenterObject>();
 	const [objectSettings, setObjectSettings] = useState(false);
 	const [pendingMeme, setPendingMeme] = useState<MemeAsset>();
+	const charts = useCharts(transport);
+	const chartNow = useChartClock(charts);
+	const [chartElements, setChartElements] = useState<BoardElement[]>([]);
+	const [chartPanel, setChartPanel] = useState(false);
+	const [chartImport, setChartImport] = useState<ChartImport>();
+	const [chartEditId, setChartEditId] = useState<string>();
+	const [presentChart, setPresentChart] = useState<string>();
+	const [presenting, setPresenting] = useState(false);
+	const [pendingChart, setPendingChart] = useState<{ chart: ChartDocument; shadow: boolean; widthPercent: number }>();
 	const [memeSettings, setMemeSettings] = useState<string>();
 	const [pendingImage, setPendingImage] = useState<{
 		object: PresenterObject;
@@ -451,6 +467,7 @@ export function BoardCanvas({
 		setPendingMeme(undefined);
 		setPendingImage(undefined);
 		setPendingCard(undefined);
+		setPendingChart(undefined);
 		setDragGhost(undefined);
 	}, [state.mode, state.activeWhiteboardId, viewedWhiteboardId]);
 	useEffect(
@@ -559,6 +576,15 @@ export function BoardCanvas({
 		setPendingMeme(undefined);
 		setPendingImage(undefined);
 		setPendingCard(undefined);
+		setPendingChart(undefined);
+		if (object.kind === "chart") {
+			const chart = charts.charts.find((c) => c.id === object.id);
+			if (!chart) throw Error("This chart is no longer available.");
+			const shadow = object.shadow ?? true;
+			if (point) await placeChart(chart, point, shadow, object.widthPercent ?? 45);
+			else setPendingChart({ chart, shadow, widthPercent: object.widthPercent ?? 45 });
+			return;
+		}
 		if (object.kind === "meme") {
 			const asset = current.current.memes?.find((m) => m.id === object.id);
 			if (!asset) throw Error("This meme is no longer available.");
@@ -608,6 +634,43 @@ export function BoardCanvas({
 			if (point) placeCard(object, point);
 			else setPendingCard(object);
 		}
+	}
+	/** Placement goes through the Mac so a draft can never be published by a scene edit. */
+	async function placeChart(chart: ChartDocument, point?: PlacementPoint, shadow = true, widthPercent = 45) {
+		if (!api) throw Error("The canvas is still loading. Try again in a moment.");
+		await flush();
+		const view = api.getAppState();
+		const at = point ?? { x: -view.scrollX + 120 / view.zoom.value, y: -view.scrollY + 120 / view.zoom.value };
+		const reply = await transport.request<{ state: BoardState; elementId: string }>("chartPlace", {
+			chartId: chart.id,
+			mode: modeRef.current,
+			x: at.x,
+			y: at.y,
+			width: Math.max(120, (current.current.width * widthPercent) / 100),
+			shadow,
+			revision: current.current.revision,
+		});
+		last.current = "";
+		apply(reply.state);
+		setPresentChart(chart.id);
+		requestAnimationFrame(() =>
+			api.updateScene({ appState: { selectedElementIds: { [reply.elementId]: true }, selectedGroupIds: {} } }),
+		);
+	}
+	async function revealChart(chartId: string) {
+		await flush();
+		const ids = current.current.scenes[modeRef.current].elements
+			.filter((e) => !e.isDeleted && chartMeta(e)?.chartId === chartId && isShadow(e))
+			.map((e) => e.id);
+		if (!ids.length) return;
+		const next = await transport.request<BoardState>("setObjectShadow", {
+			mode: modeRef.current,
+			ids,
+			shadow: false,
+			revision: current.current.revision,
+		});
+		last.current = "";
+		apply(next);
 	}
 	function placeCard(object: PresenterObject, point: PlacementPoint) {
 		if (!api) return;
@@ -829,12 +892,56 @@ export function BoardCanvas({
 		(e) => selected[e.id] && !e.isDeleted,
 	);
 	const hasShadow = selection.some(isShadow);
+	const selectedChartId = selection.map((e) => chartMeta(e)?.chartId).find(Boolean);
+	// Selecting a chart opens its reveal controls attached right below it.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Only a new chart selection opens the controls.
+	useEffect(() => {
+		if (!selectedChartId || clean) return;
+		setPresentChart(selectedChartId);
+		setPresenting(true);
+	}, [selectedChartId]);
+	const anchoredChart = (() => {
+		if (!presenting || clean) return undefined;
+		const id = presentChart ?? charts.charts[0]?.id;
+		const element =
+			chartElements.find((e) => selected[e.id] && chartMeta(e)?.chartId === id) ??
+			chartElements.find((e) => chartMeta(e)?.chartId === id);
+		const box = stage.current?.getBoundingClientRect();
+		if (!element || !box) return undefined;
+		const zoom = memeView.zoom;
+		const left = fit.left + (Number(element.x) + memeView.x) * zoom;
+		const top = fit.top + (Number(element.y) + Number(element.height) + memeView.y) * zoom;
+		const width = Math.max(300, Math.min(560, Number(element.width) * zoom));
+		const placedShadow = chartElements.some((e) => chartMeta(e)?.chartId === id && isShadow(e));
+		const height = placedShadow ? 210 : 132;
+		// Below the chart when it fits, otherwise just inside its bottom edge; always on
+		// screen and clear of the bottom action bar.
+		return {
+			left: Math.max(8, Math.min(left, box.width - width - 8)),
+			top: Math.max(8, Math.min(top + 8, box.height - height - 92)),
+			width,
+		};
+	})();
 	const allShadow = selection.length > 0 && selection.every(isShadow);
 	return (
 		<div
 			ref={stage}
 			data-board-ready={clean && api ? "true" : undefined}
 			onPointerDownCapture={(event) => {
+				if (pendingChart && api && event.target instanceof HTMLCanvasElement) {
+					event.preventDefault();
+					event.stopPropagation();
+					api.refresh();
+					const chart = pendingChart;
+					setPendingChart(undefined);
+					void placeChart(
+						chart.chart,
+						memeCoordinates(event.clientX, event.clientY),
+						chart.shadow,
+						chart.widthPercent,
+					).catch((e) => setError(String(e)));
+					return;
+				}
 				// Pencil navigation is handled before Excalidraw sees the event. It must
 				// never restore a remembered drawing tool or synthesize an ink stroke.
 				if (
@@ -1010,11 +1117,12 @@ export function BoardCanvas({
 				interacted.current = true;
 			}}
 			onKeyDownCapture={(event) => {
-				if ((pendingMeme || pendingImage || pendingCard) && event.key === "Escape") {
+				if ((pendingMeme || pendingImage || pendingCard || pendingChart) && event.key === "Escape") {
 					event.stopPropagation();
 					setPendingMeme(undefined);
 					setPendingImage(undefined);
 					setPendingCard(undefined);
+					setPendingChart(undefined);
 				}
 				interacted.current = true;
 			}}
@@ -1067,6 +1175,25 @@ export function BoardCanvas({
 					</div>
 				</div>
 			)}
+			<div
+				className={`chart-paper ${boardClosing ? "board-putting-away" : !tablet && cleanMode === "board" ? "board-deployed" : ""}`}
+				style={{
+					visibility: clean && state.output === "screen" ? "hidden" : "visible",
+					left: fit.left,
+					top: fit.top,
+					width: state.width * fit.scale,
+					height: state.height * fit.scale,
+				}}
+			>
+				<ChartLayer
+					elements={chartElements}
+					charts={charts}
+					now={chartNow}
+					view={memeView}
+					tablet={tablet}
+					hidePublic={tablet && (streamed || !state.enabled || state.output === "screen")}
+				/>
+			</div>
 			<div
 				ref={paper}
 				className={`board-paper ${boardClosing ? "board-putting-away" : !tablet && cleanMode === "board" ? "board-deployed" : ""} ${tablet && (streamed || !state.enabled || state.output === "screen") ? "board-streamed-ink" : ""}`}
@@ -1130,6 +1257,23 @@ export function BoardCanvas({
 								? old
 								: view.selectedElementIds,
 						);
+						const placedCharts = (elements as unknown as BoardElement[]).filter(
+							(e) => !e.isDeleted && chartMeta(e),
+						);
+						setChartElements((old) =>
+							old.length === placedCharts.length &&
+							old.every(
+								(e, i) =>
+									e === placedCharts[i] ||
+									(e.id === placedCharts[i].id &&
+										e.version === placedCharts[i].version &&
+										e.opacity === placedCharts[i].opacity &&
+										e.x === placedCharts[i].x &&
+										e.y === placedCharts[i].y),
+							)
+								? old
+								: placedCharts.map((e) => ({ ...e })),
+						);
 						if (tablet && view.penMode)
 							api?.updateScene({ appState: { penMode: false, penDetected: true } });
 						if (
@@ -1166,6 +1310,18 @@ export function BoardCanvas({
 							});
 						}
 						if (clean || applying.current || !interacted.current || !api) return;
+						if ((elements as unknown as BoardElement[]).some(carrierNeedsReset)) {
+							api.updateScene({
+								elements: restoreElements(
+									(elements as unknown as BoardElement[]).map(
+										normalizeChartCarrier,
+									) as unknown as Parameters<typeof restoreElements>[0],
+									null,
+								),
+								captureUpdate: CaptureUpdateAction.NEVER,
+							});
+							return;
+						}
 						const shared = current.current.scenes[modeRef.current];
 						if (
 							tablet &&
@@ -1282,16 +1438,22 @@ export function BoardCanvas({
 					/>
 				)}
 			</div>
-			{(pendingMeme || pendingImage || pendingCard) && (
+			{(pendingMeme || pendingImage || pendingCard || pendingChart) && (
 				<button
 					className="meme-cancel"
 					onClick={() => {
 						setPendingMeme(undefined);
 						setPendingImage(undefined);
 						setPendingCard(undefined);
+						setPendingChart(undefined);
 					}}
 				>
-					{pendingCard ? `Tap to place ${pendingCard.name}` : "Tap to place"} · Cancel
+					{pendingChart
+						? `Tap to place ${pendingChart.chart.name}${pendingChart.shadow ? " as a shadow" : ""}`
+						: pendingCard
+							? `Tap to place ${pendingCard.name}`
+							: "Tap to place"}{" "}
+					· Cancel
 				</button>
 			)}
 			{!clean && tablet && (
@@ -1307,6 +1469,12 @@ export function BoardCanvas({
 					onMemeSettings={(id) => {
 						setMemeSettings(id);
 						setMemes(true);
+					}}
+					charts={charts.charts}
+					onChartSettings={(id) => {
+						setChartEditId(id);
+						setChartImport(undefined);
+						setChartPanel(true);
 					}}
 				/>
 			)}
@@ -1422,6 +1590,17 @@ export function BoardCanvas({
 					>
 						Ungroup
 					</button>
+					{selectedChartId && (
+						<button
+							title="Open the private reveal slider for this chart"
+							onClick={() => {
+								setPresentChart(selectedChartId);
+								setPresenting(true);
+							}}
+						>
+							<ChartLineUpIcon size={15} /> Present chart
+						</button>
+					)}
 					{tablet && (
 						<>
 							<button
@@ -1490,6 +1669,8 @@ export function BoardCanvas({
 						["AI figures", "✧", "AI", () => setAi(true)],
 						["Points to talk about", "☷", "Notes", () => setNotesRequest((n) => n + 1)],
 						["Standby images", "▣", "Images", () => setAssets(true)],
+						["AI Chart", "◔", "Chart", () => setChartPanel(true)],
+						["Present chart", "▷", "Reveal", () => setPresenting(true)],
 						...(drawing ? [["Object editing", "↖", "Objects", () => {}]] : []),
 					].map(([name, icon, label, spawn]) => (
 						<button
@@ -1548,6 +1729,24 @@ export function BoardCanvas({
 						}}
 					>
 						Memes
+					</button>
+					<button
+						aria-expanded={chartPanel}
+						title="AI Chart: turn a chart screenshot or numbers into an editable chart you can reveal step by step"
+						onClick={() => {
+							setChartPanel(!chartPanel);
+							setChartImport(undefined);
+							setChartEditId(undefined);
+						}}
+					>
+						<ChartLineUpIcon size={16} /> Chart
+					</button>
+					<button
+						aria-expanded={presenting}
+						title="Private reveal slider for a chart"
+						onClick={() => setPresenting(!presenting)}
+					>
+						Present chart
 					</button>
 					<button
 						aria-expanded={ai}
@@ -1631,7 +1830,55 @@ export function BoardCanvas({
 						setPendingCard(undefined);
 						setPendingMeme(asset);
 					}}
+					onCreateChart={(source) => {
+						setChartEditId(undefined);
+						setChartImport(source);
+						setChartPanel(true);
+					}}
 					onClose={() => setAi(false)}
+				/>
+			)}
+			{!clean && chartPanel && (
+				<ChartPanel
+					transport={transport}
+					state={state}
+					charts={charts}
+					initialImport={chartImport}
+					initialEditId={chartEditId}
+					onPlace={(chart, shadow = true) => {
+						setPendingMeme(undefined);
+						setPendingImage(undefined);
+						setPendingCard(undefined);
+						setPendingChart({ chart, shadow, widthPercent: 45 });
+					}}
+					onPresent={(chart) => {
+						setPresentChart(chart.id);
+						setPresenting(true);
+					}}
+					onClose={() => {
+						setChartPanel(false);
+						setChartImport(undefined);
+						setChartEditId(undefined);
+					}}
+				/>
+			)}
+			{!clean && presenting && (
+				<ChartPresenter
+					transport={transport}
+					charts={charts}
+					chartId={presentChart}
+					now={chartNow}
+					placement={(() => {
+						const id = presentChart ?? charts.charts[0]?.id;
+						const placed = state.scenes[cleanMode].elements.filter(
+							(e) => !e.isDeleted && chartMeta(e)?.chartId === id,
+						);
+						return !placed.length ? "none" : placed.some((e) => !isShadow(e)) ? "visible" : "shadow";
+					})()}
+					anchor={anchoredChart}
+					onChoose={setPresentChart}
+					onReveal={() => revealChart(presentChart ?? charts.charts[0]?.id ?? "")}
+					onClose={() => setPresenting(false)}
 				/>
 			)}
 			{!clean && sounds && (

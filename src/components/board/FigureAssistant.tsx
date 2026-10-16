@@ -4,12 +4,15 @@ import type { BoardAPI } from "../../types/board";
 import type { FigureState } from "../../types/figures";
 import type { MemeAsset } from "../../types/memes";
 import { MemePreviewButton } from "./MemePreviewButton";
+import type { ChartImport } from "./charts/ChartPanel";
 export function FigureAssistant({
 	transport,
 	onClose,
 	memes,
 	onChooseMeme,
+	onCreateChart,
 }: {
+	onCreateChart?: (source: ChartImport | undefined) => void;
 	transport: BoardAPI;
 	onClose: () => void;
 	memes: MemeAsset[];
@@ -189,6 +192,29 @@ export function FigureAssistant({
 									>
 										Chrome link ↗
 									</button>
+									{onCreateChart && (result.kind === "chart" || result.kind === "figure") && (
+										<button
+											disabled={busy}
+											title="Turn this source into an editable, sourced chart. You review every value before it can be shown."
+											onClick={() =>
+												void (async () => {
+													if (result.imageUrl) {
+														const source = await run("aiChartSource", result.id);
+														if (source) onCreateChart(source as ChartImport);
+													} else {
+														// No verified image: open the source and guide a screen capture instead.
+														await run("aiOpen", result.id);
+														onCreateChart(undefined);
+														setError(
+															"Opened the source in Chrome. Scroll to the chart, then in AI Chart choose Capture Mac screen and crop it.",
+														);
+													}
+												})()
+											}
+										>
+											Create editable chart
+										</button>
+									)}
 									{result.imageUrl && (
 										<button
 											disabled={busy}

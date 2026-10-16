@@ -13,8 +13,16 @@ import {
 	safeStorage,
 	screen,
 } from "electron";
+import OpenAI from "openai";
 import { z } from "zod";
 import type { BoardInfo, BoardMode, BoardStatus } from "../../src/types/board";
+import { ChartStore } from "../charts/store";
+import {
+	assertChartIdsShowable,
+	assertChartReveal,
+	chartAction,
+	restartRevealedCharts,
+} from "../charts/actions";
 import {
 	addWhiteboardPage,
 	activateWhiteboardPage,
@@ -75,6 +83,7 @@ export const BOARD_CONTROL_TITLES = [
 ];
 let store: BoardStore;
 let presenter: PresenterStore;
+let charts: ChartStore;
 let figures: FigureService;
 let preview: CompanionPreview;
 let escapeReady = false;
@@ -571,6 +580,14 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 								?.scene.elements ?? [])
 						: store.state.scenes.screen.elements,
 				);
+			assertChartReveal(
+				charts,
+				mode === "board"
+					? (whiteboardPages(store.state).find((page) => page.id === whiteboardId)?.scene
+							.elements ?? [])
+					: store.state.scenes.screen.elements,
+				incoming.elements,
+			);
 			if (
 				mode === "board" &&
 				whiteboardId !== (store.state.activeWhiteboardId ?? "default")
@@ -712,6 +729,10 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				throw Error("The scene changed. Select the object and try again.");
 			const scene = store.state.scenes[request.mode];
 			const ids = shadowSelectionIds(scene.elements, request.ids);
+			if (!request.shadow) {
+				assertChartIdsShowable(charts, scene.elements, ids);
+				restartRevealedCharts(charts, scene.elements, ids);
+			}
 			const changedAt = Date.now();
 			const refs = [
 				...new Map(
@@ -781,6 +802,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				board: store.state,
 				presenter: presenter.state,
 				sounds: await exportPresentationSounds(),
+				charts: await charts.exportBundle(),
 			});
 		case "savePresentation": {
 			const name = presentationName(data.name);
@@ -824,6 +846,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				const previous = structuredClone(store.state),
 					oldPresenter = structuredClone(presenter.state);
 				const sounds = await preparePresentationSounds(bundle.sounds);
+				let oldCharts: Awaited<ReturnType<ChartStore["exportBundle"]>> | undefined;
 				try {
 					for (const m of bundle.board.memes ?? [])
 						if (m.soundId) m.soundId = sounds.mapping[m.soundId] ?? "";
@@ -862,6 +885,15 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 						height: store.state.height,
 						revision: store.state.revision + 1,
 					};
+					if (bundle.charts?.charts.length) {
+						// Imported charts replace same-ID charts; other saved charts are kept.
+						const current = await charts.exportBundle();
+						const ids = new Set(bundle.charts.charts.map((c) => c.id));
+						oldCharts = await charts.replace({
+							charts: [...current.charts.filter((c) => !ids.has(c.id)), ...bundle.charts.charts],
+							sources: { ...current.sources, ...bundle.charts.sources },
+						});
+					}
 					await store.save();
 					await presenter.update("replacePresentation", bundle.presenter);
 					await sounds.commit();
@@ -871,6 +903,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 						store.save(),
 						presenter.update("replacePresentation", oldPresenter),
 						sounds.rollback(),
+						oldCharts ? charts.replace(oldCharts) : Promise.resolve(),
 					]);
 					send("sceneReset", store.state);
 					companion.broadcast("sceneReset", store.state);
@@ -970,6 +1003,50 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		case "setSoundPreference":
 			await setSoundPreference(input);
 			return boardSoundList();
+		case "chartInfo":
+		case "chartSource":
+		case "chartCreate":
+		case "chartUpdate":
+		case "chartRemove":
+		case "chartPlayback":
+		case "chartAnalyze":
+		case "chartCancel":
+		case "chartPlace":
+			return chartAction(method, input, actor, {
+				charts,
+				board: store,
+				publish,
+				hasKey: () => figures.settings.hasKey(),
+				validImage: (dataURL) => !nativeImage.createFromDataURL(dataURL).isEmpty(),
+			});
+		case "chartCapture": {
+			// A still for cropping only: nothing is placed. Presenter windows are excluded by content protection.
+			await prepare();
+			requireScreenRecordingAccess();
+			const b = bounds();
+			const sources = await desktopCapturer.getSources({
+				types: ["screen"],
+				thumbnailSize: { width: 2560, height: Math.round((2560 * b.height) / b.width) },
+			});
+			const source = sources.find((s) => s.display_id === String(displayId));
+			if (!source || source.thumbnail.isEmpty()) throw Error("Could not capture this display.");
+			const still = preview.lastFrame ? nativeImage.createFromDataURL(preview.lastFrame) : source.thumbnail;
+			const jpeg = still.toJPEG(90);
+			return { dataURL: `data:image/jpeg;base64,${jpeg.toString("base64")}`, name: `Screen ${new Date().toLocaleTimeString()}` };
+		}
+		case "aiChartSource": {
+			const id = z.string().max(50).parse(input);
+			const result = figures.result(id);
+			const buffer = await figures.image(id);
+			if (buffer.length > 12 * 1024 * 1024) throw Error("Image exceeds 12 MB.");
+			const image = nativeImage.createFromBuffer(buffer);
+			if (image.isEmpty()) throw Error("No valid image to import.");
+			return {
+				dataURL: `data:image/png;base64,${image.toPNG().toString("base64")}`,
+				source: { url: publicURL(result.url).href, publisher: result.source.slice(0, 120), notes: result.summary.slice(0, 1000) },
+				title: result.title,
+			};
+		}
 		case "soundboard":
 			return boardSoundList();
 		case "streamInfo":
@@ -1191,6 +1268,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 				state: store.state,
 				savedScenes: await store.listScenes(),
 				presenter: presenter.state,
+				charts: (await charts.info()).charts,
 			};
 		case "draw":
 		case "updateElements":
@@ -1227,10 +1305,12 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 						: e;
 				});
 			}
-			store.state.scenes[mode] = validateScene({
+			const next = validateScene({
 				...store.state.scenes[mode],
 				elements,
 			});
+			assertChartReveal(charts, store.state.scenes[mode].elements, next.elements);
+			store.state.scenes[mode] = next;
 			store.state.revision++;
 			publish(actor);
 			return store.state;
@@ -1300,6 +1380,8 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 					sourceName: z.string().optional(),
 				})
 				.parse(input);
+			// Pausing the recording freezes chart reveals so the take resumes on the same frame.
+			if (status.paused || (wasRecording && !status.recording)) charts.pauseAll();
 			if (finishMemeTake(store.state, wasRecording, status.recording)) {
 				store.state.revision++;
 				publish();
@@ -1440,6 +1522,22 @@ export async function registerBoard() {
 	} catch (e) {
 		console.error("[drawing-board] Could not load saved board or default memes", e);
 	}
+	charts = new ChartStore(
+		store.root,
+		{
+			charts: (info) => {
+				send("charts", info);
+				companion?.broadcast("charts", info);
+			},
+			playback: (p) => {
+				send("chartPlayback", p);
+				companion?.broadcast("chartPlayback", p);
+			},
+		},
+		async () => new OpenAI({ apiKey: await figures.settings.key(), maxRetries: 0, timeout: 120000 }),
+		() => figures.settings.hasKey(),
+	);
+	await charts.load().catch((e) => console.error("[charts] Could not load charts", e));
 	companion = new CompanionServer(
 		path.join(app.getAppPath(), "dist"),
 		action,
