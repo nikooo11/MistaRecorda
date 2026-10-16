@@ -100,7 +100,7 @@ let panel: BrowserWindow | undefined,
 let companion: CompanionServer, mcp: DrawingMcpServer;
 let displayId = 0;
 let panelTab: BoardInfo["panelTab"] = "draw";
-let pendingPresenterTool: "ai" | "voices" | "sounds" | null = null;
+let pendingPresenterTool: "ai" | "voices" | "sounds" | "memes" | null = null;
 let edgeTimer: ReturnType<typeof setInterval> | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 const edgeTrigger = new EdgeBoardTrigger();
@@ -422,8 +422,9 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			return tool;
 		}
 		case "openMemes":
+			pendingPresenterTool = "memes";
 			await openDrawingStudio("draw");
-			panel?.webContents.send("board:openMemes");
+			panel?.webContents.send("board:openPresenter", "memes");
 			return info();
 		case "panelTab":
 			panelTab = z.enum(["draw", "ipad", "scenes", "settings"]).parse(input);
@@ -1188,7 +1189,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		case "removeMeme": {
 			const id = z.string().uuid().parse(input);
 			const item = store.state.placedMemes?.[store.state.mode].find((m) => m.id === id);
-			if (item) item.removedAt = Date.now();
+			if (item) item.removedAt ??= Date.now();
 			store.state.revision++;
 			publish(actor);
 			return store.state;

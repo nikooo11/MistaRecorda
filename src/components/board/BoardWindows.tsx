@@ -71,13 +71,13 @@ export function BoardWindow({ kind }: { kind: string }) {
 		const openRequestedPresenter = () => {
 			if (kind !== "board-panel") return;
 			void transport
-				.request<"ai" | "voices" | "sounds" | null>("takePresenterTool")
+				.request<"ai" | "voices" | "sounds" | "memes" | null>("takePresenterTool")
 				.then((tool) => {
 					if (!tool) return;
-					setMemes(false);
+					setMemes(tool === "memes");
 					setAi(tool === "ai");
 					setSoundTab(tool === "voices" ? "voices" : "sounds");
-					setSounds(tool !== "ai");
+					setSounds(tool === "sounds" || tool === "voices");
 				})
 				.catch((e) => setError(String(e)));
 		};

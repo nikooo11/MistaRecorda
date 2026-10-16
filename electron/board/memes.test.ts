@@ -10,9 +10,15 @@ const asset = () =>
 		width: 200,
 		height: 100,
 	});
-test("uploaded meme defaults to no transitions, no sound and stays until dismissed", () => {
+test("uploaded meme appears immediately, stays three seconds and spins out without sound", () => {
 	const a = asset();
-	expect(a).toMatchObject({ enter: "none", exit: "none", soundId: "", stayUntilClicked: true });
+	expect(a).toMatchObject({
+		enter: "none",
+		exit: "spin",
+		soundId: "",
+		stayUntilClicked: false,
+		durationSeconds: 3,
+	});
 	expect(
 		memeSchema.safeParse({ ...a, dataURL: "https://tracker.example/image.png" }).success,
 	).toBe(false);
@@ -27,6 +33,11 @@ test("screen and board memes survive switching and clearing independently", () =
 	placeMeme(state, { assetId: a.id, mode: "screen", x: 320, y: 90, width: 240 });
 	placeMeme(state, { assetId: a.id, mode: "board", x: 44, y: 22, width: 100 });
 	expect(state.placedMemes?.screen[0]).toMatchObject({ x: 320, y: 90, width: 240, height: 120 });
+	expect(state.placedMemes?.screen[0]).toMatchObject({
+		exit: "spin",
+		stayUntilClicked: false,
+		durationSeconds: 3,
+	});
 	state.mode = "board";
 	clearMemes(state, "board");
 	const restored = validateMemes(JSON.parse(JSON.stringify(state)));

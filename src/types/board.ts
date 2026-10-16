@@ -31,6 +31,7 @@ export interface BoardState {
 	memes?: import("./memes").MemeAsset[];
 	favoriteMemeIds?: string[];
 	installedDefaultMemeIds?: string[];
+	memeDefaultsVersion?: 1;
 	placedMemes?: Record<BoardMode, import("./memes").PlacedMeme[]>;
 	version: 1;
 	revision: number;

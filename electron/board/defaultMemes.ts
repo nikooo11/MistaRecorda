@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { bundledMemes, bundledMemeURL } from "../../src/lib/bundledMemes";
 import type { BoardState } from "../../src/types/board";
+import { DEFAULT_MEME_PLAYBACK } from "../../src/types/memes";
 import { gifSize } from "./gifSize";
 import { memeSchema, validateMemes } from "./memes";
 
@@ -26,11 +27,27 @@ export async function seedDefaultMemes(state: BoardState, assets: string, restor
 	);
 	for (const meme of additions) installed.add(meme.id);
 	for (const meme of bundledMemes) if (existing.has(meme.id)) installed.add(meme.id);
-	if (!additions.length && installed.size === (state.installedDefaultMemeIds ?? []).length)
+	if (
+		state.memeDefaultsVersion === 1 &&
+		!additions.length &&
+		installed.size === (state.installedDefaultMemeIds ?? []).length
+	)
 		return state;
+	// Upgrade untouched library defaults once. Keep customized playback and existing
+	// placements intact, and allow users to choose the old behavior again afterwards.
+	const memes = (state.memes ?? []).map((m) =>
+		state.memeDefaultsVersion !== 1 &&
+		m.enter === "none" &&
+		m.exit === "none" &&
+		m.stayUntilClicked &&
+		m.durationSeconds === 5
+			? { ...m, ...DEFAULT_MEME_PLAYBACK }
+			: m,
+	);
 	const next = {
 		...state,
-		memes: [...(state.memes ?? []), ...additions],
+		memeDefaultsVersion: 1 as const,
+		memes: [...memes, ...additions],
 		installedDefaultMemeIds: [...installed],
 	};
 	return { ...next, ...validateMemes(next) };

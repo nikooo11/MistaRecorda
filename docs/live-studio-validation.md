@@ -62,3 +62,18 @@ hidden drawing surfaces cannot steal it. AI research itself was not run because
 this installation reports that its OpenAI key has not been configured.
 The live microphone meter responded to input. Studio capture was temporarily
 enabled for the UI screenshot, then restored to off; facecam was restored to on.
+
+## Meme playback defaults — 2026-10-16
+
+New uploads and bundled memes now appear immediately, remain for three seconds,
+then spin out over the existing 450 ms transition. Clicking a visible placement
+starts its exit early. Repeated clicks cannot restart an exit, and clicking
+during an automatic exit cannot extend it. Shadow notes retain their private
+behavior until revealed.
+
+Existing library assets using the complete old default playback settings are
+upgraded once; custom playback settings, sounds, and existing placements are
+preserved. The installed library confirmed three seconds, Spin out, and Stay
+until clicked off. Browser playtest observed automatic spin-out at 3007 ms and
+click-triggered spin-out at 266 ms. Typecheck and 26 focused meme, bundle and
+board-store tests passed. The studio visibility checkbox remains off by default.

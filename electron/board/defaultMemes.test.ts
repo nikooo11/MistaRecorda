@@ -43,7 +43,13 @@ test("all 25 bundled GIFs are intact, tagged, and only Fahhh has audio", async (
 	expect(state.memes?.[0].soundId).toBe("8c4c2b71-3d8a-41f5-9a42-000000000001");
 	expect(JSON.stringify(state).length).toBeLessThan(40_000);
 	expect(
-		state.memes?.every((m) => m.enter === "none" && m.exit === "none" && m.stayUntilClicked),
+		state.memes?.every(
+			(m) =>
+				m.enter === "none" &&
+				m.exit === "spin" &&
+				!m.stayUntilClicked &&
+				m.durationSeconds === 3,
+		),
 	).toBe(true);
 	expect(
 		placeMeme(state, { assetId: state.memes![0].id, mode: "screen", x: 1, y: 1, width: 250 }),
@@ -52,6 +58,29 @@ test("all 25 bundled GIFs are intact, tagged, and only Fahhh has audio", async (
 	expect(
 		placeMeme(state, { assetId: state.memes![0].id, mode: "screen", x: 1, y: 1, width: 250 }),
 	).toBe("");
+});
+test("old default playback upgrades once while custom settings and placed memes stay intact", async () => {
+	const state = await seedDefaultMemes(emptyBoardState(), assets);
+	delete state.memeDefaultsVersion;
+	const [legacy, custom] = state.memes!;
+	Object.assign(legacy, {
+		enter: "none",
+		exit: "none",
+		stayUntilClicked: true,
+		durationSeconds: 5,
+	});
+	Object.assign(custom, { exit: "fade", stayUntilClicked: true, durationSeconds: 9 });
+	placeMeme(state, { assetId: legacy.id, mode: "screen", x: 1, y: 2, width: 100 });
+	const upgraded = await seedDefaultMemes(state, assets);
+	expect(upgraded.memes?.[0]).toMatchObject({
+		exit: "spin",
+		stayUntilClicked: false,
+		durationSeconds: 3,
+	});
+	expect(upgraded.memes?.[1]).toEqual(custom);
+	expect(upgraded.placedMemes).toEqual(state.placedMemes);
+	Object.assign(upgraded.memes![0], { exit: "none", stayUntilClicked: true, durationSeconds: 5 });
+	expect(await seedDefaultMemes(upgraded, assets)).toBe(upgraded);
 });
 test("restart and explicit restore preserve names, audio removal, loves and favorite choices", async () => {
 	const store = new BoardStore(await directory());

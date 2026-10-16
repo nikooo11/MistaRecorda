@@ -1,4 +1,10 @@
 export type MemeTransition = "none" | "fade" | "spin" | "fall";
+export const DEFAULT_MEME_PLAYBACK = {
+	enter: "none",
+	exit: "spin",
+	stayUntilClicked: false,
+	durationSeconds: 3,
+} as const;
 export interface MemeAsset {
 	tags?: string[];
 	description?: string;

@@ -6,6 +6,7 @@ import { matchingMemes } from "./memePreferences";
 import { MemePreviewButton } from "./MemePreviewButton";
 import type { BoardAPI, BoardState } from "../../types/board";
 import type { MemeAsset, MemeTransition, PlacedMeme } from "../../types/memes";
+import { DEFAULT_MEME_PLAYBACK } from "../../types/memes";
 import type { SoundEffect } from "../../types/studio";
 
 const transitions: MemeTransition[] = ["none", "fade", "spin", "fall"];
@@ -108,10 +109,7 @@ export function MemeLibrary({
 								dataURL,
 								width: image.naturalWidth,
 								height: image.naturalHeight,
-								enter: "none",
-								exit: "none",
-								stayUntilClicked: true,
-								durationSeconds: 5,
+								...DEFAULT_MEME_PLAYBACK,
 								soundId: "",
 							});
 						} catch {
@@ -353,11 +351,12 @@ function MemeImage({
 	const [options, setOptions] = useState(false);
 	const [error, setError] = useState("");
 	const [now, setNow] = useState(Date.now());
-	const exitTime =
-		item.removedAt ??
-		(item.shadow || item.stayUntilClicked
+	const exitTime = Math.min(
+		item.removedAt ?? Infinity,
+		item.shadow || item.stayUntilClicked
 			? Infinity
-			: item.placedAt + item.durationSeconds * 1000);
+			: item.placedAt + item.durationSeconds * 1000,
+	);
 	useEffect(() => {
 		if (!Number.isFinite(exitTime)) return;
 		const timer = setTimeout(() => setNow(Date.now()), Math.max(0, exitTime - Date.now()));

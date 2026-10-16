@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { BoardMode, BoardState } from "../../src/types/board";
 import { bundledMemeFromURL } from "../../src/lib/bundledMemes";
+import { DEFAULT_MEME_PLAYBACK } from "../../src/types/memes";
 
 const transition = z.enum(["none", "fade", "spin", "fall"]);
 const point = z.number().finite().min(-1e7).max(1e7);
@@ -26,10 +27,10 @@ export const memeSchema = z.object({
 		),
 	width: z.number().positive().max(20000),
 	height: z.number().positive().max(20000),
-	enter: transition.default("none"),
-	exit: transition.default("none"),
-	stayUntilClicked: z.boolean().default(true),
-	durationSeconds: z.number().min(1).max(120).default(5),
+	enter: transition.default(DEFAULT_MEME_PLAYBACK.enter),
+	exit: transition.default(DEFAULT_MEME_PLAYBACK.exit),
+	stayUntilClicked: z.boolean().default(DEFAULT_MEME_PLAYBACK.stayUntilClicked),
+	durationSeconds: z.number().min(1).max(120).default(DEFAULT_MEME_PLAYBACK.durationSeconds),
 	soundId: z.union([z.literal(""), z.string().uuid()]).default(""),
 });
 export const placedMemeSchema = z.object({
