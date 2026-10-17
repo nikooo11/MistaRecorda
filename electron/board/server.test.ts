@@ -292,3 +292,40 @@ test("record controls require pairing approval and cannot forge Mac recording st
 	socket.send(JSON.stringify({ id: 3, method: "status", input: { recording: false } }));
 	expect((await next).message).toContain("Unsupported");
 });
+
+test("remote route uses paired companion approval and cannot enable the localhost token server", async () => {
+	const action = await connect();
+	expect(await (await fetch(`http://127.0.0.1:${server.port}/remote`)).text()).toBe("Companion");
+	let next = message();
+	socket.send(
+		JSON.stringify({
+			id: 1,
+			method: "remoteAction",
+			input: { action: "camera", enabled: false },
+		}),
+	);
+	expect((await next).message).toContain("Approve");
+	next = message();
+	socket.send(JSON.stringify({ type: "pair", code: server.code, name: "Remote" }));
+	const paired = await next;
+	next = message("approved");
+	await server.approve(paired.deviceId);
+	await next;
+	next = message("reply");
+	socket.send(
+		JSON.stringify({
+			id: 2,
+			method: "remoteAction",
+			input: { action: "camera", enabled: false },
+		}),
+	);
+	await next;
+	expect(action).toHaveBeenCalledWith(
+		"remoteAction",
+		{ action: "camera", enabled: false },
+		paired.deviceId,
+	);
+	next = message("error");
+	socket.send(JSON.stringify({ id: 3, method: "remoteControlServer", input: true }));
+	expect((await next).message).toContain("Unsupported");
+});

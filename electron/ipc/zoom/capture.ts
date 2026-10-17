@@ -264,6 +264,34 @@ export function zoomKeyEvent(
 	updateOutline();
 	notify();
 }
+/** A touch controller latches zoom until the explicit Off request; never synthesizes a key. */
+export function setRemoteZoom(enabled: boolean, timeMs: number, paused: boolean) {
+	if (!recording || paused || !settings.enabled)
+		throw Error("Start or resume recording with zoom enabled first.");
+	if (enabled === Boolean(capture.active)) return;
+	if (!enabled) {
+		closeHeldZoom(timeMs);
+		return;
+	}
+	const bounds = getBounds?.();
+	if (!bounds) throw Error("The recorded source is unavailable.");
+	const point = getCursor();
+	const inside =
+		point.x >= bounds.x &&
+		point.y >= bounds.y &&
+		point.x < bounds.x + bounds.width &&
+		point.y < bounds.y + bounds.height;
+	capture.press(
+		timeMs,
+		inside
+			? { cx: (point.x - bounds.x) / bounds.width, cy: (point.y - bounds.y) / bounds.height }
+			: { cx: 0.5, cy: 0.5 },
+		settings.depth,
+	);
+	capture.releaseKey(timeMs);
+	updateOutline();
+	notify();
+}
 export async function persistRecordedZooms(videoPath: string) {
 	if (!capture.regions.length || (savedPath && savedPath !== videoPath)) return;
 	savedPath = videoPath;

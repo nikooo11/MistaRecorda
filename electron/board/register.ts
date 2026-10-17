@@ -99,6 +99,11 @@ import { seedDefaultMemes } from "./defaultMemes";
 import { bundledMemeFromURL } from "../../src/lib/bundledMemes";
 import { finishMemeTake, mergeMemeLibraries } from "../../src/components/board/memePreferences";
 import { RecordControlGate } from "./recordControls";
+import { RemoteControlServer, RemoteStaging } from "./remote";
+import { remoteActionSchema, type RemoteInfo } from "../../src/types/remote";
+import { setRemoteZoom, zoomStatus } from "../ipc/zoom/capture";
+import { getCursorCaptureElapsedMs, isCursorCapturePaused } from "../ipc/cursor/telemetry";
+import { applyScene, remoteStudioInfo } from "../studio/register";
 import { PresenterStore } from "./presenter";
 import { CompanionPreview } from "./preview";
 import { CompanionServer } from "./server";
@@ -131,6 +136,9 @@ let panel: BrowserWindow | undefined,
 	hint: BrowserWindow | undefined,
 	stream: BrowserWindow | undefined;
 let companion: CompanionServer, mcp: DrawingMcpServer;
+let remoteControl: RemoteControlServer;
+const remoteStaging = new RemoteStaging();
+let remoteSequence = 0;
 let displayId = 0;
 let panelTab: BoardInfo["panelTab"] = "draw";
 let pendingPresenterTool: "ai" | "voices" | "sounds" | "memes" | null = null;
@@ -200,6 +208,24 @@ function editorWorkArea() {
 function tabletInfo() {
 	return { state: store.state, status };
 }
+function remoteInfo(actor: string): RemoteInfo {
+	const zoom = zoomStatus();
+	return {
+		sequence: ++remoteSequence,
+		status,
+		...remoteStudioInfo(),
+		zoom: zoom.holding,
+		zoomAvailable: zoom.recording && !status.paused && zoom.settings.enabled,
+		whiteboard: store.state.enabled && store.state.mode === "board",
+		sounds: boardSoundList()
+			.sounds.filter((sound) => sound.favorite || sound.loved)
+			.map(({ id, name, color }) => ({ id, name, color: color ?? "#829bb8" })),
+		memes: (store.state.memes ?? [])
+			.filter((m) => m.loved || store.state.favoriteMemeIds?.includes(m.id))
+			.map(({ id, name, dataURL, soundId }) => ({ id, name, dataURL, soundId })),
+		armed: remoteStaging.get(actor),
+	};
+}
 function info(): BoardInfo {
 	return {
 		state: store.state,
@@ -212,6 +238,9 @@ function info(): BoardInfo {
 		devices: companion.list(),
 		pairing: companion.pairing(),
 		mcp: mcp.server ? { url: mcp.url, token: mcp.token } : undefined,
+		remoteControl: remoteControl?.server
+			? { url: remoteControl.url, token: remoteControl.token }
+			: undefined,
 	};
 }
 function send(event: string, data: unknown) {
@@ -488,6 +517,93 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			return editorWorkArea();
 		case "tabletInfo":
 			return tabletInfo();
+		case "remoteInfo":
+			if (input === "live") {
+				const { sounds: _sounds, memes: _memes, ...live } = remoteInfo(actor);
+				if (live.armed) {
+					const { preview: _preview, ...armed } = live.armed;
+					live.armed = armed;
+				}
+				return live;
+			}
+			return remoteInfo(actor);
+		case "remoteControlServer":
+			if (!actor.startsWith("desktop")) throw Error("Enable Stream Deck on the Mac.");
+			if (input === true) await remoteControl.start();
+			else remoteControl.stop();
+			return info();
+		case "remoteAction": {
+			const command = remoteActionSchema.parse(input);
+			switch (command.action) {
+				case "record":
+					await action("recordControl", { intent: command.intent }, actor);
+					break;
+				case "scene":
+					await applyScene(command.id);
+					break;
+				case "camera":
+					await action("control", command.enabled ? "webcam-on" : "webcam-off", actor);
+					break;
+				case "zoom":
+					setRemoteZoom(
+						command.enabled,
+						getCursorCaptureElapsedMs(),
+						isCursorCapturePaused(),
+					);
+					break;
+				case "whiteboard":
+					await action("mode", { mode: command.enabled ? "board" : "screen" }, actor);
+					break;
+				case "voice":
+					await selectRecordingVoice(command.id);
+					break;
+				case "stage": {
+					const item =
+						command.kind === "sound"
+							? boardSoundList().sounds.find((s) => s.id === command.id)
+							: store.state.memes?.find((m) => m.id === command.id);
+					if (!item) throw Error("This item is no longer in your library.");
+					remoteStaging.stage(actor, {
+						kind: command.kind,
+						id: item.id,
+						name: item.name,
+						preview: "dataURL" in item ? item.dataURL : undefined,
+					});
+					break;
+				}
+				case "cancelStage":
+					remoteStaging.cancel(actor);
+					break;
+				case "deploy": {
+					const item = remoteStaging.take(actor, command.token);
+					if (item.kind === "sound") await fireSound(item.id);
+					else {
+						if (!store.state.enabled)
+							await action("mode", { mode: store.state.mode }, actor);
+						const asset = store.state.memes?.find((m) => m.id === item.id);
+						if (!asset) throw Error("This meme is no longer in your library.");
+						const scene = store.state.scenes[store.state.mode];
+						const zoom = scene.zoom || 1;
+						const width = Math.min(4000, (store.state.width * 0.26) / zoom);
+						const height = (width * asset.height) / asset.width;
+						await action(
+							"placeMeme",
+							{
+								assetId: item.id,
+								mode: store.state.mode,
+								shadow: false,
+								width,
+								x: store.state.width / (2 * zoom) - scene.scrollX - width / 2,
+								y: store.state.height / (2 * zoom) - scene.scrollY - height / 2,
+							},
+							actor,
+						);
+					}
+					break;
+				}
+			}
+			return remoteInfo(actor);
+		}
 		case "openPresenter": {
 			const tool = z.enum(["ai", "voices", "sounds"]).parse(input);
 			pendingPresenterTool = tool;
@@ -1884,6 +2000,10 @@ export async function registerBoard() {
 	);
 	preview = new CompanionPreview((id, data) => companion.send(id, "signal", data));
 	mcp = new DrawingMcpServer((method, input) => action(method, input, "codex"));
+	remoteControl = new RemoteControlServer(
+		() => remoteInfo("streamdeck"),
+		(input) => action("remoteAction", input, "streamdeck"),
+	);
 	ipcMain.handle("board:request", async (e, method, input) => {
 		if (!trusted(e)) throw Error("Untrusted board request");
 		return action(method, input, `desktop:${e.sender.id}`);
@@ -1951,6 +2071,7 @@ export async function registerBoard() {
 		globalShortcut.unregister("Escape");
 		companion.stop();
 		mcp.stop();
+		remoteControl.stop();
 		void Promise.all([store.save(), figures.cancel()])
 			.catch((e) => console.error("Could not save board at exit", e))
 			.finally(() => app.quit());

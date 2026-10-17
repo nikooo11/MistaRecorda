@@ -89,6 +89,7 @@ export interface BoardInfo {
 	devices: BoardDevice[];
 	pairing?: { urls: string[]; code: string; expires: number };
 	mcp?: { url: string; token: string };
+	remoteControl?: { url: string; token: string };
 	displays: Array<{ id: number; name: string }>;
 	displayId: number;
 }

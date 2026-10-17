@@ -242,6 +242,7 @@ export function TabletApp() {
 		<main className="companion-shell">
 			<header className="companion-header">
 				<strong>MistaRecorda</strong>
+				<a href="/remote">Remote</a>
 				<span>{connection}</span>
 				<button
 					className="companion-draw-toggle"

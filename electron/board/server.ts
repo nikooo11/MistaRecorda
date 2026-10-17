@@ -84,7 +84,7 @@ export class CompanionServer {
 					return;
 				}
 				const relative =
-					url.pathname === "/"
+					["/", "/remote"].includes(url.pathname)
 						? "tablet.html"
 						: decodeURIComponent(url.pathname).replace(/^\/+/, "");
 				if (
@@ -258,6 +258,8 @@ export class CompanionServer {
 						if (
 							![
 								"recordControl",
+								"remoteInfo",
+								"remoteAction",
 								"tabletInfo",
 								"createWhiteboard",
 								"renameWhiteboard",

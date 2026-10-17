@@ -605,6 +605,39 @@ export function BoardWindow({ kind }: { kind: string }) {
 										</>
 									)}
 								</details>
+								<details className="studio-details">
+									<summary>Stream Deck remote control</summary>
+									<p>
+										Enable a token-protected controller on this Mac only. The
+										iPad Remote page uses its existing pairing instead. The URL
+										and token change when this app restarts.
+									</p>
+									<button
+										onClick={() =>
+											void run("remoteControlServer", !info.remoteControl)
+										}
+									>
+										{info.remoteControl
+											? "Disable Stream Deck"
+											: "Enable Stream Deck"}
+									</button>
+									{info.remoteControl && (
+										<>
+											<label>
+												Local URL
+												<input readOnly value={info.remoteControl.url} />
+											</label>
+											<label>
+												Session token
+												<input
+													type="password"
+													readOnly
+													value={info.remoteControl.token}
+												/>
+											</label>
+										</>
+									)}
+								</details>
 							</>
 						)}
 						{notice && (

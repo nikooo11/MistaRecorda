@@ -1,7 +1,11 @@
 import { BrowserPresentation } from "./browserPresentation";
 import { migrateWindowShortcuts } from "./sceneMigration";
 import { withStarterScene } from "./starterScene";
-import { protectAppWindow, setStudioCaptureVisibility, studioIsShownInCapture } from "./captureVisibility";
+import {
+	protectAppWindow,
+	setStudioCaptureVisibility,
+	studioIsShownInCapture,
+} from "./captureVisibility";
 import { launchScene } from "./launchScene";
 import { importSceneMedia, sceneMediaPath, SceneMediaTake } from "./sceneMedia";
 import { StudioLivePreview } from "./livePreview";
@@ -573,7 +577,7 @@ function bindAll(next: StudioSettings) {
 		bindings.add(b.shortcut);
 	}
 }
-async function applyScene(id: string, options: { activateCamera?: boolean } = {}) {
+export async function applyScene(id: string, options: { activateCamera?: boolean } = {}) {
 	browserPresentation.cancel();
 	const scene = settings.scenes.find((s) => s.id === id);
 	if (!scene) throw Error("Choose a saved scene.");
@@ -648,6 +652,13 @@ async function applyScene(id: string, options: { activateCamera?: boolean } = {}
 	);
 	message = `Scene: ${scene.name}${focusWarning ? `. ${focusWarning}` : ""}`;
 	publish();
+}
+export function remoteStudioInfo() {
+	return {
+		sceneId: activeSceneId ?? "",
+		camera: camera.status.enabled,
+		scenes: settings.scenes.map(({ id, name, camera }) => ({ id, name, camera })),
+	};
 }
 let launchPrepared = false;
 // Runs once per launch so the studio opens on a recordable screen scene.
@@ -978,8 +989,7 @@ export async function prepareStudioCapture(keepRecorder = false) {
 			!(keepRecorder && kind === "hud-overlay")
 		)
 			w.hide();
-		if (process.platform === "win32" && !isDrawingSurfaceWindow(w))
-			protectAppWindow(w);
+		if (process.platform === "win32" && !isDrawingSurfaceWindow(w)) protectAppWindow(w);
 	}
 }
 async function openPanel() {
@@ -1189,7 +1199,9 @@ export function registerStudio() {
 			settings = { ...settings, showStudioInCapture: show };
 			setStudioCaptureVisibility(show);
 			refreshCompanionCapture();
-			nativeCaptureProcess?.stdin?.write(`show-app-windows ${studioIsShownInCapture() ? 1 : 0}\n`);
+			nativeCaptureProcess?.stdin?.write(
+				`show-app-windows ${studioIsShownInCapture() ? 1 : 0}\n`,
+			);
 			await save();
 			return info();
 		}

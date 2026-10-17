@@ -6,7 +6,7 @@
 |---|---|
 | 1. Talking points with attached references | Built — device/capture playtest pending |
 | 2. Always-visible iPad record controls | Built — paired-device recording playtest pending |
-| 3. Phone/iPad remote and Stream Deck endpoint | Planned |
+| 3. Phone/iPad remote and Stream Deck endpoint | Built — physical remote/Stream Deck playtest pending |
 | 4. YouTube upload | Planned — waiting for YouTube approval |
 | 5. Native vertical 9:16 capture and Send to phone | Planned |
 | 6. USB fallback investigation and Apple Pencil | Planned |

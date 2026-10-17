@@ -102,3 +102,28 @@ test("pause ends a locked zoom and a key release after pause cannot latch anothe
 	stopZoomCapture(2000);
 	expect(zoomStatus()).toMatchObject({ recording: false, following: false, count: 3 });
 });
+
+test("remote zoom latches explicitly and ignores duplicate On/Off without needing a key hook", async () => {
+	mock.dir = await fs.mkdtemp(path.join(os.tmpdir(), "remote-zoom-"));
+	await saveZoomSettings(defaultRecordingZoomSettings);
+	const { setRemoteZoom } = await import("./capture");
+	expect(() => setRemoteZoom(true, 0, false)).toThrow("Start");
+	startZoomCapture(() => ({ x: 0, y: 0, width: 1000, height: 800 }));
+	mock.point = { x: 2000, y: 1000 }; // Remote has no cursor over capture: use center.
+	setRemoteZoom(true, 100, false);
+	setRemoteZoom(true, 200, false);
+	expect(zoomStatus().holding).toBe(true);
+	expect(() => setRemoteZoom(false, 300, true)).toThrow("resume");
+	setRemoteZoom(false, 1100, false);
+	setRemoteZoom(false, 1200, false);
+	const video = path.join(mock.dir, "remote.mp4");
+	await persistRecordedZooms(video);
+	const { regions } = JSON.parse(await fs.readFile(`${video}.zooms.json`, "utf8"));
+	expect(regions).toHaveLength(1);
+	expect(regions[0]).toMatchObject({
+		startMs: 100,
+		endMs: 1100,
+		focus: { cx: 0.5, cy: 0.5 },
+		mode: "manual",
+	});
+});
