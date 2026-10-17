@@ -98,6 +98,7 @@ import {
 import { seedDefaultMemes } from "./defaultMemes";
 import { bundledMemeFromURL } from "../../src/lib/bundledMemes";
 import { finishMemeTake, mergeMemeLibraries } from "../../src/components/board/memePreferences";
+import { RecordControlGate } from "./recordControls";
 import { PresenterStore } from "./presenter";
 import { CompanionPreview } from "./preview";
 import { CompanionServer } from "./server";
@@ -141,6 +142,7 @@ let memeInteraction: { id: string; until: number } | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 const edgeTrigger = new EdgeBoardTrigger();
 let closing = false;
+const recordingControls = new RecordControlGate();
 let status: BoardStatus = { recording: false, paused: false, elapsed: 0, webcam: false };
 let loadingPresentation = false;
 let drawingSync = Promise.resolve();
@@ -1684,6 +1686,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 					sourceName: z.string().optional(),
 				})
 				.parse(input);
+			recordingControls.update(status);
 			// Pausing the recording freezes chart reveals so the take resumes on the same frame.
 			if (status.paused || (wasRecording && !status.recording)) charts.pauseAll();
 			if (finishMemeTake(store.state, wasRecording, status.recording)) {
@@ -1694,6 +1697,19 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			companion.broadcast("status", status);
 			applyVisibility();
 			return true;
+		}
+		case "recordControl": {
+			const { intent } = z
+				.object({ intent: z.enum(["start", "stop", "pause", "resume"]) })
+				.parse(input);
+			recordingControls.dispatch(intent, status, (command) => {
+				const hud = BrowserWindow.getAllWindows().find((w) =>
+					w.webContents.getURL().includes("windowType=hud-overlay"),
+				);
+				if (!hud) throw Error("Open the recording studio on your Mac first.");
+				hud.webContents.send("board:control", command);
+			});
+			return { accepted: true };
 		}
 		case "control":
 			if (

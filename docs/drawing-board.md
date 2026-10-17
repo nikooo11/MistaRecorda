@@ -74,3 +74,11 @@ Codex running on the same computer can reach this server directly. A hosted/clou
 To prepare a board from a YouTube tutorial, give Codex an accessible transcript and relevant frames, or authorized tools that can obtain them. The drawing server itself does not watch or download YouTube. Codex can turn that source material into diagrams **before** you record, and save multiple scenes for your tutorial.
 
 For the exact checks performed and remaining device checks, see [Drawing board validation](drawing-board-validation.md).
+
+## Tablet recording controls
+
+A reserved edge bar provides Record/Stop and Pause/Resume from every companion panel. It is outside the mirrored canvas and is not a drawing object. The gear chooses one of four corners and optional Stop confirmation for takes of at least five seconds. Minus collapses to a timer pill; tap it to expand. Preferences stay in that browser.
+
+The Mac owns recording state. Tablet requests have explicit intentions, wait for status confirmation and ignore repeat taps. A shared Mac gate prevents concurrent remotes from reversing a pending action. Pause is unavailable while idle; paused takes display amber. Disconnect disables controls and reconnect fetches current Mac status. No camera is activated by these controls.
+
+Validation: 1,457 tests and TypeScript pass. Browser fixture verified pending feedback, timer, pause, collapse, corner layout and a simulated Mac-side stop. WebSocket integration verifies pairing approval and rejects forged status. Remaining manual check: pair a physical iPad, start/pause/resume/stop a disposable take and repeat using the Mac shortcut while Notes/PDFs/memes are open. Keep facecam off.

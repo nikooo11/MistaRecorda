@@ -3,6 +3,7 @@ import { mergeScenePatch, type ScenePatch } from "./sceneSync";
 import { WhiteboardTabs } from "./WhiteboardTabs";
 import { whiteboardView } from "./whiteboards";
 import { whiteboardTransport } from "./whiteboardTransport";
+import { TabletRecordBar } from "./TabletRecordBar";
 import { BoardCanvas } from "./BoardCanvas";
 import { companionTransport } from "./transport";
 import type { BoardState } from "../../types/board";
@@ -346,6 +347,7 @@ export function TabletApp() {
 					</p>
 				)}
 			</div>
+			<TabletRecordBar transport={transport} />
 		</main>
 	);
 }

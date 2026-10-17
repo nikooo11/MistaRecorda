@@ -257,6 +257,7 @@ export class CompanionServer {
 							throw Error("Approve this iPad on the computer first");
 						if (
 							![
+								"recordControl",
 								"tabletInfo",
 								"createWhiteboard",
 								"renameWhiteboard",

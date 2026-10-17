@@ -272,3 +272,23 @@ test("scene media requires an approved device and supports seeking without expos
 	server.devices.get("test")!.approved = false;
 	expect((await fetch(`${base}/scene-media/${id}?token=approved-device-token`)).status).toBe(403);
 });
+
+test("record controls require pairing approval and cannot forge Mac recording status", async () => {
+	const action = await connect();
+	let next = message();
+	socket.send(JSON.stringify({ id: 1, method: "recordControl", input: { intent: "start" } }));
+	expect((await next).message).toContain("Approve");
+	next = message();
+	socket.send(JSON.stringify({ type: "pair", code: server.code, name: "Remote" }));
+	const paired = await next;
+	next = message("approved");
+	await server.approve(paired.deviceId);
+	await next;
+	next = message("reply");
+	socket.send(JSON.stringify({ id: 2, method: "recordControl", input: { intent: "pause" } }));
+	await next;
+	expect(action).toHaveBeenCalledWith("recordControl", { intent: "pause" }, paired.deviceId);
+	next = message("error");
+	socket.send(JSON.stringify({ id: 3, method: "status", input: { recording: false } }));
+	expect((await next).message).toContain("Unsupported");
+});
