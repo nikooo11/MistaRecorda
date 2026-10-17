@@ -140,3 +140,19 @@ and that facecam remains OFF. No installation on the user's Mac was attempted in
 - The Mac subsequently locked, ending further native UI checks. Normal recording
   visibility and Apple Pencil interactions remain unverified; the earlier
   automation-screen recording was inconclusive.
+
+### October 17 installed recording verification
+
+- Retested with the Mac unlocked, using the installed app and Screen 1 display
+  capture. Facecam remained off throughout. Both test recordings were stopped
+  and saved: “QA app windows enabled” and “QA app windows live toggle”.
+- Inspected actual saved MP4 frames, not just the live preview. The studio and
+  Settings appear when enabled. In the second take, the studio, Settings and
+  tutorial are excluded while disabled, appear after enabling during recording,
+  and disappear again after disabling without restarting capture. A tutorial
+  opened after enabling also appears correctly.
+- Evidence: local `.tmp/capture-on-contact.png` and `.tmp/live-toggle-contact.png`;
+  recordings `recording-1792245396068.mp4` and `recording-1792245560272.mp4` in the
+  app recording directory. The visibility toggle was left off. This resolves the
+  earlier normal-recording verification gap for those windows. Other window types
+  and Apple Pencil interactions were not individually exercised in this pass.
