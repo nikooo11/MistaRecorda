@@ -64,7 +64,8 @@ export class YouTubeAuth {
 			typeof t.expires_at !== "number"
 		)
 			throw Error("Connect YouTube again.");
-		return (this.tokens = t as Tokens);
+		this.tokens = t as Tokens;
+		return this.tokens;
 	}
 	private async save(tokens: Tokens) {
 		this.requireSecure();
@@ -132,7 +133,13 @@ export class YouTubeAuth {
 			res.setHeader("Cache-Control", "no-store");
 			res.setHeader("Content-Type", "text/plain; charset=utf-8");
 			res.setHeader("Content-Security-Policy", "default-src 'none'");
-			const url = new URL(req.url ?? "/", redirect || "http://127.0.0.1");
+			let url: URL;
+			try {
+				url = new URL(req.url ?? "/", redirect || "http://127.0.0.1");
+			} catch {
+				res.writeHead(400).end("Invalid authorization response. Return to MistaRecorda.");
+				return;
+			}
 			const got = Buffer.from(url.searchParams.get("state") ?? ""),
 				expected = Buffer.from(state);
 			if (

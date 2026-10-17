@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	chapterText,
 	defaultUploadMetadata,
@@ -115,8 +115,12 @@ export function YouTubeUploadPanel({
 	const [captions, setCaptions] = useState(false);
 	const [notice, setNotice] = useState("");
 	const [loading, setLoading] = useState(true);
+	// Seed chapters once for this export. Later parent renders must not replace edited metadata.
+	const chapterSource = useRef({ markers, mapTime, durationMs });
+	chapterSource.current = { markers, mapTime, durationMs };
 	useEffect(() => {
 		let alive = true;
+		const { markers, mapTime, durationMs } = chapterSource.current;
 		void Promise.all([
 			request<UploadMetadata>("preset", { key: project || source || file }),
 			source ? request<UploadMarker[]>("markers", source) : Promise.resolve([]),
@@ -135,10 +139,10 @@ export function YouTubeUploadPanel({
 					chapters:
 						preset.chapters ||
 						chapterText(
-							[
-								...markers,
-								...recorded.map((m) => ({ ...m, timeMs: mapTime(m.timeMs) })),
-							],
+							[...markers, ...recorded].map((m) => ({
+								...m,
+								timeMs: mapTime(m.timeMs),
+							})),
 							durationMs,
 						),
 				});
@@ -152,7 +156,7 @@ export function YouTubeUploadPanel({
 		return () => {
 			alive = false;
 		};
-	}, [file, project, source]);
+	}, [file, project, source, setError]);
 	const patch = (value: Partial<UploadMetadata>) => setMetadata((m) => ({ ...m, ...value }));
 	const busy = info?.progress.phase === "connecting" || info?.progress.phase === "uploading";
 	const saveCaptions = async () => {

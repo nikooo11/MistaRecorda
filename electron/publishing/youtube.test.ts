@@ -90,6 +90,32 @@ describe("YouTube provider", () => {
 			),
 		).rejects.toThrow("changed");
 	});
+	it("stops retrying failed chunks even when status probes succeed without progress", async () => {
+		let chunks = 0;
+		const request = vi.fn(async (_url: unknown, options?: RequestInit) => {
+			if (options?.method === "POST") return init();
+			if (new Headers(options?.headers).get("Content-Range") === "bytes */100")
+				return new Response(null, { status: 308 });
+			if (++chunks > 10) throw Error("Retry loop escaped its budget");
+			throw new TypeError("offline");
+		}) as unknown as typeof fetch;
+		const wait = vi.fn(async () => {});
+		const provider = new YouTubeProvider(
+			{ accessToken: async () => "x" },
+			false,
+			request,
+			wait,
+		);
+		await expect(
+			provider.upload(
+				{ file: await file(), metadata: defaultUploadMetadata },
+				() => {},
+				new AbortController().signal,
+			),
+		).rejects.toThrow("offline");
+		expect(chunks).toBe(5);
+		expect(wait).toHaveBeenCalledTimes(4);
+	});
 	it("bounded probes handle a fully acknowledged upload awaiting completion", async () => {
 		let i = 0;
 		const request = vi.fn(async () =>

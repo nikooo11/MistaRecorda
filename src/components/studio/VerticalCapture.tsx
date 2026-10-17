@@ -16,7 +16,9 @@ export function VerticalCaptureSettings({ disabled = false }: { disabled?: boole
 				.then((v) => {
 					if (alive) setInfo(v);
 				})
-				.catch(() => {});
+				.catch(() => {
+					// Keep the last geometry during a transient poll failure; the next poll retries.
+				});
 		void read();
 		const timer = setInterval(() => void read(), 1000);
 		return () => {
@@ -81,7 +83,9 @@ export function VerticalGuide() {
 				.then((v) => {
 					if (alive) setInfo(v);
 				})
-				.catch(() => {});
+				.catch(() => {
+					// Keep the last geometry during a transient poll failure; the next poll retries.
+				});
 		void read();
 		const timer = setInterval(() => void read(), 250);
 		return () => {
@@ -130,6 +134,9 @@ export function VerticalGuide() {
 				if (next)
 					void request({ frame: next })
 						.then((v) => setInfo(v))
+						.catch(() => {
+							// A recording may have started mid-drag. Revert to confirmed geometry.
+						})
 						.finally(() => setDraft(undefined));
 			}}
 			onPointerCancel={() => {

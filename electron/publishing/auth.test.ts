@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { request as httpRequest } from "node:http";
 import { YouTubeAuth, UPLOAD_SCOPE, CAPTION_SCOPE } from "./auth";
 const dirs: string[] = [];
 const secure = {
@@ -51,6 +52,18 @@ it("uses loopback PKCE, rejects bad state, persists refresh access and removes i
 			redirect = url.searchParams.get("redirect_uri")!;
 			expect(new URL(redirect).hostname).toBe("127.0.0.1");
 			expect((await fetch(redirect + "?code=bad&state=bad")).status).toBe(400);
+			const malformedStatus = await new Promise<number | undefined>((resolve, reject) => {
+				const req = httpRequest(
+					{ hostname: "127.0.0.1", port: new URL(redirect).port, path: "http://[" },
+					(res) => {
+						res.resume();
+						resolve(res.statusCode);
+					},
+				);
+				req.on("error", reject);
+				req.end();
+			});
+			expect(malformedStatus).toBe(400);
 			expect(
 				(await fetch(redirect + "?code=test&state=" + url.searchParams.get("state")))
 					.status,

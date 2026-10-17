@@ -10,7 +10,9 @@ export function TabletDownloads({ transport }: { transport: BoardAPI }) {
 				.then((v) => {
 					if (alive) setFiles(v);
 				})
-				.catch(() => {});
+				.catch(() => {
+					// A reconnect triggers another read; keep existing links during brief outages.
+				});
 		void read();
 		const off = transport.on("downloadsChanged", () => void read());
 		const connected = transport.on("connected", () => void read());

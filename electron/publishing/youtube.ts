@@ -115,6 +115,7 @@ export class YouTubeProvider implements VideoUploadProvider {
 			job.size = stat.size;
 			job.mtimeMs = stat.mtimeMs;
 			let offset = 0,
+				highWater = 0,
 				retries = 0,
 				unconfirmed = 0,
 				probe = !!job.session;
@@ -194,6 +195,12 @@ export class YouTubeProvider implements VideoUploadProvider {
 					const confirmed = resumeOffset(response.headers.get("range"), stat.size);
 					if (!probe && confirmed <= offset)
 						throw new UploadHTTPError("Upload made no progress. Retry to resume.", 503);
+					// A reachable status endpoint alone is not upload progress. Keep the retry
+					// budget until Google acknowledges bytes beyond the previous high-water mark.
+					if (confirmed > highWater) {
+						highWater = confirmed;
+						retries = 0;
+					}
 					offset = confirmed;
 					probe = offset === stat.size;
 					progress(offset, stat.size);
@@ -205,7 +212,6 @@ export class YouTubeProvider implements VideoUploadProvider {
 						await this.wait(1000 * unconfirmed, signal);
 					} else {
 						unconfirmed = 0;
-						retries = 0;
 					}
 				} catch (e) {
 					signal.throwIfAborted();
