@@ -133,5 +133,10 @@ and that facecam remains OFF. No installation on the user's Mac was attempted in
 - Added protection regression tests for existing windows, subsequently opened windows,
   toggling off, and preserving clean drawing output. All 1,442 tests, typecheck and lint
   (44 pre-existing warnings) pass. All updated Swift helpers compile for arm64/x64.
-- Physical screenshot/recording visibility and Apple Pencil interactions remain to
-  be checked; the earlier automation-screen recording was inconclusive.
+- After Keychain approval, the installed app opened successfully with the enabled
+  preference preserved and facecam off. Opened Settings and captured its visible
+  contents successfully (`.tmp/settings-capture-enabled.png`). GitHub quality run
+  38985293174 passed, including tests and typecheck.
+- The Mac subsequently locked, ending further native UI checks. Normal recording
+  visibility and Apple Pencil interactions remain unverified; the earlier
+  automation-screen recording was inconclusive.
