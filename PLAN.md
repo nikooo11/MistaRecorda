@@ -9,7 +9,7 @@
 | 3. Phone/iPad remote and Stream Deck endpoint | Built — physical remote/Stream Deck playtest pending |
 | 4. YouTube upload | Built — waiting for YouTube approval (real OAuth/upload test pending) |
 | 5. Native vertical 9:16 capture and Send to phone | Built for macOS — native/device playtest pending |
-| 6. USB fallback investigation and Apple Pencil | Planned |
+| 6. USB fallback investigation and Apple Pencil | Pencil safeguards built; USB not shipped (no verified universal route); physical Pencil checklist pending |
 | 7. Native iPad app plan | Planned |
 
 

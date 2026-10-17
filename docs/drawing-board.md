@@ -93,3 +93,27 @@ Each floating panel has two different controls:
 Drag the title to place panels anywhere in the iPad workspace, including the margins around the Mac image. Position is remembered in that browser. Multiple panels can stay open at once. Minimizing preserves search text, PDF page and unsaved notes. Colors and drawing tools gain a recovery icon when minimized. Notes can also fill the iPad for private reading; reopening from the dock returns to the expanded floating panel. Recording controls remain in their reserved edge bar and collapse to a timer pill so they are always reachable.
 
 Browser playtest: dragged a collapsed Memes panel, minimized it with the yellow control, and reopened it expanded at the dragged position. Soundboard search survived collapse → side-icon minimize → reopen; Colors returned through its added dock icon; full-screen Notes returned expanded after collapse/minimize. These are browser checks of the real components, not a physical Apple Pencil test. TypeScript and all 1,461 Vitest tests pass.
+
+
+## Apple Pencil acceptance checklist (October 2026)
+
+The tablet preserves native pen pressure for freehand strokes. When the browser exposes coalesced pointer samples, intermediate points/pressures are added before the final native sample; otherwise ordinary pointer moves continue working. Safari versions and insecure LAN origins may not expose this API. Finger contacts beginning during a Pencil stroke (and for 250 ms after lifting it) are ignored on the canvas, while panel buttons remain usable. Finger drawing returns after that interval. Pan & zoom consumes Pencil navigation before Excalidraw, so it cannot create ink.
+
+Run on an actual iPad with Apple Pencil, both portrait and landscape:
+
+1. Connect, start in Pan & zoom, move with Pencil and pinch with two fingers. No new strokes should reach the Mac. Tap a sound; no ink should appear.
+2. Switch to Draw, choose freehand. Draw slowly from light to firm pressure, then quick curves. Confirm width variation and continuous curves on iPad, Mac and a short saved recording.
+3. Rest a palm after beginning a Pencil stroke. Lift/move the palm during and after the stroke; it must not create a mark or finish the Pencil's stroke. Lift Pencil, wait briefly, then draw with a finger.
+4. Interrupt a stroke with rotation, leaving Safari, loss of connection, or pointer cancellation. Return and verify a new stroke works without a stuck pointer or permanent palm block.
+5. At 50%, 100% and 200% tablet zoom, draw beside an image and check alignment on the Mac. Stage/resize/rotate/deploy a meme without drawing accidentally.
+6. Collapse a panel, drag its header, minimize with the yellow circle, reopen from the right dock. It must reopen expanded. Touch record/pause/stop and verify the timer/state agrees with the Mac.
+
+Browser fixture confirmed one freehand stroke retained intermediate pressure values 0.2 → 0.4 → 0.6 → 0.8, and the same simulated Pencil motion produced no stroke in Pan & zoom. Automated tests cover palm lifetime/release, coalesced-point de-duplication, zoom-coordinate/pressure mapping and unsupported-API fallback. A browser synthetic pen check cannot validate physical pressure, palm hardware classification or device latency; those remain manual checks.
+
+## USB connection investigation
+
+No USB pairing feature is shipped. Apple documents USB Personal Hotspot for iPhone and **Wi-Fi + Cellular** iPad with a supported mobile plan; it is not a general cable transport for every Wi-Fi iPad/Safari companion. macOS Internet Sharing is a user-configured network service, not a guaranteed app-level USB pairing path. Neither establishes a tested, universal Mac→Safari companion route for this product. Per the product requirement, we keep reliable local-network pairing and do not install experimental tunnels or drivers.
+
+A future native app may investigate a wired protocol separately. If an existing network interface happens to be wired, the current approved-device protocol can use it normally; the app makes no USB reliability promise and does not change network settings automatically.
+
+Sources: [Apple USB Personal Hotspot](https://support.apple.com/en-ie/111785), [Mac Internet Sharing](https://support.apple.com/guide/mac-help/share-internet-connection-mac-network-users-mchlp1540/mac), [coalesced pointer events](https://developer.mozilla.org/en-US/docs/Web/API/PointerEvent/getCoalescedEvents), [pointer pressure](https://developer.mozilla.org/en-US/docs/Web/API/PointerEvent/pressure).

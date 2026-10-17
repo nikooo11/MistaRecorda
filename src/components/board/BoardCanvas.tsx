@@ -1,8 +1,10 @@
+import {PencilContact,intermediatePenSamples,appendPenSamples} from "./pencilInput";
 import { captureSceneFrame,insideCapture } from '../../types/vertical';
 import '../studio/verticalCapture.css';
 import { useDesktopToolbar } from "./desktopToolbar";
 import { SceneMediaLayer } from "./SceneMediaLayer";
 import {
+	mutateElement,
 	CaptureUpdateAction,
 	convertToExcalidrawElements,
 	Excalidraw,
@@ -1217,11 +1219,16 @@ export function BoardCanvas({
 		};
 	})();
 	const allShadow = selection.length > 0 && selection.every(isShadow);
+	const pencilContact=useRef(new PencilContact());
+	useEffect(()=>()=>pencilContact.current.reset(),[]);
 	return (
 		<div
 			ref={stage}
 			data-board-ready={clean && api ? "true" : undefined}
 			onPointerDownCapture={(event) => {
+                if (tablet && event.target instanceof HTMLCanvasElement && pencilContact.current.down(event.pointerType,event.pointerId,Date.now())) {
+                    event.preventDefault();event.stopPropagation();return;
+                }
 				if (pendingChart && api && event.target instanceof HTMLCanvasElement) {
 					event.preventDefault();
 					event.stopPropagation();
@@ -1326,6 +1333,14 @@ export function BoardCanvas({
 				}
 			}}
 			onPointerMoveCapture={(event) => {
+                if (tablet && pencilContact.current.blocked(event.pointerId)) {event.preventDefault();event.stopPropagation();return;}
+                if (tablet && drawing && event.pointerType === "pen" && event.buttons && api && event.target instanceof HTMLCanvasElement) {
+                    const view=api.getAppState(),element=view.newElement;
+                    if(element?.type === "freedraw") {
+                        const samples=intermediatePenSamples(event.nativeEvent);
+                        if(samples.length) mutateElement(element,{...appendPenSamples(element.points,element.pressures,samples,view,element),simulatePressure:false});
+                    }
+                }
 				const pan = pencilPan.current;
 				if (pan?.id === event.pointerId && api) {
 					event.preventDefault();
@@ -1360,6 +1375,7 @@ export function BoardCanvas({
 					.catch((e) => setError(String(e)));
 			}}
 			onPointerUpCapture={(event) => {
+                if(tablet && pencilContact.current.up(event.pointerId,Date.now())) {event.preventDefault();event.stopPropagation();return;}
 				if (pencilPan.current?.id !== event.pointerId) return;
 				event.preventDefault();
 				event.stopPropagation();
@@ -1367,7 +1383,8 @@ export function BoardCanvas({
 				if (event.currentTarget.hasPointerCapture(event.pointerId))
 					event.currentTarget.releasePointerCapture(event.pointerId);
 			}}
-			onPointerCancelCapture={() => {
+			onPointerCancelCapture={(event) => {
+                pencilContact.current.up(event.pointerId,Date.now());
 				pencilPan.current = undefined;
 			}}
 			onWheelCapture={() => {
