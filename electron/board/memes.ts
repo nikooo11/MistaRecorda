@@ -1,3 +1,4 @@
+import { insideCapture,captureSceneFrame } from '../../src/types/vertical';
 import { z } from "zod";
 import type { BoardMode, BoardState } from "../../src/types/board";
 import { bundledMemeFromURL } from "../../src/lib/bundledMemes";
@@ -113,17 +114,16 @@ export function placeMeme(state: BoardState, input: unknown) {
 	);
 	if (state.placedMemes[data.mode].length >= 200)
 		throw Error("Clear some memes before placing more.");
+	const placed={x:data.x,y:data.y,width:data.width,height:Math.min(20000,data.width*asset.height/asset.width)};
+	if(state.captureFrame)Object.assign(placed,insideCapture(placed,captureSceneFrame(state.captureFrame,state.scenes[data.mode])));
 	state.placedMemes[data.mode].push({
 		shake: asset.shake,
 		shakeAt: (data.shadow ?? asset.shadow) ? undefined : Date.now(),
 		shadow: data.shadow ?? asset.shadow ?? false,
 		id: crypto.randomUUID(),
 		assetId: asset.id,
-		x: data.x,
-		y: data.y,
-		width: data.width,
 		angle: data.angle,
-		height: Math.min(20000, (data.width * asset.height) / asset.width),
+		...placed,
 		placedAt: Date.now(),
 		enter: asset.enter,
 		exit: asset.exit,

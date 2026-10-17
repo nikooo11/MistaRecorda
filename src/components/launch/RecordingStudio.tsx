@@ -1,3 +1,4 @@
+import { VerticalCaptureSettings } from '../studio/VerticalCapture';
 import { useCallback, useEffect, useState } from "react";
 import {
 	SparkleIcon,
@@ -527,6 +528,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 				</h2>
 				<div className="studio-dock-body">
 					<span className="studio-eyebrow">{state}</span>
+					<VerticalCaptureSettings disabled={locked} />
 					<div className="studio-clock" aria-live="off">
 						{elapsed}
 					</div>

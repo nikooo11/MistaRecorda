@@ -1,3 +1,4 @@
+import { TabletDownloads } from './TabletDownloads';
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BoardAPI } from "../../types/board";
 import type { RemoteAction, RemoteInfo, RemoteSnapshot } from "../../types/remote";
@@ -95,7 +96,7 @@ export function RemotePanel({ transport: supplied }: { transport?: BoardAPI }) {
 				<span>{connection}</span>
 				<button onClick={() => void transport.request("reconnect")}>Reconnect</button>
 				<a href="/">Canvas & notes</a>
-			</header>
+			<TabletDownloads transport={transport}/></header>
 			<div className="remote-content">
 				<p className="remote-current">
 					Scene:{" "}

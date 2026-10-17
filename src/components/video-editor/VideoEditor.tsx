@@ -1523,6 +1523,16 @@ export default function VideoEditor() {
 		};
 	}, [isPreviewReady]);
 
+	const portraitDefaultsApplied = useRef<string | null>(null);
+    useEffect(() => {
+        // Fresh portrait captures keep their recorded shape regardless of the last landscape preset.
+        if (!isPreviewReady || !videoPath || currentProjectPath || portraitDefaultsApplied.current === videoPath) return;
+        portraitDefaultsApplied.current = videoPath;
+        if (Math.abs(mp4SourceDimensions.width / mp4SourceDimensions.height - 9 / 16) < 0.001) {
+            setAspectRatio("native"); setPadding({top:0,bottom:0,left:0,right:0,linked:true}); setBorderRadius(0);
+        }
+    }, [isPreviewReady, videoPath, currentProjectPath, mp4SourceDimensions]);
+
 	const desiredMp4SourceDimensions = useMemo(() => {
 		return calculateMp4SourceDimensions(
 			mp4SourceDimensions.width,
@@ -6623,7 +6633,8 @@ export default function VideoEditor() {
 									<p className="mt-3 truncate text-xs text-muted-foreground/70">
 										{exportedFilePath.split("/").pop()}
 									</p>
-									{exportedFilePath.toLowerCase().endsWith('.mp4') && <Button onClick={() => {setShowYouTubeUpload(true);setShowExportDropdown(false)}}>Upload to YouTube</Button>}
+									{exportedFilePath.toLowerCase().endsWith('.mp4') && <Button onClick={() => void window.electronAPI.board.request('shareExport',exportedFilePath).then(()=>toast.success('Ready on your paired iPad or phone: open Downloads. Available for one hour.')).catch(()=>toast.error('Could not share this export. Reconnect your iPad and try again.'))}>Send to phone / iPad</Button>}
+{exportedFilePath.toLowerCase().endsWith('.mp4') && <Button onClick={() => {setShowYouTubeUpload(true);setShowExportDropdown(false)}}>Upload to YouTube</Button>}
 									<div className="mt-4 flex gap-2">
 										<Button
 											type="button"

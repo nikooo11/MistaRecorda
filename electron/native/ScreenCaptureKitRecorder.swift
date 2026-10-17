@@ -1,7 +1,7 @@
 // Presenter notes and private PDF/reference previews are never captured.
 private func isPrivatePresenterWindow(_ window: SCWindow, ownerPID: Int32?) -> Bool {
     return window.owningApplication?.processID == ownerPID &&
-        ["MistaRecorda Board Editor", "MistaRecorda Board Stream"].contains(window.title ?? "")
+        ["MistaRecorda Board Editor", "MistaRecorda Board Stream", "MistaRecorda Vertical Guide"].contains(window.title ?? "")
 }
 import Foundation
 import ScreenCaptureKit
@@ -9,7 +9,9 @@ import AVFoundation
 import CoreGraphics
 import CoreImage
 
+struct CaptureRegion: Codable { let x: Double; let y: Double; let width: Double; let height: Double }
 struct CaptureConfig: Codable {
+ let captureRegion: CaptureRegion?
 	let fps: Int?
 	let displayId: CGDirectDisplayID?
 	let windowId: UInt32?
@@ -338,8 +340,16 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             }
 			let displayBounds = CGDisplayBounds(display.displayID)
 			let scaleFactor = ScreenCaptureRecorder.scaleFactor(for: display.displayID)
-			outputWidth = max(2, Int(displayBounds.width) * scaleFactor)
-			outputHeight = max(2, Int(displayBounds.height) * scaleFactor)
+			if let region = config.captureRegion {
+                let rect = CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
+                guard rect.width.isFinite, rect.height.isFinite, rect.width > 0, rect.height > 0,
+                      CGRect(origin: .zero, size: displayBounds.size).contains(rect), abs(rect.width / rect.height - 9.0/16.0) < 0.001 else { throw NSError(domain: "Vertical", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid vertical capture frame."]) }
+                streamConfig.sourceRect = rect
+                outputWidth = 1080; outputHeight = 1920
+            } else {
+                outputWidth = max(2, Int(displayBounds.width) * scaleFactor)
+                outputHeight = max(2, Int(displayBounds.height) * scaleFactor)
+            }
 			streamConfig.width = outputWidth
 			streamConfig.height = outputHeight
 		}
@@ -505,6 +515,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	}
 
 	func switchWindow(_ windowID: UInt32) async throws {
+        guard captureSettings?.captureRegion == nil else { throw NSError(domain: "Vertical", code: 2, userInfo: [NSLocalizedDescriptionKey: "Keep the framed screen selected during vertical recording."]) }
 		guard isRecording, let stream else {
 			throw NSError(domain: "RecordlyCapture", code: 8, userInfo: [NSLocalizedDescriptionKey: "Window capture is not active"])
 		}
@@ -524,6 +535,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	}
 
     func switchDisplay(_ displayID: UInt32) async throws {
+        if captureSettings?.captureRegion != nil && displayID != captureSettings?.displayId { throw NSError(domain: "Vertical", code: 3) }
         guard isRecording, let stream, let settings = captureSettings else { throw NSError(domain: "Capture", code: 1) }
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
         guard let display = content.displays.first(where: { $0.displayID == displayID }),

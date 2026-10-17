@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { getNativeArchTag, resolveUnpackedAppPath } from "../ipc/paths/binaries";
 
 export interface PreviewTarget {
+ captureRegion?: {x:number;y:number;width:number;height:number};
 	displayId?: number;
 	windowId?: number;
 	drawingId?: number;

@@ -1,3 +1,4 @@
+import {insideCapture,captureSceneFrame} from '../../src/types/vertical';
 import { z } from "zod";
 import type { BoardElement } from "../../src/types/board";
 import {
@@ -128,14 +129,13 @@ export async function chartAction(
 			const mode = request.mode ?? board.state.mode;
 			const scene = board.state.scenes[mode];
 			const size = defaultChartSize(chart.data, request.width ?? board.state.width * 0.45);
+			const rect={x:request.x,y:request.y,width:size.width,height:request.height??size.height};
+			if(board.state.captureFrame)Object.assign(rect,insideCapture(rect,captureSceneFrame(board.state.captureFrame,scene)));
 			const element = setShadow(
 				{
 					...makeElement({
 						type: "rectangle",
-						x: request.x,
-						y: request.y,
-						width: size.width,
-						height: request.height ?? size.height,
+						...rect,
 					}),
 					...chartElementProps(chart.id),
 				},

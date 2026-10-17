@@ -1,3 +1,4 @@
+import { verticalCaptureBounds } from '../../studio/vertical';
 import { captureCanvasBounds, getCaptureCanvasAspect } from "../../studio/geometry";
 import { persistStudioTake } from "../../studio/register";
 import fs from "node:fs/promises";
@@ -179,6 +180,8 @@ export function getNormalizedCursorPoint() {
 		? { x: linuxCursorCache.x / primarySf, y: linuxCursorCache.y / primarySf }
 		: fallbackCursor;
 
+	const vertical = verticalCaptureBounds();
+	if(vertical) return {cx:clamp((cursor.x-vertical.x)/vertical.width,0,1),cy:clamp((cursor.y-vertical.y)/vertical.height,0,1)};
 	const windowBounds = selectedSource?.id?.startsWith("window:") ? selectedWindowBounds : null;
 	if (windowBounds) {
 		const sf =
@@ -231,6 +234,7 @@ export function getRecordingCursorInDips() {
 
 /** Capture rectangle in Electron DIP coordinates, shared by hotkey targeting and its outline. */
 export function getRecordingBoundsInDips(): Electron.Rectangle | null {
+	const vertical=verticalCaptureBounds();if(vertical)return vertical;
 	const screen = getScreen();
 	if (selectedSource?.id?.startsWith("window:")) {
 		if (!selectedWindowBounds) return null;

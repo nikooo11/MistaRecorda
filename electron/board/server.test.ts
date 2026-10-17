@@ -329,3 +329,12 @@ test("remote route uses paired companion approval and cannot enable the localhos
 	socket.send(JSON.stringify({ id: 3, method: "remoteControlServer", input: true }));
 	expect((await next).message).toContain("Unsupported");
 });
+
+test('only approved companions can download explicitly shared exports, including byte ranges',async()=>{
+ await connect();const file=path.join(root,'finished.mp4');await fs.writeFile(file,'0123456789');const id=server.shareExport(file);const base=`http://127.0.0.1:${server.port}`;
+ expect((await fetch(`${base}/downloads/${id}`)).status).toBe(403);
+ const next=message();socket.send(JSON.stringify({type:'pair',code:server.code}));const paired=await next;const approved=message();await server.approve(paired.deviceId);await approved;
+ const list=server.downloadList(paired.deviceId);expect(list[0].name).toBe('finished.mp4');const response=await fetch(base+list[0].url,{headers:{Range:'bytes=2-5'}});expect(response.status).toBe(206);expect(await response.text()).toBe('2345');expect(response.headers.get('content-disposition')).toContain('attachment');
+ const denied=message('error');socket.send(JSON.stringify({id:25,method:'shareExport',input:'/private/file.mp4'}));expect((await denied).message).toContain('Unsupported');
+ server.devices.get(paired.deviceId)!.approved=false;expect((await fetch(base+list[0].url)).status).toBe(403);
+});

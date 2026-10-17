@@ -4,7 +4,7 @@ import { BrowserWindow } from "electron";
 // Its scope is now every app window, including windows created after the toggle.
 let show = false;
 export const privatePresenterWindow = (title: string) =>
-	["MistaRecorda Board Editor", "MistaRecorda Board Stream"].includes(title);
+	["MistaRecorda Board Editor", "MistaRecorda Board Stream", "MistaRecorda Vertical Guide"].includes(title);
 export function protectAppWindow(window: BrowserWindow, protectedWhenHidden = true) {
 	window.setContentProtection(
 		privatePresenterWindow(window.getTitle()) || (protectedWhenHidden && !show),

@@ -52,6 +52,7 @@ it("keeps presenter notes and the private stream out even when app windows are e
 	state.windows = [
 		makeWindow("MistaRecorda Board Editor"),
 		makeWindow("MistaRecorda Board Stream"),
+        makeWindow("MistaRecorda Vertical Guide"),
 	];
 	setStudioCaptureVisibility(true);
 	for (const window of state.windows)

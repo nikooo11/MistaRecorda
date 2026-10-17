@@ -1,3 +1,4 @@
+import { VerticalGuide } from './components/studio/VerticalCapture';
 import { lazy, Suspense } from "react";
 import { CameraOverlay } from "./components/studio/CameraOverlay";
 import { StreamAudioEngine } from "./components/studio/StreamAudioEngine";
@@ -65,6 +66,7 @@ export default function App() {
 	}, [windowType, t]);
 
 	switch (windowType) {
+		case "vertical-guide": return <VerticalGuide />;
 		case "settings-guide":
 			return <SettingsGuide />;
 		case "board-panel":

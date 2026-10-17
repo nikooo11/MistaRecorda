@@ -26,6 +26,7 @@ export interface WhiteboardPage {
 	memes: import("./memes").PlacedMeme[];
 }
 export interface BoardState {
+ captureFrame?: import("./vertical").CaptureRect & {safeAreas:boolean};
 	whiteboards?: WhiteboardPage[];
 	activeWhiteboardId?: string;
 	memes?: import("./memes").MemeAsset[];

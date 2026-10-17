@@ -1,3 +1,5 @@
+import { resolveApprovedLocalMediaPath } from '../ipc/project/manager';
+import { onVerticalChanged, verticalLocalFrame } from '../studio/vertical';
 import { isCursorCaptureActive } from '../ipc/state';
 import { presentationMarkers } from '../publishing/markers';
 import { applyPresentationDraft } from "./applyPresentationDraft";
@@ -207,6 +209,7 @@ function editorWorkArea() {
 		height: display.workArea.height,
 	};
 }
+onVerticalChanged(()=>{if(store)publish();});
 function tabletInfo() {
 	return { state: store.state, status };
 }
@@ -252,6 +255,7 @@ function send(event: string, data: unknown) {
 	}
 }
 function publish(origin = "system") {
+	store.state.captureFrame = verticalLocalFrame();
 	updateEscape();
 	send("state", { state: store.state, origin });
 	companion.broadcast("state", { state: store.state, origin });
@@ -517,6 +521,13 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			return info();
 		case "editorWorkArea":
 			return editorWorkArea();
+		case "downloads": return companion.downloadList(actor);
+		case "shareExport": {
+			if (!actor.startsWith("desktop")) throw Error("Share an export from the Mac editor.");
+			const file=await resolveApprovedLocalMediaPath(z.string().max(4096).parse(input));
+			if(!file||!file.toLowerCase().endsWith(".mp4"))throw Error("Choose a finished MP4 export.");
+			companion.shareExport(file);companion.broadcast("downloadsChanged",true);return true;
+		}
 		case "tabletInfo":
 			return tabletInfo();
 		case "remoteInfo":

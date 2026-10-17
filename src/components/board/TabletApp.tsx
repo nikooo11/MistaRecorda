@@ -1,3 +1,4 @@
+import { TabletDownloads } from './TabletDownloads';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mergeScenePatch, type ScenePatch } from "./sceneSync";
 import { WhiteboardTabs } from "./WhiteboardTabs";
@@ -242,7 +243,7 @@ export function TabletApp() {
 		<main className="companion-shell">
 			<header className="companion-header">
 				<strong>MistaRecorda</strong>
-				<a href="/remote">Remote</a>
+				<a href="/remote">Remote</a><TabletDownloads transport={transport}/>
 				<span>{connection}</span>
 				<button
 					className="companion-draw-toggle"

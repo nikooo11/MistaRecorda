@@ -63,6 +63,7 @@ function Media({
 }
 
 export function SceneMediaLayer({
+	captureFrame,
 	transport,
 	audible,
 	visible,
@@ -73,6 +74,7 @@ export function SceneMediaLayer({
 	top,
 	view,
 }: {
+	captureFrame?: import("../../types/vertical").CaptureRect;
 	transport: BoardAPI;
 	audible: boolean;
 	visible: boolean;
@@ -125,14 +127,26 @@ export function SceneMediaLayer({
 					visibility: visible ? "visible" : "hidden",
 				}}
 			>
-				{[...playback.sources].reverse().map((source) => (
-					<Media
-						key={`${playback.sceneId}-${source.id}`}
-						source={source}
-						playback={playback}
-						audible={audible}
-					/>
-				))}
+				<div
+					style={{
+						position: "absolute",
+						left: (captureFrame?.x ?? 0) * scale,
+						top: (captureFrame?.y ?? 0) * scale,
+						width: captureFrame?.width ?? width,
+						height: captureFrame?.height ?? height,
+						transform: `scale(${scale})`,
+						transformOrigin: "top left",
+					}}
+				>
+					{[...playback.sources].reverse().map((source) => (
+						<Media
+							key={`${playback.sceneId}-${source.id}`}
+							source={source}
+							playback={playback}
+							audible={audible}
+						/>
+					))}
+				</div>
 			</div>
 		</div>
 	);

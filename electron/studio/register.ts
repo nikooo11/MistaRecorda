@@ -1,3 +1,4 @@
+import { verticalRequest,verticalCaptureBounds,verticalLocalFrame,verticalInfo } from './vertical';
 import { presentationMarkers } from '../publishing/markers';
 import { publishingRequest } from '../publishing/service';
 import { BrowserPresentation } from "./browserPresentation";
@@ -762,6 +763,8 @@ export async function switchWindow(input: StudioSource, preserveScene = false) {
 	if (!preserveScene) browserPresentation.cancel();
 	if (switching) throw Error("A source switch is already in progress.");
 	const target = sourceSchema.parse(input);
+	const vertical=verticalCaptureBounds()?verticalInfo():undefined;
+	if(vertical && (target.sourceType !== "screen" || Number(target.display_id) !== vertical.displayId)) throw Error("Vertical mode records the framed screen. Turn off Vertical 9:16 before selecting another source.");
 	const unavailable = sourceSwitchUnavailable(info(), target);
 	if (unavailable) throw Error(unavailable);
 	if (
@@ -846,9 +849,9 @@ export function startStudioTake() {
 	mediaTake.start(currentMedia());
 	startVoiceCues();
 	camera.start();
-	const captureBounds = selectedSource?.id?.startsWith("window:")
+	const captureBounds = verticalCaptureBounds() ?? (selectedSource?.id?.startsWith("window:")
 		? selectedWindowBounds
-		: getRecordingBoundsInDips();
+		: getRecordingBoundsInDips());
 	setCaptureCanvasAspect(
 		nativeScreenRecordingActive && captureBounds
 			? captureBounds.width / captureBounds.height
@@ -992,6 +995,7 @@ export async function prepareStudioCapture(keepRecorder = false) {
 			w !== camera.window &&
 			!isDrawingSurfaceWindow(w) &&
 			kind !== "countdown" &&
+            kind !== "vertical-guide" &&
 			!(keepRecorder && kind === "hud-overlay")
 		)
 			w.hide();
@@ -1086,6 +1090,7 @@ export function registerStudio() {
 		if (!trusted || e.senderFrame !== e.sender.mainFrame)
 			throw Error("Untrusted studio request");
 		await ready;
+		if (typeof method === "string" && method.startsWith("vertical:")) return verticalRequest(method.slice(9), input);
 		if (typeof method === "string" && method.startsWith("youtube:")) return publishingRequest(method.slice(8), input);
 		if (method === "livePreview") {
 			const kind = new URL(e.sender.getURL()).searchParams.get("windowType");
@@ -1105,6 +1110,7 @@ export function registerStudio() {
 				};
 			const drawing = boardCaptureExclusions();
 			return livePreview.read({
+				captureRegion: verticalLocalFrame(),
 				...(selectedSource.id.startsWith("window:")
 					? { windowId: Number(selectedSource.id.split(":")[1]) }
 					: {

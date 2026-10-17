@@ -2077,3 +2077,4 @@ html[data-window-type^="board-"] #root {
 .pan-image-menu button:disabled {
 	opacity: 0.45;
 }
+.tablet-downloads{position:relative}.tablet-downloads summary{padding:8px;cursor:pointer}.tablet-downloads>div{position:absolute;z-index:10000;right:0;top:100%;width:min(320px,80vw);padding:12px;background:#f8fafc;color:#24303e;border:1px solid #a9b4c4;border-radius:8px;box-shadow:0 6px 18px #0003}.tablet-downloads a{display:block;padding:12px 0;overflow-wrap:anywhere;color:#145aa9}.tablet-downloads p,.tablet-downloads small{font-size:12px}

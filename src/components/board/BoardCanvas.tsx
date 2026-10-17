@@ -1,3 +1,5 @@
+import { captureSceneFrame,insideCapture } from '../../types/vertical';
+import '../studio/verticalCapture.css';
 import { useDesktopToolbar } from "./desktopToolbar";
 import { SceneMediaLayer } from "./SceneMediaLayer";
 import {
@@ -34,7 +36,7 @@ import { ImageActions, ImageOutros } from "./ImageActions";
 import { removeImage, type ImageAction, type ImageExit } from "./imageRemoval";
 import { ObjectDraft } from "./ObjectDraft";
 import { MemePreviewButton } from "./MemePreviewButton";
-import { draftRect, scenePoint, type ObjectRect } from "./objectPlacement";
+import { draftRect as baseDraftRect, scenePoint, type ObjectRect } from "./objectPlacement";
 import "@excalidraw/excalidraw/index.css";
 import "./board.css";
 import { ChartLineUpIcon, MicrophoneIcon, SparkleIcon } from "@phosphor-icons/react";
@@ -523,7 +525,12 @@ export function BoardCanvas({
 			zoom: view.zoom.value,
 		};
 	};
-	const memeCoordinates = (x: number, y: number) => scenePoint(x, y, canvasView());
+	const fitCapture = <T extends {x:number;y:number;width:number;height:number}>(rect:T):T => {
+        const frame=current.current.captureFrame;
+        return frame?{...rect,...insideCapture(rect,captureSceneFrame(frame,current.current.scenes[modeRef.current]))}:rect;
+    };
+    const draftRect=(...args:Parameters<typeof baseDraftRect>)=>fitCapture(baseDraftRect(...args));
+    const memeCoordinates = (x: number, y: number) => scenePoint(x, y, canvasView());
 	const startMemeDraft = (asset: MemeAsset, client?: PlacementPoint) => {
 		if (!api) return;
 		setPendingImage(undefined);
@@ -794,14 +801,12 @@ export function BoardCanvas({
 		interacted.current = true;
 		const view = api.getAppState();
 		const w = placedWidth ?? Math.min(width, 600);
+		const placed=fitCapture({x:point?.x ?? -view.scrollX + 120/view.zoom.value,y:point?.y ?? -view.scrollY +120/view.zoom.value,width:w,height:w*height/width});
 		const element = convertToExcalidrawElements([
 			{
 				type: "image",
 				fileId,
-				x: point?.x ?? -view.scrollX + 120 / view.zoom.value,
-				y: point?.y ?? -view.scrollY + 120 / view.zoom.value,
-				width: w,
-				height: (w * height) / width,
+				...placed,
 				angle: point?.angle ?? 0,
 			},
 		] as Parameters<typeof convertToExcalidrawElements>[0]);
@@ -1402,7 +1407,9 @@ export function BoardCanvas({
 					{background}
 				</div>
 			)}
+            {!clean && state.captureFrame && <div className="tablet-vertical-guide" style={{left:fit.left+(state.captureFrame.x+(tablet?tabletView.x:0))*fit.scale*(tablet?tabletView.zoom:1),top:fit.top+(state.captureFrame.y+(tablet?tabletView.y:0))*fit.scale*(tablet?tabletView.zoom:1),width:state.captureFrame.width*fit.scale*(tablet?tabletView.zoom:1),height:state.captureFrame.height*fit.scale*(tablet?tabletView.zoom:1)}}><span>Recorded area · 9:16</span>{state.captureFrame.safeAreas&&<><i className="vertical-safe top"/><i className="vertical-safe bottom"/></>}</div>}
 			<SceneMediaLayer
+				captureFrame={state.captureFrame}
 				transport={transport}
 				audible={clean}
 				visible={cleanMode === "screen" && state.output !== "screen"}

@@ -1,7 +1,7 @@
 // Presenter notes and private PDF/reference previews are never captured.
 private func isPrivatePresenterWindow(_ window: SCWindow, ownerPID: Int32?) -> Bool {
     return window.owningApplication?.processID == ownerPID &&
-        ["MistaRecorda Board Editor", "MistaRecorda Board Stream"].contains(window.title ?? "")
+        ["MistaRecorda Board Editor", "MistaRecorda Board Stream", "MistaRecorda Vertical Guide"].contains(window.title ?? "")
 }
 // Low-resolution, silent composition preview. Uses the same source filtering and
 // drawing-surface composition as the recorder, without capturing presenter controls.
@@ -12,7 +12,9 @@ import CoreImage
 import ScreenCaptureKit
 import Darwin
 
+struct CaptureRegion: Decodable { let x: Double; let y: Double; let width: Double; let height: Double }
 struct PreviewConfig: Decodable {
+    let captureRegion: CaptureRegion?
     let ownerPID: Int32
     let displayId: UInt32?
     let windowId: UInt32?
@@ -149,6 +151,10 @@ final class StudioPreview: NSObject, SCStreamOutput, SCStreamDelegate {
             filter = settings.showAppWindows == true ? SCContentFilter(display: display, excludingWindows: content.windows.filter { isPrivatePresenterWindow($0, ownerPID: settings.ownerPID) }) : SCContentFilter(display: display, excludingApplications: [owner], exceptingWindows: content.windows.filter { $0.owningApplication?.processID == settings.ownerPID && $0.windowID == settings.drawingId })
         }
         let config = configuration(sourceFrame)
+        if let region = settings.captureRegion, settings.windowId == nil {
+            config.sourceRect = CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
+            config.width = 540; config.height = 960
+        }
         canvas = CGRect(x: 0, y: 0, width: config.width, height: config.height)
         let stream = SCStream(filter: filter, configuration: config, delegate: self)
         primary = stream

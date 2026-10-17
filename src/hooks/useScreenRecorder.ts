@@ -1683,7 +1683,10 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 					"Drawing-board recording requires native Mac capture. Check Screen Recording permission and restart the app.",
 				);
 			}
-			// Browser fallback cannot exclude the controller application reliably.
+			if (platform === "darwin" && (await window.electronAPI.studio.request<{enabled:boolean}>("vertical:info")).enabled) {
+                throw new Error("Vertical 9:16 requires native Mac capture. Check Screen Recording permission; no full-screen fallback was started.");
+            }
+            // Browser fallback cannot exclude the controller application reliably.
 			await window.electronAPI.studio.request("prepareCapture");
 			const browserCursorPolicy = resolveBrowserCaptureCursorPolicy({
 				nativeWindowsCaptureStartFailed,

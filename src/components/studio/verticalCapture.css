@@ -1,0 +1,81 @@
+html[data-window-type="vertical-guide"],
+html[data-window-type="vertical-guide"] body,
+html[data-window-type="vertical-guide"] #root {
+	background: transparent !important;
+	overflow: hidden;
+}
+.vertical-guide-frame {
+	position: absolute;
+	box-sizing: border-box;
+	border: 2px solid #7fe4cc;
+	border-radius: 3px;
+	box-shadow: 0 0 0 9999px #0005;
+	touch-action: none;
+	cursor: move;
+	color: white;
+}
+.vertical-guide-label {
+	position: absolute;
+	left: 0;
+	top: 0;
+	background: #182b29dd;
+	font: 12px system-ui;
+	padding: 3px 6px;
+	white-space: nowrap;
+}
+.vertical-safe {
+	position: absolute;
+	left: 3%;
+	right: 3%;
+	border-top: 1px dashed #f8e5a0aa;
+	pointer-events: none;
+}
+.vertical-safe.top {
+	top: 10%;
+}
+.vertical-safe.bottom {
+	bottom: 20%;
+}
+.vertical-resize {
+	position: absolute;
+	right: -8px;
+	bottom: -8px;
+	background: #e8fff8;
+	color: #142f2a;
+	border-radius: 50%;
+	width: 28px;
+	height: 28px;
+	text-align: center;
+	cursor: nwse-resize;
+}
+.vertical-settings {
+	font-size: 12px;
+	margin: 8px 0;
+}
+.vertical-settings label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 28px;
+}
+.vertical-settings small {
+	display: block;
+	color: #acb4c1;
+}
+.tablet-vertical-guide {
+	position: absolute;
+	pointer-events: none;
+	border: 2px solid #69d9ba;
+	box-sizing: border-box;
+	box-shadow: 0 0 0 9999px #0003;
+	z-index: 4;
+}
+.tablet-vertical-guide > span {
+	position: absolute;
+	top: 0;
+	left: 0;
+	background: #14372deb;
+	color: white;
+	padding: 2px 5px;
+	font: 12px system-ui;
+}

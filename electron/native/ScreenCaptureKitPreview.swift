@@ -1,7 +1,7 @@
 // Presenter notes and private PDF/reference previews are never captured.
 private func isPrivatePresenterWindow(_ window: SCWindow, ownerPID: Int32?) -> Bool {
     return window.owningApplication?.processID == ownerPID &&
-        ["MistaRecorda Board Editor", "MistaRecorda Board Stream"].contains(window.title ?? "")
+        ["MistaRecorda Board Editor", "MistaRecorda Board Stream", "MistaRecorda Vertical Guide"].contains(window.title ?? "")
 }
 // Clean, low-latency companion preview. Ink stays local on the tablet and is
 // composited independently on the Mac/recording, avoiding a round-trip ink echo.
