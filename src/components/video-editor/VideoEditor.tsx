@@ -1,3 +1,4 @@
+import { YouTubeUploadPanel } from '../publishing/YouTubeUpload';
 import {
 	BookmarkSimple,
 	Check,
@@ -692,6 +693,7 @@ export default function VideoEditor() {
 					cues: captionSidecarCues,
 				}
 			: undefined;
+	const [showYouTubeUpload, setShowYouTubeUpload] = useState(false);
 	const [exportedFilePath, setExportedFilePath] = useState<string | undefined>(undefined);
 	const [hasPendingExportSave, setHasPendingExportSave] = useState(false);
 	const [lastSavedSnapshot, setLastSavedSnapshot] = useState<EditorProjectData | null>(null);
@@ -6177,6 +6179,7 @@ export default function VideoEditor() {
 
 	return (
 		<div className="flex flex-col h-screen bg-editor-bg text-foreground overflow-hidden selection:bg-[#2563EB]/30">
+{showYouTubeUpload && exportedFilePath && <YouTubeUploadPanel file={exportedFilePath} project={currentProjectPath ?? ''} source={currentSourcePath ?? ''} markers={zoomRegions.map((r,i)=>({kind:'zoom' as const,timeMs:r.startMs,label:`Focus ${i+1}`}))} durationMs={timelineDuration*1000} cues={effectiveCaptionRegions.filter(c=>c.endMs>c.startMs)} mapTime={mapSourceTimeToTimelineTime} onClose={()=>setShowYouTubeUpload(false)} />}
 			<div
 				className="relative flex h-11 flex-shrink-0 items-center justify-between bg-editor-header/88 px-5 backdrop-blur-md border-b border-foreground/10 z-50"
 				style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
@@ -6620,6 +6623,7 @@ export default function VideoEditor() {
 									<p className="mt-3 truncate text-xs text-muted-foreground/70">
 										{exportedFilePath.split("/").pop()}
 									</p>
+									{exportedFilePath.toLowerCase().endsWith('.mp4') && <Button onClick={() => {setShowYouTubeUpload(true);setShowExportDropdown(false)}}>Upload to YouTube</Button>}
 									<div className="mt-4 flex gap-2">
 										<Button
 											type="button"

@@ -7,12 +7,14 @@
 | 1. Talking points with attached references | Built — device/capture playtest pending |
 | 2. Always-visible iPad record controls | Built — paired-device recording playtest pending |
 | 3. Phone/iPad remote and Stream Deck endpoint | Built — physical remote/Stream Deck playtest pending |
-| 4. YouTube upload | Planned — waiting for YouTube approval |
+| 4. YouTube upload | Built — waiting for YouTube approval (real OAuth/upload test pending) |
 | 5. Native vertical 9:16 capture and Send to phone | Planned |
 | 6. USB fallback investigation and Apple Pencil | Planned |
 | 7. Native iPad app plan | Planned |
 
 
+
+YouTube uses a provider interface. A future TikTok provider requires TikTok app review; no direct TikTok posting is implemented. See [YouTube setup and approval](docs/youtube-upload.md).
 
 Personal-use fork of [Recordly](https://github.com/webadderallorg/Recordly) (AGPLv3). Keep `LICENSE.md` and Recordly attribution intact. Not distributed.
 

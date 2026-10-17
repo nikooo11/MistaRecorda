@@ -1,3 +1,5 @@
+import { isCursorCaptureActive } from '../ipc/state';
+import { presentationMarkers } from '../publishing/markers';
 import { applyPresentationDraft } from "./applyPresentationDraft";
 import {
 	PresentationPDFStore,
@@ -1009,7 +1011,11 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		case "savePresenterLink":
 		case "removePresenterLink":
 		case "saveObjectPreference": {
+			const before = new Set(presenter.state.notes.points?.filter(p => p.covered).map(p => p.id));
 			const next = await presenter.update(method, input);
+			if (method === "saveTalkingNotes" && isCursorCaptureActive) for (const point of next.notes.points ?? []) {
+				if (point.covered && !before.has(point.id)) presentationMarkers.add("point", point.text, getCursorCaptureElapsedMs());
+			}
 			// Notes and object settings never enter the recorded scene or bump its revision.
 			send("presenterChanged", next);
 			companion.broadcast("presenterChanged", next);

@@ -1,3 +1,5 @@
+import { presentationMarkers } from '../publishing/markers';
+import { publishingRequest } from '../publishing/service';
 import { BrowserPresentation } from "./browserPresentation";
 import { migrateWindowShortcuts } from "./sceneMigration";
 import { withStarterScene } from "./starterScene";
@@ -645,6 +647,7 @@ export async function applyScene(id: string, options: { activateCamera?: boolean
 		audioState = { ...targetAudio };
 	}
 	activeSceneId = scene.id;
+	if (isCursorCaptureActive) presentationMarkers.add("scene", scene.name, getCursorCaptureElapsedMs());
 	mediaStartedMs = isCursorCaptureActive ? getCursorCaptureElapsedMs() : 0;
 	if (isCursorCaptureActive) mediaTake.switch(currentMedia(), mediaStartedMs);
 	sendRecordingControl(
@@ -838,6 +841,7 @@ export async function switchWindow(input: StudioSource, preserveScene = false) {
 	}
 }
 export function startStudioTake() {
+	presentationMarkers.start(settings.scenes.find(s => s.id === activeSceneId)?.name ?? "Screen recording");
 	mediaStartedMs = 0;
 	mediaTake.start(currentMedia());
 	startVoiceCues();
@@ -917,6 +921,8 @@ export async function persistStudioTake(videoPath: string) {
 }
 async function persistSounds(videoPath: string) {
 	await persistVoiceCues(videoPath);
+	await presentationMarkers.save(videoPath);
+	await rememberApprovedLocalReadPath(videoPath + ".presentation-markers.json");
 	if (savedPath && savedPath !== videoPath) return;
 	const sceneAudio = await mediaTake.renderAudio(videoPath, (name, error) => {
 		message = `Could not add scene audio “${name}”. The recording was kept. Re-import that source before your next take.`;
@@ -1080,6 +1086,7 @@ export function registerStudio() {
 		if (!trusted || e.senderFrame !== e.sender.mainFrame)
 			throw Error("Untrusted studio request");
 		await ready;
+		if (typeof method === "string" && method.startsWith("youtube:")) return publishingRequest(method.slice(8), input);
 		if (method === "livePreview") {
 			const kind = new URL(e.sender.getURL()).searchParams.get("windowType");
 			if (!["hud-overlay", "studio"].includes(kind ?? ""))
@@ -1424,6 +1431,7 @@ export function registerStudio() {
 				throw Error("The active scene changed. Retry the layer edit.");
 			settings = next;
 			activeSceneId = scene.id;
+	if (isCursorCaptureActive) presentationMarkers.add("scene", scene.name, getCursorCaptureElapsedMs());
 			await save();
 			return info();
 		}

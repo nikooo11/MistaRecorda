@@ -1,3 +1,4 @@
+import { YouTubeConnection } from '../publishing/YouTubeUpload';
 import { useEffect, useState } from "react";
 import type { FigureState } from "../../types/figures";
 import { unwrapVoice } from "../../types/voice";
@@ -179,6 +180,7 @@ export function ApiSetup() {
 			</p>
 			<KeyCard provider="OpenAI" />
 			<KeyCard provider="ElevenLabs" />
+			<YouTubeConnection />
 			<p className="capture-note">
 				Keys stay saved until you remove or replace them, including after the app closes. We
 				check saved keys at startup and before recording. If a provider expires or revokes a
