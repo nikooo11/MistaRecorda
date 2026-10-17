@@ -10,7 +10,7 @@
 | 4. YouTube upload | Built — waiting for YouTube approval (real OAuth/upload test pending) |
 | 5. Native vertical 9:16 capture and Send to phone | Built for macOS — native/device playtest pending |
 | 6. USB fallback investigation and Apple Pencil | Pencil safeguards built; USB not shipped (no verified universal route); physical Pencil checklist pending |
-| 7. Native iPad app plan | Planned |
+| 7. Native iPad app plan | Planned and documented — no native app code |
 
 
 
@@ -19,6 +19,29 @@ YouTube uses a provider interface. A future TikTok provider requires TikTok app 
 Personal-use fork of [Recordly](https://github.com/webadderallorg/Recordly) (AGPLv3). Keep `LICENSE.md` and Recordly attribution intact. Not distributed.
 
 **Goal:** record screen + system audio on macOS and Windows normally, record mic on its own track, and after recording stops and the user clicks Process voice, convert ONLY the mic track into a chosen ElevenLabs voice ("Voice Change"), then produce a synced final video. Originals are never overwritten.
+
+---
+
+## Future: Native iPad app
+
+**Presenter outcome:** a dependable companion for rehearsing notes, staging references and controlling a take without covering the content. Keep the current web companion as the zero-install option. This item is planning only; no native iPad code is included.
+
+**Benefits to measure:** PencilKit pressure/tilt and palm rejection, lower and steadier pen-to-Mac latency, predictable rotation/background recovery, offline note/PDF access, and easier local discovery. Native APIs do not by themselves guarantee lower network latency; measure against the browser before replacing anything.
+
+**Approach:** SwiftUI for private draggable/collapsible panels, recording controls and reference library; PencilKit for strokes with an explicit conversion layer to the existing scene coordinate model. Use the existing approved-device WebSocket actions/state protocol and WebRTC video where available. Bonjour discovery locates Macs but never bypasses pairing approval. A transport adapter should let the UI survive reconnects without duplicating commands or losing note drafts. No automatic camera activation.
+
+**Protocol pieces to stabilize first:** version negotiation and capability flags; pairing, token revocation and reconnect lifecycle; monotonic state/status revisions; explicit start/stop/pause/resume with pending acknowledgments; source-clock timestamps for recording markers; board/page/scene IDs and zoom-coordinate mapping; stroke pressure arrays and file IDs; private staging versus public deployment; note/reference version conflicts; approved media/download endpoints and payload limits. Keep future clients from treating a preview or AI suggestion as permission to deploy it. Version changes with fixtures shared by Swift and TypeScript.
+
+**Milestones:**
+
+1. Document and version the current protocol, add cross-client contract fixtures and capability negotiation without changing web behavior.
+2. Ship a read-only SwiftUI prototype: pairing approval, live screen, notes/PDF tabs, recording state and reconnect. Measure first-frame time, rotation, battery and disconnected recovery.
+3. Add explicit record controls and safe reference staging/deploy with acknowledgments, then verify concurrent Mac edits and stale-state recovery.
+4. Add PencilKit strokes/pressure/tilt conversion, undo and erasing. Compare visual fidelity and latency with the existing Excalidraw renderer; preserve editable objects and saved presentations.
+5. Add panel layout persistence, VoiceOver, Dynamic Type, external keyboard shortcuts and offline drafts; test a full explainer session on multiple iPad/Pencil generations.
+6. Consider TestFlight/App Store distribution only after privacy disclosures, local-network permission UX, sign-in/licensing decisions and compatibility tests. Investigate wired transport separately; do not promise USB until tested.
+
+**Open questions:** minimum iPadOS/hardware, whether PencilKit strokes remain vector-editable on Mac or need a new stroke primitive, pressure/tilt parity, shared undo ownership, conflict resolution for simultaneous authors, background execution limits, TLS/local-network certificates, Wi-Fi isolation/VPN behavior, offline PDF cache encryption/expiry, and whether the native app is free alongside the Mac app.
 
 ---
 
