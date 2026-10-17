@@ -73,7 +73,7 @@ export function TabletRecordBar({ transport }: { transport: BoardAPI }) {
 							⚙
 						</button>
 						<button
-							aria-label="Minimize recording controls"
+							aria-label="Collapse recording controls"
 							onClick={() => {
 								setCollapsed(true);
 								setSettings(false);

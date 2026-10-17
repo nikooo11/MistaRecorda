@@ -82,3 +82,14 @@ A reserved edge bar provides Record/Stop and Pause/Resume from every companion p
 The Mac owns recording state. Tablet requests have explicit intentions, wait for status confirmation and ignore repeat taps. A shared Mac gate prevents concurrent remotes from reversing a pending action. Pause is unavailable while idle; paused takes display amber. Disconnect disables controls and reconnect fetches current Mac status. No camera is activated by these controls.
 
 Validation: 1,457 tests and TypeScript pass. Browser fixture verified pending feedback, timer, pause, collapse, corner layout and a simulated Mac-side stop. WebSocket integration verifies pairing approval and rejects forged status. Remaining manual check: pair a physical iPad, start/pause/resume/stop a disposable take and repeat using the Mac shortcut while Notes/PDFs/memes are open. Keep facecam off.
+
+## Arrange iPad presenter panels
+
+Each floating panel has two different controls:
+
+- **Minus / plus** collapses to a small title bar or expands it. The title bar remains visible and draggable.
+- **Yellow circle with a black minus** minimizes the panel into the right side dock. Tapping its right-side icon also minimizes it. Tap the icon again to reopen it **expanded**, even if it was collapsed before minimizing.
+
+Drag the title to place panels anywhere in the iPad workspace, including the margins around the Mac image. Position is remembered in that browser. Multiple panels can stay open at once. Minimizing preserves search text, PDF page and unsaved notes. Colors and drawing tools gain a recovery icon when minimized. Notes can also fill the iPad for private reading; reopening from the dock returns to the expanded floating panel. Recording controls remain in their reserved edge bar and collapse to a timer pill so they are always reachable.
+
+Browser playtest: dragged a collapsed Memes panel, minimized it with the yellow control, and reopened it expanded at the dragged position. Soundboard search survived collapse → side-icon minimize → reopen; Colors returned through its added dock icon; full-screen Notes returned expanded after collapse/minimize. These are browser checks of the real components, not a physical Apple Pencil test. TypeScript and all 1,461 Vitest tests pass.

@@ -1,4 +1,9 @@
 import { useEffect, useState, type RefObject } from "react";
+import {
+	changeTabletPanel,
+	type TabletPanelAction,
+	type TabletPanelState,
+} from "./tabletPanelState";
 
 export function clampPanel(
 	x: number,
@@ -127,6 +132,11 @@ export function useTabletPanels(stage: RefObject<HTMLDivElement>, enabled: boole
 				collapsed: ["Objects", "Style", "Drawing tools", "Actions"].includes(fallback),
 			};
 			if (docked && fallback !== "Objects") layout = { ...layout, collapsed: false };
+			let presentation: TabletPanelState = {
+				collapsed: layout.collapsed,
+				minimized: false,
+				fullScreen: false,
+			};
 			const bar = document.createElement("div");
 			bar.className = "tablet-panel-handle";
 			const grip = document.createElement("button");
@@ -136,10 +146,16 @@ export function useTabletPanels(stage: RefObject<HTMLDivElement>, enabled: boole
 			grip.title = "Drag to move. Arrow keys move this panel.";
 			const toggle = document.createElement("button");
 			toggle.type = "button";
+			const minimize = document.createElement("button");
+			minimize.type = "button";
+			minimize.className = "tablet-panel-minimize";
+			minimize.setAttribute("aria-label", `Minimize ${name} to side dock`);
+			minimize.innerHTML = '<span aria-hidden="true">−</span>';
+			minimize.dataset.help =
+				"Hide this panel in the right side dock. Tap its icon to reopen it expanded, at the same position.";
 			// Private reference reading can fill the iPad without changing the Mac canvas.
 			const expand =
 				name === "Points to talk about" ? document.createElement("button") : null;
-			let fullScreen = false;
 			bar.append(grip);
 			if (expand) {
 				expand.type = "button";
@@ -147,10 +163,10 @@ export function useTabletPanels(stage: RefObject<HTMLDivElement>, enabled: boole
 					"Fill the iPad with your private PDF or talking points. Tap again to return to the movable panel. This never changes the recording.";
 				bar.append(expand);
 			}
-			bar.append(toggle);
-			toggle.dataset.help = expand
-				? "Minimize to the Notes side button. Tap Notes to return to the same PDF page, notes and draft."
-				: "Collapse or restore this panel. Docked panels reopen from their side button.";
+			bar.append(toggle, minimize);
+			toggle.className = "tablet-panel-collapse";
+			toggle.dataset.help =
+				"Collapse to a draggable title bar. Tap plus to expand. Use the yellow button to hide the panel in the side dock.";
 			panel.prepend(bar);
 			panel.classList.add("tablet-floating-panel");
 			const raise = () => {
@@ -158,7 +174,7 @@ export function useTabletPanels(stage: RefObject<HTMLDivElement>, enabled: boole
 					for (const other of mounted.keys()) other.style.zIndex = "180";
 					front = 180;
 				}
-				panel.style.zIndex = fullScreen && !layout.collapsed ? "1000" : String(++front);
+				panel.style.zIndex = presentation.fullScreen ? "1000" : String(++front);
 			};
 			raise();
 			panel.addEventListener("pointerdown", raise, true);
@@ -170,10 +186,14 @@ export function useTabletPanels(stage: RefObject<HTMLDivElement>, enabled: boole
 					/* Optional preference. */
 				}
 			};
+			let restore: HTMLButtonElement | null = null;
 			const render = () => {
-				const reading = fullScreen && !layout.collapsed;
+				const { collapsed, minimized, fullScreen } = presentation;
+				const reading = fullScreen && !collapsed && !minimized;
 				panel.classList.toggle("tablet-panel-fullscreen", reading);
-				panel.classList.toggle("tablet-panel-collapsed", layout.collapsed);
+				panel.classList.toggle("tablet-panel-collapsed", collapsed);
+				panel.classList.toggle("tablet-panel-minimized", minimized);
+				panel.inert = minimized;
 				if (expand) {
 					expand.textContent = fullScreen ? "↙" : "⛶";
 					expand.setAttribute(
@@ -184,17 +204,37 @@ export function useTabletPanels(stage: RefObject<HTMLDivElement>, enabled: boole
 					);
 					expand.setAttribute("aria-pressed", String(fullScreen));
 				}
+				let hasLauncher = false;
 				for (const launch of root.querySelectorAll<HTMLElement>("[data-panel-target]")) {
-					if (launch.dataset.panelTarget === name)
-						launch.setAttribute("aria-expanded", String(!layout.collapsed));
+					if (launch.dataset.panelTarget === name) {
+						launch.setAttribute("aria-expanded", String(!minimized));
+						hasLauncher = true;
+					}
 				}
-				const symbol = layout.collapsed ? "+" : "−";
+				// Tool islands without a permanent side icon still need an obvious way back.
+				if (minimized && !hasLauncher && !restore) {
+					restore = document.createElement("button");
+					restore.type = "button";
+					restore.dataset.panelTarget = name;
+					restore.setAttribute("aria-label", `Reopen ${name}`);
+					restore.setAttribute("aria-expanded", "false");
+					const icon = document.createElement("span");
+					icon.textContent = "▣";
+					icon.setAttribute("aria-hidden", "true");
+					const label = document.createElement("small");
+					label.textContent = name;
+					restore.append(icon, label);
+					restore.onclick = () => update("open");
+					root.querySelector(".tablet-launcher")?.append(restore);
+				} else if (!minimized && restore) {
+					restore.remove();
+					restore = null;
+				}
+				const symbol = collapsed ? "+" : "−";
 				if (toggle.textContent !== symbol) toggle.textContent = symbol;
-				toggle.setAttribute(
-					"aria-label",
-					`${layout.collapsed ? "Expand" : "Collapse"} ${name}`,
-				);
-				toggle.setAttribute("aria-expanded", String(!layout.collapsed));
+				toggle.setAttribute("aria-label", `${collapsed ? "Expand" : "Collapse"} ${name}`);
+				toggle.setAttribute("aria-expanded", String(!collapsed));
+				if (minimized) return;
 				const bounds = root.getBoundingClientRect();
 				if (expand) {
 					panel.style.width = reading ? `${Math.max(100, bounds.width - 8)}px` : "";
@@ -217,7 +257,7 @@ export function useTabletPanels(stage: RefObject<HTMLDivElement>, enabled: boole
 			};
 			let drag: { id: number; x: number; y: number; left: number; top: number } | undefined;
 			grip.onpointerdown = (e) => {
-				if (e.button !== 0 || fullScreen) return;
+				if (e.button !== 0 || presentation.fullScreen) return;
 				e.preventDefault();
 				e.stopPropagation();
 				const at = panel.getBoundingClientRect();
@@ -235,7 +275,7 @@ export function useTabletPanels(stage: RefObject<HTMLDivElement>, enabled: boole
 				save();
 			};
 			grip.onkeydown = (e) => {
-				if (fullScreen) return;
+				if (presentation.fullScreen) return;
 				const delta = {
 					ArrowLeft: [-12, 0],
 					ArrowRight: [12, 0],
@@ -251,21 +291,24 @@ export function useTabletPanels(stage: RefObject<HTMLDivElement>, enabled: boole
 				render();
 				save();
 			};
-			const togglePanel = () => {
-				layout.collapsed = !layout.collapsed;
-				if (!layout.collapsed) raise();
+			const update = (action: TabletPanelAction) => {
+				presentation = changeTabletPanel(presentation, action);
+				layout.collapsed = presentation.collapsed;
+				if (!presentation.minimized) raise();
 				render();
 				save();
+				if (presentation.minimized) {
+					const launch = [
+						...root.querySelectorAll<HTMLElement>("[data-panel-target]"),
+					].find((button) => button.dataset.panelTarget === name);
+					launch?.focus({ preventScroll: true });
+				} else if (action === "open") grip.focus({ preventScroll: true });
 			};
-			toggle.onclick = togglePanel;
-			if (expand)
-				expand.onclick = () => {
-					fullScreen = !fullScreen;
-					raise();
-					render();
-				};
+			toggle.onclick = () => update("collapse");
+			minimize.onclick = () => update("minimize");
+			if (expand) expand.onclick = () => update("fullScreen");
 			const requestToggle = (e: Event) => {
-				if ((e as CustomEvent).detail === name) togglePanel();
+				if ((e as CustomEvent).detail === name) update("dock");
 			};
 			root.addEventListener("tablet-panel-toggle", requestToggle);
 			const stop = (e: Event) => e.stopPropagation();
@@ -290,10 +333,13 @@ export function useTabletPanels(stage: RefObject<HTMLDivElement>, enabled: boole
 				delete panel.dataset.tabletPanel;
 				delete panel.dataset.tabletDocked;
 				bar.remove();
+				restore?.remove();
+				panel.inert = false;
 				panel.classList.remove(
 					"tablet-floating-panel",
 					"tablet-panel-collapsed",
 					"tablet-panel-fullscreen",
+					"tablet-panel-minimized",
 				);
 				if (originalStyle === null) panel.removeAttribute("style");
 				else panel.setAttribute("style", originalStyle);

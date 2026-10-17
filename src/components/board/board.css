@@ -1322,7 +1322,7 @@ html[data-window-type^="board-"] #root {
 	padding: 3px 5px;
 }
 .board-tablet .tablet-panel-handle button {
-	min-height: 32px;
+	min-height: 40px;
 	padding: 4px 8px;
 	border: 0;
 	border-radius: 4px;
@@ -1336,9 +1336,25 @@ html[data-window-type^="board-"] #root {
 	cursor: grab;
 	touch-action: none;
 }
-.board-tablet .tablet-panel-handle button:last-child {
-	min-width: 34px;
+.board-tablet .tablet-panel-handle :is(.tablet-panel-collapse, .tablet-panel-minimize) {
+	min-width: 40px;
+	flex: 0 0 40px;
 	font-size: 18px;
+}
+.board-tablet .tablet-panel-minimize span {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	border: 1px solid #c99b18;
+	background: #ffbd2e;
+	color: #17130a;
+	font: 600 18px / 1 system-ui;
+}
+.board-tablet .tablet-panel-minimize:hover span {
+	background: #ffd15c;
 }
 .board-tablet .tablet-panel-collapsed {
 	width: max-content !important;
@@ -1493,7 +1509,7 @@ html[data-window-type^="board-"] #root {
 .board-tablet .tablet-launcher small {
 	font: 10px system-ui;
 }
-.board-tablet .tablet-panel-collapsed[data-tablet-docked="true"] {
+.board-tablet .tablet-panel-minimized {
 	display: none !important;
 }
 .board-tablet :is(.board-tray, .talking-panel).tablet-floating-panel > header {
