@@ -1,3 +1,4 @@
+import { studioIsShownInCapture } from "../../studio/captureVisibility";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { app, BrowserWindow, desktopCapturer, ipcMain } from "electron";
@@ -51,6 +52,7 @@ export function registerSourceHandlers({
 	ipcMain.handle("get-sources", async (_, opts) => {
 		requireScreenRecordingAccess();
 		const cacheKey = JSON.stringify({
+			showAppWindows: studioIsShownInCapture(),
 			types: opts?.types,
 			thumbnailSize: opts?.thumbnailSize,
 			fetchWindowIcons: opts?.fetchWindowIcons,
@@ -148,7 +150,7 @@ export function registerSourceHandlers({
 				.filter((source) => source.id.startsWith("window:"))
 				.filter((source) => {
 					const normalizedName = normalizeDesktopSourceName(source.name);
-					if (!normalizedName) {
+					if (studioIsShownInCapture() || !normalizedName) {
 						return true;
 					}
 
@@ -200,7 +202,7 @@ export function registerSourceHandlers({
 					const normalizedAppName = normalizeDesktopSourceName(source.appName ?? "");
 
 					if (
-						!ALLOW_RECORDLY_WINDOW_CAPTURE &&
+						!ALLOW_RECORDLY_WINDOW_CAPTURE && !studioIsShownInCapture() &&
 						normalizedAppName &&
 						normalizedAppName === ownAppName
 					) {
@@ -215,7 +217,7 @@ export function registerSourceHandlers({
 						return true;
 					}
 
-					if (!normalizedWindowName) {
+					if (studioIsShownInCapture() || !normalizedWindowName) {
 						return true;
 					}
 
@@ -265,7 +267,7 @@ export function registerSourceHandlers({
 				.filter((source) => source.id.startsWith("window:"))
 				.filter((source) => {
 					const normalizedName = normalizeDesktopSourceName(source.name);
-					if (!normalizedName) {
+					if (studioIsShownInCapture() || !normalizedName) {
 						return true;
 					}
 

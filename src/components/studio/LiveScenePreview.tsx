@@ -234,8 +234,8 @@ export function LiveScenePreview({
 					{selected && !info?.recording
 						? "Drag the outlined layer · drag its corner to resize"
 						: info?.settings.showStudioInCapture
-							? "Studio visible in display recordings"
-							: "Screen, drawings & facecam · studio hidden"}
+							? "App windows visible in display recordings"
+							: "Screen, drawings & facecam · app controls hidden"}
 				</span>
 			</div>
 		</div>

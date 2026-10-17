@@ -1,3 +1,4 @@
+import { protectAppWindow } from "./captureVisibility";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow } from "electron";
@@ -32,7 +33,7 @@ export async function openSettingsGuide() {
 		},
 	});
 	guide = window;
-	window.setContentProtection(true);
+	protectAppWindow(window);
 	const base =
 		process.env.VITE_DEV_SERVER_URL ||
 		getPackagedRendererBaseUrl() ||

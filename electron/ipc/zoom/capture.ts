@@ -1,3 +1,4 @@
+import { protectAppWindow } from "../../studio/captureVisibility";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -138,7 +139,7 @@ export async function prepareZoomOutline() {
 	});
 	outline.setIgnoreMouseEvents(true);
 	// macOS uses explicit ScreenCaptureKit exclusion; sharing flags alone are insufficient.
-	if (process.platform === "win32") outline.setContentProtection(true);
+	if (process.platform === "win32") protectAppWindow(outline);
 	outline.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 	outline.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
 	outline.webContents.on("will-navigate", (e) => e.preventDefault());

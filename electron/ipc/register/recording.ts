@@ -1,4 +1,4 @@
-import { studioCaptureWindowId } from "../../studio/captureVisibility";
+import { studioIsShownInCapture } from "../../studio/captureVisibility";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { execFile, spawn } from "node:child_process";
 import fs from "node:fs/promises";
@@ -721,7 +721,7 @@ export function registerRecordingHandlers(
 				const appName = normalizeDesktopSourceName(String(source?.appName ?? ""));
 				const ownAppName = normalizeDesktopSourceName(app.getName());
 				if (
-					!ALLOW_RECORDLY_WINDOW_CAPTURE &&
+					!ALLOW_RECORDLY_WINDOW_CAPTURE && !studioIsShownInCapture() &&
 					source?.id?.startsWith("window:") &&
 					appName &&
 					(appName === ownAppName || appName === "recordly")
@@ -746,7 +746,7 @@ export function registerRecordingHandlers(
 					: null;
 				const config: Record<string, unknown> = {
 					fps: 60,
-					studioWindowId: studioCaptureWindowId(),
+					showAppWindows: studioIsShownInCapture(),
 					zoomOverlayOwnerPID: process.pid,
 					zoomOverlayTitle: ZOOM_OVERLAY_TITLE,
 					presenterWindowTitles: boardCaptureExclusions().titles,

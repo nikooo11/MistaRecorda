@@ -1,3 +1,4 @@
+import { protectAppWindow } from "../../studio/captureVisibility";
 import { showCapturePanel } from "../../panelToggle";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -99,7 +100,7 @@ export function registerRecordingZoomHandlers() {
 				sandbox: true,
 			},
 		});
-		settingsWindow.setContentProtection(true);
+		protectAppWindow(settingsWindow);
 		settingsWindow.on("closed", () => {
 			settingsWindow = null;
 		});

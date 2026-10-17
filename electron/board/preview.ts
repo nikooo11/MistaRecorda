@@ -1,4 +1,4 @@
-import { studioCaptureWindowId } from "../studio/captureVisibility";
+import { studioIsShownInCapture } from "../studio/captureVisibility";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { getNativeArchTag, resolveUnpackedAppPath } from "../ipc/paths/binaries";
 export class CompanionPreview {
@@ -29,7 +29,7 @@ export class CompanionPreview {
 				getNativeArchTag(),
 				"mistarecorda-companion-preview",
 			),
-			[String(displayId), String(process.pid), String(studioCaptureWindowId() ?? 0)],
+			[String(displayId), String(process.pid), studioIsShownInCapture() ? "1" : "0"],
 			{ stdio: ["pipe", "pipe", "pipe"] },
 		);
 		this.process = child;

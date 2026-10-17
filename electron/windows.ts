@@ -1,4 +1,4 @@
-import { studioIsShownInCapture } from "./studio/captureVisibility";
+import { protectAppWindow } from "./studio/captureVisibility";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -196,7 +196,7 @@ export function createHudOverlayWindow(): BrowserWindow {
 		},
 	});
 	hudOverlayWindow = win;
-	if (process.platform !== "linux") win.setContentProtection(!studioIsShownInCapture());
+	protectAppWindow(win);
 	let shown = false;
 	const show = () => {
 		if (!shown && !win.isDestroyed()) {

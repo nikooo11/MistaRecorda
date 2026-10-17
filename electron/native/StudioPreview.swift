@@ -12,7 +12,7 @@ struct PreviewConfig: Decodable {
     let displayId: UInt32?
     let windowId: UInt32?
     let drawingId: UInt32?
-    let studioId: UInt32?
+    let showAppWindows: Bool?
     let board: Bool
     let aspect: Double?
 }
@@ -132,7 +132,7 @@ final class StudioPreview: NSObject, SCStreamOutput, SCStreamDelegate {
         let filter: SCContentFilter
         let surface = content.windows.first { $0.windowID == settings.drawingId && $0.owningApplication?.processID == settings.ownerPID }
         if let id = settings.windowId {
-            guard let window = content.windows.first(where: { $0.windowID == id }), window.owningApplication?.processID != settings.ownerPID else {
+            guard let window = content.windows.first(where: { $0.windowID == id }), (settings.showAppWindows == true || window.owningApplication?.processID != settings.ownerPID) else {
                 throw NSError(domain: "Preview", code: 1)
             }
             sourceFrame = window.frame
@@ -141,7 +141,7 @@ final class StudioPreview: NSObject, SCStreamOutput, SCStreamDelegate {
             guard let display = content.displays.first(where: { $0.displayID == settings.displayId }),
                   let owner = content.applications.first(where: { $0.processID == settings.ownerPID }) else { throw NSError(domain: "Preview", code: 2) }
             sourceFrame = display.frame
-            filter = SCContentFilter(display: display, excludingApplications: [owner], exceptingWindows: content.windows.filter { $0.owningApplication?.processID == settings.ownerPID && ($0.windowID == settings.drawingId || $0.windowID == settings.studioId) })
+            filter = SCContentFilter(display: display, excludingApplications: settings.showAppWindows == true ? [] : [owner], exceptingWindows: settings.showAppWindows == true ? [] : content.windows.filter { $0.owningApplication?.processID == settings.ownerPID && $0.windowID == settings.drawingId })
         }
         let config = configuration(sourceFrame)
         canvas = CGRect(x: 0, y: 0, width: config.width, height: config.height)

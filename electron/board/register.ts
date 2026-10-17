@@ -5,7 +5,7 @@ import {
 	presentationRequestSchema,
 } from "./presentationPDF";
 import { captureDisplayStill } from "../studio/livePreview";
-import { studioCaptureWindowId } from "../studio/captureVisibility";
+import { protectAppWindow, studioIsShownInCapture } from "../studio/captureVisibility";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -287,7 +287,7 @@ function makeWindow(
 		}
 	});
 	win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-	if (type !== "board-surface") win.setContentProtection(true);
+	if (type !== "board-surface") protectAppWindow(win);
 	void loadWindow(win, type).catch((e) => send("error", String(e)));
 	return win;
 }
@@ -1484,7 +1484,7 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 					process.platform === "darwin"
 						? nativeImage
 								.createFromDataURL(
-									await captureDisplayStill(displayId, studioCaptureWindowId()),
+									await captureDisplayStill(displayId, studioIsShownInCapture()),
 								)
 								.toDataURL()
 						: source.thumbnail.toDataURL(),
@@ -1802,7 +1802,7 @@ export function assertBoardCaptureSource(source: { sourceType?: string; display_
 		);
 	if (store?.state.enabled && process.platform === "win32")
 		for (const w of BrowserWindow.getAllWindows())
-			if (w !== surface) w.setContentProtection(true);
+			if (w !== surface) protectAppWindow(w);
 }
 const defaultMemeAssets = () =>
 	path.join(app.getAppPath(), app.isPackaged ? "dist" : "public", "assets/memes/starter-v1");

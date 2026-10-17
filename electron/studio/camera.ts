@@ -1,3 +1,4 @@
+import { protectAppWindow } from "./captureVisibility";
 import { app, BrowserWindow, screen } from "electron";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -99,7 +100,7 @@ export class CaptureCamera {
 				},
 			});
 			this.window = win;
-			win.setContentProtection(true);
+			protectAppWindow(win);
 			win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 			win.on("move", () => {
 				if (win.isDestroyed() || this.getLayout().locked || this.applyingBounds) return;

@@ -375,7 +375,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 				</div>
 				<label
 					className="studio-capture-visibility"
-					data-help="Off by default: hides this control window from MistaRecorda display recordings and screen stills. Turn on to demonstrate the app. Other apps using macOS ScreenCaptureKit may ignore screenshot protection. This does not add the studio over a different captured application window."
+					data-help="Show all MistaRecorda windows, including Settings, presenter tools and the editor, in display recordings and screenshots. Applies to windows you open later too. Off by default to hide app controls. This does not overlay them onto a recording of another single window. Other capture apps may ignore macOS screenshot protection."
 				>
 					<input
 						type="checkbox"
@@ -383,7 +383,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 						disabled={busy}
 						onChange={(e) => void run("showStudioInCapture", e.target.checked)}
 					/>{" "}
-					Show window in recording
+					Show app windows in recordings & screenshots
 				</label>
 				{info?.urlPresentation && (
 					<div className="studio-url-presentation" role="status">

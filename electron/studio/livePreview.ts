@@ -5,17 +5,17 @@ export interface PreviewTarget {
 	displayId?: number;
 	windowId?: number;
 	drawingId?: number;
-	studioId?: number;
+	showAppWindows?: boolean;
 	board: boolean;
 	aspect?: number;
 }
 
 /** Use the same explicit app exclusion for stills, even without an iPad connected. */
-export async function captureDisplayStill(displayId: number, studioId?: number) {
+export async function captureDisplayStill(displayId: number, showAppWindows?: boolean) {
 	const capture = new StudioLivePreview();
 	try {
 		for (let i = 0; i < 60; i++) {
-			const result = capture.read({ displayId, studioId, board: false });
+			const result = capture.read({ displayId, showAppWindows, board: false });
 			if (result.dataURL) return result.dataURL;
 			if (result.error) throw Error(result.error);
 			await new Promise((resolve) => setTimeout(resolve, 100));

@@ -114,3 +114,24 @@ and that facecam remains OFF. No installation on the user's Mac was attempted in
   unverified. The synthetic recording was saved as “QA private PDF automation check”.
 - The follow-up package encountered another Keychain wait at startup. User approval
   is needed to finish testing the final import correction in the installed app.
+
+## App-wide capture visibility
+
+- User approved Keychain; app startup completed with both API connections verified
+  and facecam off. User then requested that capture visibility apply to every app
+  window, superseding the final paired-image check for this pass.
+- “Show app windows in recordings & screenshots” retains the existing saved setting
+  and defaults off. It updates protection for all existing and newly created windows,
+  including Settings, presenter tools, editor, zoom settings and tutorial windows.
+  The clean drawing output remains recordable when controls are hidden.
+- Mac display recording, live preview, companion preview and screen stills now use
+  app-wide inclusion instead of a single studio-window ID. Windows opened later are
+  automatically included while enabled; toggling during recording updates the filter.
+  Recording startup preserves open app windows when enabled. App windows can also be
+  chosen as window sources while opted in. A single-window recording still captures
+  that selected window, not unrelated windows elsewhere on the display.
+- Added protection regression tests for existing windows, subsequently opened windows,
+  toggling off, and preserving clean drawing output. All 1,442 tests, typecheck and lint
+  (44 pre-existing warnings) pass. All updated Swift helpers compile for arm64/x64.
+- Physical screenshot/recording visibility and Apple Pencil interactions remain to
+  be checked; the earlier automation-screen recording was inconclusive.

@@ -1,7 +1,7 @@
 import { BrowserPresentation } from "./browserPresentation";
 import { migrateWindowShortcuts } from "./sceneMigration";
 import { withStarterScene } from "./starterScene";
-import { setStudioCaptureVisibility, studioCaptureWindowId } from "./captureVisibility";
+import { protectAppWindow, setStudioCaptureVisibility, studioIsShownInCapture } from "./captureVisibility";
 import { launchScene } from "./launchScene";
 import { importSceneMedia, sceneMediaPath, SceneMediaTake } from "./sceneMedia";
 import { StudioLivePreview } from "./livePreview";
@@ -960,7 +960,7 @@ export async function prepareStudioCapture(keepRecorder = false) {
 		});
 		glow.setIgnoreMouseEvents(true);
 		glow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-		if (process.platform === "win32") glow.setContentProtection(true);
+		if (process.platform === "win32") protectAppWindow(glow);
 		await glow.loadURL(
 			`data:text/html,${encodeURIComponent("<style>html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden}div{position:absolute;inset:4px;border:1px solid #9ce4ce88;border-radius:12px;box-shadow:0 0 4px 2px #70d1b033,inset 0 0 4px #70d1b022}</style><div></div>")}`,
 		);
@@ -970,6 +970,7 @@ export async function prepareStudioCapture(keepRecorder = false) {
 			"windowType",
 		);
 		if (
+			!studioIsShownInCapture() &&
 			w !== glow &&
 			w !== camera.window &&
 			!isDrawingSurfaceWindow(w) &&
@@ -978,7 +979,7 @@ export async function prepareStudioCapture(keepRecorder = false) {
 		)
 			w.hide();
 		if (process.platform === "win32" && !isDrawingSurfaceWindow(w))
-			w.setContentProtection(true);
+			protectAppWindow(w);
 	}
 }
 async function openPanel() {
@@ -1004,7 +1005,7 @@ async function openPanel() {
 			nodeIntegration: false,
 		},
 	});
-	panel.setContentProtection(true);
+	protectAppWindow(panel);
 	const base =
 		process.env.VITE_DEV_SERVER_URL ||
 		getPackagedRendererBaseUrl() ||
@@ -1021,8 +1022,7 @@ const defaultSoundAssets = () =>
 export function registerStudio() {
 	let settingsReadable = true;
 	app.on("browser-window-created", (_, window) => {
-		if (process.platform === "win32" && window.getTitle() !== "MistaRecorda Drawing Surface")
-			window.setContentProtection(true);
+		protectAppWindow(window, window.getTitle() !== "MistaRecorda Drawing Surface");
 	});
 	const ready = (async () => {
 		try {
@@ -1096,7 +1096,7 @@ export function registerStudio() {
 							),
 						}),
 				drawingId: drawing.cleanSurfaceWindowId,
-				studioId: studioCaptureWindowId(),
+				showAppWindows: studioIsShownInCapture(),
 				board: drawing.drawingMode === "board",
 				aspect: getCaptureCanvasAspect() ?? undefined,
 			});
@@ -1189,7 +1189,7 @@ export function registerStudio() {
 			settings = { ...settings, showStudioInCapture: show };
 			setStudioCaptureVisibility(show);
 			refreshCompanionCapture();
-			nativeCaptureProcess?.stdin?.write(`show-studio ${studioCaptureWindowId() ?? 0}\n`);
+			nativeCaptureProcess?.stdin?.write(`show-app-windows ${studioIsShownInCapture() ? 1 : 0}\n`);
 			await save();
 			return info();
 		}

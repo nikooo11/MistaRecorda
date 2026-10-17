@@ -1,3 +1,4 @@
+import { protectAppWindow } from "./captureVisibility";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -58,7 +59,7 @@ async function prepare() {
 			backgroundThrottling: false,
 		},
 	});
-	engine.setContentProtection(true);
+	protectAppWindow(engine);
 	engine.on("closed", reset);
 	engine.webContents.on("render-process-gone", reset);
 	ready = new Promise<void>((resolve, reject) => {

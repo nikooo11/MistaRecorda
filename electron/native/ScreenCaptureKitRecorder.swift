@@ -21,7 +21,7 @@ struct CaptureConfig: Codable {
 	let cleanSurfaceTitle: String?
  let cleanSurfaceWindowId: UInt32?
  let drawingMode: String?
- let studioWindowId: UInt32?
+ let showAppWindows: Bool?
 }
 
 let targetCaptureFPS = 60
@@ -56,7 +56,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	private var trackedWindowId: UInt32?
  private var captureSettings: CaptureConfig?
  private var currentDisplayId: UInt32?
- private var visibleStudioId: UInt32?
+ private var showAppWindows = false
  private var currentDrawingId: UInt32?
 	private var windowValidationTask: Task<Void, Never>?
 	private var inlineAudioInput: AVAssetWriterInput?
@@ -232,7 +232,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
 		let config = try JSONDecoder().decode(CaptureConfig.self, from: data)
         captureSettings = config
-        visibleStudioId = config.studioWindowId
+        showAppWindows = config.showAppWindows ?? false
         currentDrawingId = config.cleanSurfaceWindowId
         currentDisplayId = config.windowId == nil ? (config.displayId ?? CGMainDisplayID()) : nil
 		// Include the pre-created, hidden target outline so it can be excluded before any frame is captured.
@@ -326,9 +326,8 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                     }
                     included = [cleanSurface]
                 }
-                if let studioID = visibleStudioId, let studio = availableContent.windows.first(where: { $0.windowID == studioID && $0.owningApplication?.processID == ownerPID }) { included.append(studio) }
-                // Exclude controls except the explicitly opted-in studio window.
-                filter = SCContentFilter(display: display, excludingApplications: [owner], exceptingWindows: included)
+                // An empty app exclusion also includes app windows opened after capture starts.
+                filter = SCContentFilter(display: display, excludingApplications: showAppWindows ? [] : [owner], exceptingWindows: showAppWindows ? [] : included)
             } else {
                 throw NSError(domain: "RecordlyCapture", code: 10, userInfo: [NSLocalizedDescriptionKey: "Could not exclude recorder controls. Reopen MistaRecorda and try again."])
             }
@@ -524,8 +523,8 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
         guard let display = content.displays.first(where: { $0.displayID == displayID }),
               let owner = content.applications.first(where: { $0.processID == settings.zoomOverlayOwnerPID }) else { throw NSError(domain: "Capture", code: 2) }
-        let included = content.windows.filter { $0.owningApplication?.processID == owner.processID && ($0.windowID == currentDrawingId || $0.windowID == visibleStudioId) }
-        try await stream.updateContentFilter(SCContentFilter(display: display, excludingApplications: [owner], exceptingWindows: included))
+        let included = content.windows.filter { $0.owningApplication?.processID == owner.processID && $0.windowID == currentDrawingId }
+        try await stream.updateContentFilter(SCContentFilter(display: display, excludingApplications: showAppWindows ? [] : [owner], exceptingWindows: showAppWindows ? [] : included))
         trackedWindowId = nil
         currentDisplayId = displayID
         startWindowValidationIfNeeded()
@@ -533,8 +532,8 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         queue.sync { drawingStream = nil; drawingImage = nil; windowImage = nil; windowFrame = display.frame }
         print("DISPLAY_SWITCHED \(displayID)"); fflush(stdout)
     }
-    func showStudio(_ id: UInt32) async throws {
-        visibleStudioId = id == 0 ? nil : id
+    func setAppWindowsVisible(_ visible: Bool) async throws {
+        showAppWindows = visible
         if let display = currentDisplayId { try await switchDisplay(display) }
     }
 
@@ -976,8 +975,8 @@ final class RecorderService {
             catch { print("SOURCE_SWITCH_FAILED \(id)"); fflush(stdout) }
         } }
     }
-    func showStudio(_ id: UInt32) {
-        queue.async { Task { try? await self.recorder.showStudio(id) } }
+    func setAppWindowsVisible(_ visible: Bool) {
+        queue.async { Task { try? await self.recorder.setAppWindowsVisible(visible) } }
     }
 
 	func waitUntilFinished() {
@@ -1050,7 +1049,7 @@ DispatchQueue.global(qos: .utility).async {
 			continue
 		}
         if input.hasPrefix("switch-display "), let id = UInt32(input.dropFirst(15)) { service.switchDisplay(id); continue }
-        if input.hasPrefix("show-studio "), let id = UInt32(input.dropFirst(12)) { service.showStudio(id); continue }
+        if input.hasPrefix("show-app-windows ") { service.setAppWindowsVisible(input == "show-app-windows 1"); continue }
 
 		if input.hasPrefix("switch-window "), let id = UInt32(input.dropFirst(14)) {
 			service.switchWindow(id)
