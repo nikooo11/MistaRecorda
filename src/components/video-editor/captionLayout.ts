@@ -126,7 +126,7 @@ function splitCaptionWords(cue: CaptionCue) {
 
 function getActiveCaptionCue(cues: CaptionCue[], timeMs: number) {
 	for (const cue of cues) {
-		if (timeMs >= cue.startMs && timeMs <= cue.endMs) {
+		if (timeMs >= cue.startMs && timeMs < cue.endMs) {
 			return cue;
 		}
 	}
@@ -145,7 +145,7 @@ function isWithinCaptionCoverage(cues: CaptionCue[], timeMs: number) {
 		const bridgesGap =
 			next !== undefined && next.startMs - cue.endMs < CAPTION_BLOCK_GAP_BREAK_MS;
 		const effectiveEndMs = bridgesGap ? Math.max(cue.endMs, next.startMs) : cue.endMs;
-		if (timeMs <= effectiveEndMs) {
+		if (timeMs < effectiveEndMs) {
 			return true;
 		}
 	}
@@ -258,6 +258,7 @@ function buildCaptionPages(options: {
 	words: CaptionWordLayout[];
 	maxRows: number;
 	hasWordTimings: boolean;
+	holdBetweenWords: boolean;
 	cue: CaptionCue;
 }) {
 	const pages: CaptionPageLayout[] = [];
@@ -317,14 +318,15 @@ function buildCaptionPages(options: {
 	}
 
 	for (let index = 0; index < pages.length - 1; index += 1) {
-		pages[index].endMs = Math.max(pages[index].startMs + 1, pages[index + 1].startMs);
-	}
-
-	if (pages.length > 0) {
-		pages[pages.length - 1].endMs = Math.max(
-			pages[pages.length - 1].startMs + 1,
-			options.cue.endMs,
-		);
+		const page = pages[index];
+		const nextStart = pages[index + 1].startMs;
+		// Keep phrase context steady over tiny pauses, but never highlight silence
+		// or hold a single-word caption after its spoken interval.
+		if (options.holdBetweenWords && nextStart - page.endMs < CAPTION_BLOCK_GAP_BREAK_MS) {
+			page.endMs = nextStart;
+		} else {
+			page.endMs = Math.min(page.endMs, nextStart);
+		}
 	}
 
 	return pages;
@@ -415,7 +417,7 @@ function buildCaptionLines(options: {
 
 function getVisibleCaptionPageIndex(pages: CaptionPageLayout[], timeMs: number) {
 	for (let index = 0; index < pages.length; index += 1) {
-		if (timeMs >= pages[index].startMs && timeMs <= pages[index].endMs) {
+		if (timeMs >= pages[index].startMs && timeMs < pages[index].endMs) {
 			return index;
 		}
 	}
@@ -451,16 +453,18 @@ export function buildActiveCaptionLayout(options: {
 		return null;
 	}
 
+	// Half-open intervals switch on the exact next onset. During a pause no
+	// word is active; retaining the previous highlight falsely implies speech.
 	let activeWordIndex = -1;
-	activeWordIndex = sourceWords.findIndex(
-		(word) => options.timeMs >= word.startMs && options.timeMs < word.endMs,
-	);
-	if (activeWordIndex < 0) {
-		activeWordIndex = sourceWords.findIndex((word) => options.timeMs < word.startMs);
-		activeWordIndex =
-			activeWordIndex < 0
-				? sourceWords.length - 1
-				: clamp(activeWordIndex - 1, 0, sourceWords.length - 1);
+	for (let index = 0; index < sourceWords.length; index += 1) {
+		const word = sourceWords[index];
+		if (
+			options.timeMs >= word.startMs &&
+			options.timeMs < word.endMs &&
+			(activeWordIndex < 0 || word.startMs >= sourceWords[activeWordIndex].startMs)
+		) {
+			activeWordIndex = index;
+		}
 	}
 	const wordLimit = captionWordLimit(options.settings);
 	const maxRows = wordLimit ? 1 : clamp(Math.round(options.settings.maxRows || 1), 1, 4);
@@ -477,10 +481,10 @@ export function buildActiveCaptionLayout(options: {
 			endMs: word.endMs,
 			hasRealTiming: word.hasRealTiming,
 			state:
-				index < activeWordIndex
-					? "spoken"
-					: index === activeWordIndex
-						? "active"
+				index === activeWordIndex
+					? "active"
+					: options.timeMs >= word.endMs
+						? "spoken"
 						: "upcoming",
 		};
 	});
@@ -497,6 +501,7 @@ export function buildActiveCaptionLayout(options: {
 		words,
 		maxRows,
 		hasWordTimings: true,
+		holdBetweenWords: wordLimit !== 1,
 		cue: {
 			id: sourceWords[0].cueId,
 			startMs: sourceWords[0].startMs,
@@ -527,15 +532,8 @@ export function buildActiveCaptionLayout(options: {
 		getActiveCaptionCue(options.cues, options.timeMs) ??
 		options.cues.find((candidate) => candidate.id === pageCueId) ??
 		options.cues[0];
-	// `animationEndMs` is stretched to the next page's start (see buildCaptionPages)
-	// so consecutive pages stay on screen with no gap. That's right for continuous
-	// speech, but pages are built from every cue flattened together — so when a
-	// caption component (cue) is the last before a pause, its stitched end points
-	// across the silence into the next cue. exitProgress would then stay pinned at
-	// 1 and the caption would vanish with no fade. Anchor the exit to the real end
-	// of the visible words instead, and only when nothing follows within the
-	// gap-break window (otherwise keep the stitched end so continuous page swaps
-	// don't flicker).
+	// Phrase pages may hold across a short gap. Anchor their final fade to
+	// the spoken end when coverage stops, rather than fading across silence.
 	const visibleContentEndMs = visibleWords.reduce(
 		(latest, word) => Math.max(latest, word.endMs),
 		animationStartMs,
@@ -544,8 +542,13 @@ export function buildActiveCaptionLayout(options: {
 		options.settings.animationStyle !== "none" &&
 		!isWithinCaptionCoverage(options.cues, visibleContentEndMs + 1);
 	const exitAnchorMs = willDisappear ? visibleContentEndMs : animationEndMs;
-	const enterProgress = clamp01((options.timeMs - animationStartMs) / CAPTION_ENTER_MS);
-	const exitProgress = clamp01((exitAnchorMs - options.timeMs) / CAPTION_EXIT_MS);
+	const animationDuration = Math.min(CAPTION_ENTER_MS, (animationEndMs - animationStartMs) / 4);
+	const enterProgress = clamp01(
+		(options.timeMs - animationStartMs) / Math.max(1, animationDuration),
+	);
+	const exitProgress = clamp01(
+		(exitAnchorMs - options.timeMs) / Math.max(1, Math.min(CAPTION_EXIT_MS, animationDuration)),
+	);
 	const animation = getCaptionAnimationState(
 		options.settings.animationStyle,
 		enterProgress,

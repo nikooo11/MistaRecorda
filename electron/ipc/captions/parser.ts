@@ -31,7 +31,8 @@ export function parseWhisperJsonWords(tokens: unknown): CaptionWordPayload[] {
 
 		const tokenData = token as WhisperJsonToken;
 		const tokenText = typeof tokenData.text === "string" ? tokenData.text : "";
-		if (!tokenText) {
+		// Whisper emits zero-length control/timestamp tokens alongside speech.
+		if (!tokenText || /^\[_[^\]]+\]$/.test(tokenText)) {
 			continue;
 		}
 
@@ -49,7 +50,7 @@ export function parseWhisperJsonWords(tokens: unknown): CaptionWordPayload[] {
 				continue;
 			}
 
-			if (tokenStartMs == null || tokenEndMs == null || tokenEndMs <= tokenStartMs) {
+			if (tokenStartMs == null || tokenEndMs == null || tokenEndMs < tokenStartMs) {
 				return [];
 			}
 
@@ -63,14 +64,36 @@ export function parseWhisperJsonWords(tokens: unknown): CaptionWordPayload[] {
 				});
 			} else {
 				previousWord.text += part;
-				previousWord.endMs = Math.max(previousWord.endMs, tokenEndMs);
+				// Punctuation is not pronounced; its synthetic span must not extend
+				// the highlight through the pause after a word.
+				if (/[\p{L}\p{N}]/u.test(part)) {
+					previousWord.endMs = Math.max(previousWord.endMs, tokenEndMs);
+				}
 			}
 
 			nextLeadingSpace = false;
 		}
 	}
 
-	return words.filter((word) => word.text.trim().length > 0);
+	// A few spoken tokens have a point timestamp. Repair only that word,
+	// bounded by the next onset, rather than discarding every measured word.
+	for (let index = 0; index < words.length; index += 1) {
+		const word = words[index];
+		const next = words[index + 1];
+		if (word.endMs === word.startMs) {
+			word.endMs = Math.min(word.startMs + 80, next?.startMs ?? Infinity);
+		}
+		if (next && next.startMs > word.startMs) {
+			word.endMs = Math.min(word.endMs, next.startMs);
+		}
+		// Coincident point tokens are subwords of the same spoken unit.
+		if (word.endMs <= word.startMs && next?.startMs === word.startMs) {
+			next.text = word.text + (next.leadingSpace ? " " : "") + next.text;
+			next.leadingSpace = word.leadingSpace;
+			words.splice(index--, 1);
+		}
+	}
+	return words.filter((word) => word.text.trim().length > 0 && word.endMs > word.startMs);
 }
 
 export function parseWhisperJsonCues(content: string): CaptionCuePayload[] {

@@ -32,6 +32,7 @@ import {
 import { type CaptionEditTarget, normalizeCaptionEditText } from "./captionEditing";
 import { buildActiveCaptionLayout } from "./captionLayout";
 import {
+	getCaptionBackground,
 	CAPTION_FONT_WEIGHT,
 	CAPTION_LINE_HEIGHT,
 	getCaptionPadding,
@@ -3225,7 +3226,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 											}
 										}}
 										style={{
-											backgroundColor: `rgba(0, 0, 0, ${autoCaptionSettings.backgroundOpacity})`,
+											backgroundColor: getCaptionBackground(autoCaptionSettings),
 											fontFamily: getDefaultCaptionFontFamily(),
 											fontSize: `${getCaptionScaledFontSize(
 												autoCaptionSettings.fontSize,

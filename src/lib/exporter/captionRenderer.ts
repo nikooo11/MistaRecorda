@@ -1,5 +1,6 @@
 import { buildActiveCaptionLayout } from "@/components/video-editor/captionLayout";
 import {
+	getCaptionBackground,
 	CAPTION_FONT_WEIGHT,
 	CAPTION_LINE_HEIGHT,
 	getCaptionPadding,
@@ -65,7 +66,7 @@ export function renderCaptions(
 	ctx.scale(activeCaptionLayout.scale, activeCaptionLayout.scale);
 	ctx.globalAlpha = activeCaptionLayout.opacity;
 
-	ctx.fillStyle = `rgba(0, 0, 0, ${settings.backgroundOpacity})`;
+	ctx.fillStyle = getCaptionBackground(settings);
 	drawSquircleOnCanvas(ctx, {
 		x: -boxWidth / 2,
 		y: -boxHeight / 2,

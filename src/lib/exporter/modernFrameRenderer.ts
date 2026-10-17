@@ -5,6 +5,7 @@ import { MotionBlurFilter } from "pixi-filters/motion-blur";
 import { ZoomBlurFilter } from "pixi-filters/zoom-blur";
 import { buildActiveCaptionLayout } from "@/components/video-editor/captionLayout";
 import {
+	getCaptionBackground,
 	CAPTION_FONT_WEIGHT,
 	CAPTION_LINE_HEIGHT,
 	getCaptionPadding,
@@ -1773,7 +1774,7 @@ export class FrameRenderer {
 
 		ctx.clearRect(0, 0, this.captionCanvas.width, this.captionCanvas.height);
 		ctx.font = `${CAPTION_FONT_WEIGHT} ${state.fontSize}px ${state.fontFamily}`;
-		ctx.fillStyle = `rgba(0, 0, 0, ${settings.backgroundOpacity})`;
+		ctx.fillStyle = getCaptionBackground(settings);
 		drawSquircleOnCanvas(ctx, {
 			x: 0,
 			y: 0,

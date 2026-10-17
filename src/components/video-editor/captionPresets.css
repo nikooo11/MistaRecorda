@@ -68,3 +68,8 @@
 	height: 24px;
 	background: transparent;
 }
+.caption-style-example.example-highlight {
+	background: #fff;
+	color: #111;
+	font-weight: 400;
+}

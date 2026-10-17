@@ -564,6 +564,7 @@ export interface AutoCaptionSettings {
 	preset?: "highlight" | "short" | "single" | "classic";
 	wordsPerPage?: number;
 	highlightColor?: string;
+	backgroundColor?: string;
 	enabled: boolean;
 	/** Show the hover ghost on the timeline caption track for click-to-add. */
 	timelineQuickAdd: boolean;

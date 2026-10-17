@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { buildActiveCaptionLayout } from "./captionLayout";
 import { captionPresetSettings } from "./captionPresets";
-import { getCaptionWordVisualState } from "./captionStyle";
+import { getCaptionBackground, getCaptionWordVisualState } from "./captionStyle";
 import { updateCaptionCuesForEditedTarget } from "./captionEditing";
 import { normalizeProjectEditor } from "./projectPersistence";
 import { DEFAULT_AUTO_CAPTION_SETTINGS, type CaptionCue } from "./types";
@@ -59,4 +59,13 @@ test("short caption corrections preserve surrounding words and survive reopening
 	expect(normalized.autoCaptionSettings.preset).toBe("highlight");
 	expect(normalized.autoCaptionSettings.wordsPerPage).toBe(3);
 	expect(normalized.autoCaptionSettings.highlightColor).toBe("#68E0CF");
+});
+
+test("reference-style colors survive saving and share the same export background", () => {
+	const settings = { ...DEFAULT_AUTO_CAPTION_SETTINGS, ...captionPresetSettings("highlight") };
+	const normalized = normalizeProjectEditor({ autoCaptionSettings: settings });
+	expect(normalized.autoCaptionSettings.backgroundColor).toBe("#FFFFFF");
+	expect(normalized.autoCaptionSettings.textColor).toBe("#111111");
+	expect(getCaptionBackground(normalized.autoCaptionSettings)).toBe("rgba(255, 255, 255, 0.96)");
+	expect(getCaptionBackground(DEFAULT_AUTO_CAPTION_SETTINGS)).toBe("rgba(0, 0, 0, 0.9)");
 });

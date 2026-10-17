@@ -2723,8 +2723,10 @@ export function SettingsPanel({
 						: "Speech engine ready · audio is processed locally."}
 				</p>
 				<p className="text-xs text-muted-foreground">
-					Pause and click a caption in the preview to correct it. Word timing is estimated
-					when precise timestamps are unavailable.
+					Highlight follows each spoken word and clears during pauses. Regenerate older
+					captions to update their timing. Pause and click a caption to correct its text.
+					Speech timing is model-estimated; recordings without word timestamps use
+					approximate timing.
 				</p>
 				{whisperModelDownloadStatus === "downloading" && (
 					<progress
@@ -2833,6 +2835,17 @@ export function SettingsPanel({
 						value={autoCaptionSettings.textColor}
 						onChange={(event) =>
 							updateAutoCaptionSettings({ textColor: event.target.value })
+						}
+						className="h-7 w-10 rounded border border-foreground/10 bg-transparent"
+					/>
+				</label>
+				<label className="flex items-center justify-between rounded-lg bg-foreground/[0.03] px-2.5 py-2">
+					<span className="text-[10px] text-muted-foreground">Caption background</span>
+					<input
+						type="color"
+						value={autoCaptionSettings.backgroundColor ?? "#000000"}
+						onChange={(event) =>
+							updateAutoCaptionSettings({ backgroundColor: event.target.value })
 						}
 						className="h-7 w-10 rounded border border-foreground/10 bg-transparent"
 					/>

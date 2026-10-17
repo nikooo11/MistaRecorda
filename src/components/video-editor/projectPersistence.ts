@@ -758,6 +758,10 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 			? (editor.autoCaptionSettings as Partial<AutoCaptionSettings>)
 			: {};
 	const normalizedAutoCaptionSettings: AutoCaptionSettings = {
+		...(typeof rawAutoCaptionSettings.backgroundColor === "string" &&
+		/^#[0-9a-f]{6}$/i.test(rawAutoCaptionSettings.backgroundColor)
+			? { backgroundColor: rawAutoCaptionSettings.backgroundColor }
+			: {}),
 		...(rawAutoCaptionSettings.preset &&
 		["highlight", "short", "single", "classic"].includes(rawAutoCaptionSettings.preset)
 			? { preset: rawAutoCaptionSettings.preset }

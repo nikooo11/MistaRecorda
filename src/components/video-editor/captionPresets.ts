@@ -36,12 +36,13 @@ export function captionPresetSettings(preset: CaptionPreset): Partial<AutoCaptio
 		preset,
 		wordsPerPage: preset === "single" ? 1 : 3,
 		maxRows: preset === "classic" ? 2 : 1,
-		animationStyle: preset === "single" ? "pop" : "none",
+		animationStyle: "none",
 		fontSize: preset === "classic" ? 30 : 44,
-		textColor: "#FFFFFF",
+		textColor: preset === "highlight" ? "#111111" : "#FFFFFF",
+		backgroundColor: preset === "highlight" ? "#FFFFFF" : "#000000",
 		highlightColor: "#68E0CF",
-		backgroundOpacity: 0.85,
-		boxRadius: 6,
+		backgroundOpacity: preset === "highlight" ? 0.96 : 0.85,
+		boxRadius: preset === "highlight" ? 2 : 6,
 	};
 }
 export function captionWordLimit(settings: AutoCaptionSettings): number | undefined {
