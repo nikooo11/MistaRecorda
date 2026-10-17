@@ -2,6 +2,8 @@
 
 ## Presentation workflow roadmap (October 17, 2026)
 
+See [delivery, files, test evidence and remaining device checks](docs/presenter-workflow-validation.md).
+
 | Item | Status |
 |---|---|
 | 1. Talking points with attached references | Built — device/capture playtest pending |
