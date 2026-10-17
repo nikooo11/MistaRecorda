@@ -143,14 +143,16 @@ export function FigureAssistant({
 							<button
 								disabled={busy}
 								onClick={() =>
-									void run("aiImportGenerated").then(
+									void run("aiSaveGenerated").then(
 										(v) =>
 											v &&
-											setError("Added to whiteboard and standby images."),
+											setError(
+												"Saved privately in Standby images and Notes → Objects. Place it when ready.",
+											),
 									)
 								}
 							>
-								Add to whiteboard
+								Save to standby images
 							</button>
 						</div>
 					)}
@@ -188,47 +190,69 @@ export function FigureAssistant({
 								<div className="figure-actions">
 									<button
 										disabled={busy}
+										title="Save this webpage or video link and a source note privately in Notes → Objects. Nothing is shown in the recording."
+										onClick={() =>
+											void run("aiSaveSource", result.id).then(
+												(v) =>
+													v &&
+													setError(
+														"Saved source and context in Notes → Objects. Use @ to attach them to a talking point.",
+													),
+											)
+										}
+									>
+										Save source
+									</button>
+									<button
+										disabled={busy}
 										onClick={() => void run("aiOpen", result.id)}
 									>
 										Chrome link ↗
 									</button>
-									{onCreateChart && (result.kind === "chart" || result.kind === "figure") && (
-										<button
-											disabled={busy}
-											title="Turn this source into an editable, sourced chart. You review every value before it can be shown."
-											onClick={() =>
-												void (async () => {
-													if (result.imageUrl) {
-														const source = await run("aiChartSource", result.id);
-														if (source) onCreateChart(source as ChartImport);
-													} else {
-														// No verified image: open the source and guide a screen capture instead.
-														await run("aiOpen", result.id);
-														onCreateChart(undefined);
-														setError(
-															"Opened the source in Chrome. Scroll to the chart, then in AI Chart choose Capture Mac screen and crop it.",
-														);
-													}
-												})()
-											}
-										>
-											Create editable chart
-										</button>
-									)}
+									{onCreateChart &&
+										(result.kind === "chart" || result.kind === "figure") && (
+											<button
+												disabled={busy}
+												title="Turn this source into an editable, sourced chart. You review every value before it can be shown."
+												onClick={() =>
+													void (async () => {
+														if (result.imageUrl) {
+															const source = await run(
+																"aiChartSource",
+																result.id,
+															);
+															if (source)
+																onCreateChart(
+																	source as ChartImport,
+																);
+														} else {
+															// No verified image: open the source and guide a screen capture instead.
+															await run("aiOpen", result.id);
+															onCreateChart(undefined);
+															setError(
+																"Opened the source in Chrome. Scroll to the chart, then in AI Chart choose Capture Mac screen and crop it.",
+															);
+														}
+													})()
+												}
+											>
+												Create editable chart
+											</button>
+										)}
 									{result.imageUrl && (
 										<button
 											disabled={busy}
 											onClick={() =>
-												void run("aiImport", result.id).then(
+												void run("aiSaveImage", result.id).then(
 													(v) =>
 														v &&
 														setError(
-															"Added to whiteboard and standby images.",
+															"Saved privately in Standby images and Notes → Objects. Place it when ready.",
 														),
 												)
 											}
 										>
-											Add to board
+											Save image
 										</button>
 									)}
 									{result.prompt && (

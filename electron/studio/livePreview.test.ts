@@ -81,3 +81,19 @@ test("camera frames expire and capture failures back off without keeping a stale
 	expect(host.children).toHaveLength(2);
 	preview.stop();
 });
+
+test("discards cached private-window frames and rebuilds native exclusions when a new panel opens", async () => {
+	const { invalidatePrivateCapture } = await import("./privateCapture");
+	const preview = new StudioLivePreview();
+	preview.read({ displayId: 1, board: false, showAppWindows: true });
+	const child = host.children[0];
+	child.stdout.emit("data", packet("prior frame"));
+	expect(preview.read({ displayId: 1, board: false, showAppWindows: true }).dataURL).toContain(
+		"data:image",
+	);
+	invalidatePrivateCapture();
+	expect(preview.read({ displayId: 1, board: false, showAppWindows: true }).dataURL).toBe("");
+	expect(child.kill).toHaveBeenCalled();
+	expect(host.children.length).toBe(2);
+	preview.stop();
+});

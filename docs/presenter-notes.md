@@ -138,3 +138,11 @@ The Mac's private board editor (including notes, PDF reader and draft previews) 
 Manual checks: edit on Mac and read on iPad; check/reorder a referenced line and reconnect; stage a sound without hearing it, then deploy; attach and deploy one PDF page; toggle app-window visibility during display capture while notes are open. Physical-device and installed-app verification for this revision is pending.
 
 Validation: 1,453 Vitest tests passed; TypeScript passed; all native helpers built for arm64 and x64. Isolated browser playtest verified silent first-tap sound staging, second-tap deployment, covered state and reordering. This does not replace installed-app capture/privacy and physical-iPad checks.
+
+## Save AI mic suggestions for later
+
+In AI figures, **Save source** stores the suggested webpage/video link and a short, sourced context note in **Notes → Objects**. Use `@` to attach either to a talking point. **Save image** and **Save to standby images** keep an image privately in the shared library, ready for the usual position/size/deploy workflow. Saving does not open Chrome, play audio, or add anything to the recorded canvas. The Mac and iPad receive the updated library.
+
+For a graph or statistic, **Create editable chart** opens the existing chart review workflow; check every value and source before saving/deploying. Video suggestions remain links to the original page; saving a source does not download a web video. AI source notes explicitly ask the presenter to check the source. Existing microphone searches remain opt-in and bounded; saving an already returned source adds no AI-generation request.
+
+Browser fixture validation: Save source and Save image invoked only their private save actions and displayed the standby confirmation. Unit tests cover source/context persistence, duplicate URL reuse and rejection of local/private URLs. Opening private presenter controls now invalidates stale live-preview frames and waits for the recording filter acknowledgment. Unsaved talking-point edits also prompt before page navigation, including leaving for Remote.

@@ -1,8 +1,9 @@
+import { privateCaptureRevision } from "./privateCapture";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { getNativeArchTag, resolveUnpackedAppPath } from "../ipc/paths/binaries";
 
 export interface PreviewTarget {
- captureRegion?: {x:number;y:number;width:number;height:number};
+	captureRegion?: { x: number; y: number; width: number; height: number };
 	displayId?: number;
 	windowId?: number;
 	drawingId?: number;
@@ -74,7 +75,11 @@ export class StudioLivePreview {
 	}
 	read(target: PreviewTarget) {
 		this.lastUsed = Date.now();
-		const key = JSON.stringify({ ...target, ownerPID: process.pid });
+		const key = JSON.stringify({
+			...target,
+			ownerPID: process.pid,
+			privateWindowsRevision: privateCaptureRevision(),
+		});
 		if (key !== this.key) {
 			this.stop();
 			this.key = key;

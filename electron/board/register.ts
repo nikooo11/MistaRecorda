@@ -1,7 +1,7 @@
-import { resolveApprovedLocalMediaPath } from '../ipc/project/manager';
-import { onVerticalChanged, verticalLocalFrame } from '../studio/vertical';
-import { isCursorCaptureActive } from '../ipc/state';
-import { presentationMarkers } from '../publishing/markers';
+import { resolveApprovedLocalMediaPath } from "../ipc/project/manager";
+import { onVerticalChanged, verticalLocalFrame } from "../studio/vertical";
+import { isCursorCaptureActive } from "../ipc/state";
+import { presentationMarkers } from "../publishing/markers";
 import { applyPresentationDraft } from "./applyPresentationDraft";
 import {
 	PresentationPDFStore,
@@ -43,6 +43,7 @@ import {
 	saveWhiteboardPage,
 	whiteboardPages,
 } from "../../src/components/board/whiteboards";
+import { saveStandbySource } from "../figures/standby";
 import { FigureService } from "../figures/service";
 import { FigureSettings } from "../figures/settings";
 import { importOpenAIKey } from "../figures/importKey";
@@ -209,7 +210,9 @@ function editorWorkArea() {
 		height: display.workArea.height,
 	};
 }
-onVerticalChanged(()=>{if(store)publish();});
+onVerticalChanged(() => {
+	if (store) publish();
+});
 function tabletInfo() {
 	return { state: store.state, status };
 }
@@ -329,7 +332,12 @@ function makeWindow(
 	return win;
 }
 async function prepare() {
-	if ([panel, surface, editor, hint, stream].every((w) => w && !w.isDestroyed())) return;
+	if ([panel, surface, editor, hint, stream].every((w) => w && !w.isDestroyed())) {
+		// A failed first refresh must not let the next request show private controls.
+		if (nativeCaptureProcess && studioIsShownInCapture())
+			await recorderCommand("show-app-windows 1", "APP_WINDOWS_READY", "APP_WINDOWS_FAILED");
+		return;
+	}
 	// Rebuild a partial window set without touching saved drawing state.
 	if (edgeTimer) clearInterval(edgeTimer);
 	if (memeInputTimer) clearInterval(memeInputTimer);
@@ -521,12 +529,16 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 			return info();
 		case "editorWorkArea":
 			return editorWorkArea();
-		case "downloads": return companion.downloadList(actor);
+		case "downloads":
+			return companion.downloadList(actor);
 		case "shareExport": {
 			if (!actor.startsWith("desktop")) throw Error("Share an export from the Mac editor.");
-			const file=await resolveApprovedLocalMediaPath(z.string().max(4096).parse(input));
-			if(!file||!file.toLowerCase().endsWith(".mp4"))throw Error("Choose a finished MP4 export.");
-			companion.shareExport(file);companion.broadcast("downloadsChanged",true);return true;
+			const file = await resolveApprovedLocalMediaPath(z.string().max(4096).parse(input));
+			if (!file || !file.toLowerCase().endsWith(".mp4"))
+				throw Error("Choose a finished MP4 export.");
+			companion.shareExport(file);
+			companion.broadcast("downloadsChanged", true);
+			return true;
 		}
 		case "tabletInfo":
 			return tabletInfo();
@@ -956,6 +968,38 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 					})
 					.parse(input),
 			);
+		case "aiSaveSource": {
+			const next = await saveStandbySource(
+				figures.result(z.string().max(100).parse(input)),
+				presenter.state,
+				(method, data) => presenter.update(method, data),
+			);
+			send("presenterChanged", next);
+			companion.broadcast("presenterChanged", next);
+			return true;
+		}
+		case "aiSaveImage":
+		case "aiSaveGenerated": {
+			const generated = method === "aiSaveGenerated";
+			const buffer = generated
+				? Buffer.from(figures.state.preview?.dataURL.split(",")[1] ?? "", "base64")
+				: await figures.image(z.string().max(100).parse(input));
+			if (buffer.length > 12 * 1024 * 1024) throw Error("Image exceeds 12 MB.");
+			const image = nativeImage.createFromBuffer(buffer);
+			if (image.isEmpty()) throw Error("No valid image to save.");
+			await action(
+				"importPresenterImage",
+				{
+					name: (generated
+						? "AI-generated illustration"
+						: figures.result(String(input)).title
+					).slice(0, 80),
+					dataURL: image.toDataURL(),
+				},
+				actor,
+			);
+			return true;
+		}
 		case "aiOpen":
 			await presentChromeURL(publicURL(figures.result(z.string().parse(input)).url).href);
 			return true;
@@ -1022,11 +1066,15 @@ async function action(method: string, input: unknown, actor = "desktop"): Promis
 		case "savePresenterLink":
 		case "removePresenterLink":
 		case "saveObjectPreference": {
-			const before = new Set(presenter.state.notes.points?.filter(p => p.covered).map(p => p.id));
+			const before = new Set(
+				presenter.state.notes.points?.filter((p) => p.covered).map((p) => p.id),
+			);
 			const next = await presenter.update(method, input);
-			if (method === "saveTalkingNotes" && isCursorCaptureActive) for (const point of next.notes.points ?? []) {
-				if (point.covered && !before.has(point.id)) presentationMarkers.add("point", point.text, getCursorCaptureElapsedMs());
-			}
+			if (method === "saveTalkingNotes" && isCursorCaptureActive)
+				for (const point of next.notes.points ?? []) {
+					if (point.covered && !before.has(point.id))
+						presentationMarkers.add("point", point.text, getCursorCaptureElapsedMs());
+				}
 			// Notes and object settings never enter the recorded scene or bump its revision.
 			send("presenterChanged", next);
 			companion.broadcast("presenterChanged", next);

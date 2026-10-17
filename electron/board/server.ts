@@ -30,17 +30,26 @@ export class CompanionServer {
 		if (!device?.approved) throw Error("Approve this iPad first.");
 		return `/scene-media/${encodeURIComponent(id)}?token=${encodeURIComponent(device.token)}`;
 	}
-    private downloads=new Map<string,{file:string;expires:number}>();
-    shareExport(file:string){
-        for(const [id,item] of this.downloads)if(item.expires<Date.now())this.downloads.delete(id);
-        const id=randomUUID();this.downloads.set(id,{file,expires:Date.now()+3600000});
-        while(this.downloads.size>10)this.downloads.delete(this.downloads.keys().next().value!);
-        return id;
-    }
-    downloadList(actor:string){
-        const device=this.devices.get(actor);if(!device?.approved)throw Error('Approve this device first.');
-        return [...this.downloads].filter(([,d])=>d.expires>Date.now()).map(([id,d])=>({id,name:path.basename(d.file),url:`/downloads/${id}?token=${encodeURIComponent(device.token)}`}));
-    }
+	private downloads = new Map<string, { file: string; expires: number }>();
+	shareExport(file: string) {
+		for (const [id, item] of this.downloads)
+			if (item.expires < Date.now()) this.downloads.delete(id);
+		const id = randomUUID();
+		this.downloads.set(id, { file, expires: Date.now() + 3600000 });
+		while (this.downloads.size > 10) this.downloads.delete(this.downloads.keys().next().value!);
+		return id;
+	}
+	downloadList(actor: string) {
+		const device = this.devices.get(actor);
+		if (!device?.approved) throw Error("Approve this device first.");
+		return [...this.downloads]
+			.filter(([, d]) => d.expires > Date.now())
+			.map(([id, d]) => ({
+				id,
+				name: path.basename(d.file),
+				url: `/downloads/${id}?token=${encodeURIComponent(device.token)}`,
+			}));
+	}
 	async start() {
 		if (this.server) return this.pairing();
 		this.code = randomBytes(24).toString("base64url");
@@ -52,7 +61,7 @@ export class CompanionServer {
 					return;
 				}
 				const url = new URL(req.url ?? "/", "http://localhost");
-				const download=url.pathname.startsWith("/downloads/");
+				const download = url.pathname.startsWith("/downloads/");
 				if (download || (url.pathname.startsWith("/scene-media/") && this.sceneMediaFile)) {
 					const token = url.searchParams.get("token") ?? "";
 					if (
@@ -61,14 +70,19 @@ export class CompanionServer {
 						res.writeHead(403).end();
 						return;
 					}
-					const id = url.pathname.slice((download?"/downloads/":"/scene-media/").length);
+					const id = url.pathname.slice(
+						(download ? "/downloads/" : "/scene-media/").length,
+					);
 					if (!/^[a-f0-9-]{36}$/.test(id)) {
 						res.writeHead(404).end();
 						return;
 					}
-					const shared=this.downloads.get(id);
-					if(download && (!shared||shared.expires<Date.now())){res.writeHead(404).end();return;}
-					const file = download?shared!.file:await this.sceneMediaFile!(id);
+					const shared = this.downloads.get(id);
+					if (download && (!shared || shared.expires < Date.now())) {
+						res.writeHead(404).end();
+						return;
+					}
+					const file = download ? shared!.file : await this.sceneMediaFile!(id);
 					const stat = await fs.stat(file);
 					const range = req.headers.range
 						? resolveHttpByteRange(req.headers.range, stat.size)
@@ -79,7 +93,11 @@ export class CompanionServer {
 					}
 					res.writeHead(range ? 206 : 200, {
 						"Content-Type": getMediaContentType(file),
-						...(download?{"Content-Disposition":`attachment; filename="presentation.mp4"; filename*=UTF-8''${encodeURIComponent(path.basename(file))}`}:{}) ,
+						...(download
+							? {
+									"Content-Disposition": `attachment; filename="presentation.mp4"; filename*=UTF-8''${encodeURIComponent(path.basename(file))}`,
+								}
+							: {}),
 						"Cache-Control": "no-store",
 						"Referrer-Policy": "no-referrer",
 						"X-Content-Type-Options": "nosniff",
@@ -98,10 +116,9 @@ export class CompanionServer {
 					}
 					return;
 				}
-				const relative =
-					["/", "/remote"].includes(url.pathname)
-						? "tablet.html"
-						: decodeURIComponent(url.pathname).replace(/^\/+/, "");
+				const relative = ["/", "/remote"].includes(url.pathname)
+					? "tablet.html"
+					: decodeURIComponent(url.pathname).replace(/^\/+/, "");
 				if (
 					!(
 						relative === "tablet.html" ||
@@ -329,6 +346,9 @@ export class CompanionServer {
 								"aiOpen",
 								"aiImport",
 								"aiImportGenerated",
+								"aiSaveSource",
+								"aiSaveImage",
+								"aiSaveGenerated",
 								"annotate",
 								"captureStill",
 								"laser",

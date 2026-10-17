@@ -81,6 +81,15 @@ export function TalkingPoints({
 	const [linkLabel, setLinkLabel] = useState("");
 	const textarea = useRef<HTMLTextAreaElement>(null);
 	const dirtyRef = useRef(false);
+	useEffect(() => {
+		if (!dirty) return;
+		const warn = (event: BeforeUnloadEvent) => {
+			event.preventDefault();
+			event.returnValue = "";
+		};
+		window.addEventListener("beforeunload", warn);
+		return () => window.removeEventListener("beforeunload", warn);
+	}, [dirty]);
 	dirtyRef.current = dirty;
 	const objects = useMemo(
 		() => presenterObjects(state, doc, sounds, charts),
