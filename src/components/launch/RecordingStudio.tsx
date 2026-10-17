@@ -375,7 +375,7 @@ export function RecordingStudio({ recorder: r, actions, platform, elapsed }: Pro
 				</div>
 				<label
 					className="studio-capture-visibility"
-					data-help="Show all MistaRecorda windows, including Settings, presenter tools and the editor, in display recordings and screenshots. Applies to windows you open later too. Off by default to hide app controls. This does not overlay them onto a recording of another single window. Other capture apps may ignore macOS screenshot protection."
+					data-help="Show MistaRecorda windows, including Settings and the video editor, in display recordings and screenshots. Applies to windows you open later too. Private talking points, PDF references and canvas preparation stay hidden. Off by default to hide app controls. This does not overlay them onto a recording of another single window. Other capture apps may ignore macOS screenshot protection."
 				>
 					<input
 						type="checkbox"

@@ -32,6 +32,16 @@ export const linkSchema = z
 	.refine((v) => v.startAt === "url" || !!v.target, "Enter the text or section to jump to.");
 export const notesSchema = z.object({
 	body: z.string().max(40000),
+	points: z
+		.array(
+			z.object({
+				id: z.string().max(100),
+				text: z.string().max(40000),
+				covered: z.boolean(),
+			}),
+		)
+		.max(1000)
+		.optional(),
 	references: z
 		.record(
 			key,
@@ -73,6 +83,8 @@ export const documentSchema = z.object({
 				name,
 				notes: notesSchema,
 				previous: notesSchema.optional(),
+				project: z.string().max(120).optional(),
+				scene: z.string().max(120).optional(),
 			}),
 		)
 		.max(40)
@@ -130,6 +142,7 @@ export class PresenterStore {
 							action: z.enum([
 								"new",
 								"rename",
+								"group",
 								"duplicate",
 								"delete",
 								"select",
@@ -139,6 +152,8 @@ export class PresenterStore {
 							version: z.number().int(),
 							id: z.string().optional(),
 							name: name.optional(),
+							project: z.string().max(120).optional(),
+							scene: z.string().max(120).optional(),
 							notes: notesSchema.optional(),
 							mode: z.enum(["add", "replace", "new"]).optional(),
 							links: z.array(linkSchema).max(20).optional(),
@@ -164,7 +179,10 @@ export class PresenterStore {
 						sets.push(set);
 						next.activeSetId = set.id;
 					} else if (data.action === "rename") active.name = data.name ?? active.name;
-					else if (data.action === "select") {
+					else if (data.action === "group") {
+						active.project = data.project;
+						active.scene = data.scene;
+					} else if (data.action === "select") {
 						if (!sets.some((s) => s.id === data.id))
 							throw Error("This note set was removed.");
 						next.activeSetId = data.id;
@@ -192,6 +210,10 @@ export class PresenterStore {
 									);
 							}
 							active.notes = {
+								points: [
+									...(active.notes.points ?? []),
+									...(data.notes.points ?? []),
+								],
 								body: [active.notes.body, data.notes.body]
 									.filter(Boolean)
 									.join("\n"),

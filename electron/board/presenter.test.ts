@@ -122,3 +122,29 @@ test("a failed disk save keeps the previous version and permits a later retry", 
 	expect(loaded.state.notes.body).toBe("Keep this draft");
 	expect(loaded.state.notesVersion).toBe(1);
 });
+
+test("covered points and project/scene grouping survive reopening with stale-write protection", async () => {
+	const s = await store();
+	await s.update("saveTalkingNotes", {
+		version: 0,
+		notes: {
+			body: "- Evidence",
+			references: {},
+			points: [{ id: "p", text: "- Evidence", covered: true }],
+		},
+	});
+	await s.update("manageTalkingSets", {
+		version: 1,
+		action: "group",
+		project: "Explainer",
+		scene: "Evidence",
+	});
+	await expect(
+		s.update("manageTalkingSets", { version: 1, action: "group", project: "Stale" }),
+	).rejects.toThrow();
+	const reopened = new PresenterStore(s.root);
+	await reopened.load();
+	expect(reopened.state.notes.points?.[0].covered).toBe(true);
+	expect(reopened.state.noteSets?.[0]).toMatchObject({ project: "Explainer", scene: "Evidence" });
+	expect(reopened.state.notesVersion).toBe(2);
+});

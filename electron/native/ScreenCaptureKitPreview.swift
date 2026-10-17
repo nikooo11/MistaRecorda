@@ -1,3 +1,8 @@
+// Presenter notes and private PDF/reference previews are never captured.
+private func isPrivatePresenterWindow(_ window: SCWindow, ownerPID: Int32?) -> Bool {
+    return window.owningApplication?.processID == ownerPID &&
+        ["MistaRecorda Board Editor", "MistaRecorda Board Stream"].contains(window.title ?? "")
+}
 // Clean, low-latency companion preview. Ink stays local on the tablet and is
 // composited independently on the Mac/recording, avoiding a round-trip ink echo.
 import Foundation
@@ -24,7 +29,7 @@ final class Preview: NSObject, SCStreamOutput, SCStreamDelegate {
  func start(displayID: UInt32, ownerPID: Int32, showAppWindows: Bool) async throws {
   let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
   guard let display = content.displays.first(where: {$0.displayID == displayID}), let owner = content.applications.first(where: {$0.processID == ownerPID}) else { throw NSError(domain:"Companion",code:1) }
-  let filter = SCContentFilter(display: display, excludingApplications: showAppWindows ? [] : [owner], exceptingWindows: [])
+  let filter = showAppWindows ? SCContentFilter(display: display, excludingWindows: content.windows.filter { isPrivatePresenterWindow($0, ownerPID: ownerPID) }) : SCContentFilter(display: display, excludingApplications: [owner], exceptingWindows: [])
   let config = SCStreamConfiguration()
   config.width = min(1600, display.width); config.height = Int(Double(config.width) * Double(display.height) / Double(display.width))
   config.minimumFrameInterval = CMTime(value: 1, timescale: 30); config.queueDepth = 3

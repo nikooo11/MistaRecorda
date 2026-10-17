@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import type { BoardAPI } from "../../types/board";
+import type { BoardState, BoardAPI } from "../../types/board";
 import type { PresenterDocument, PresenterPDF, PresenterObject } from "../../types/presenter";
 import type { PresentationDraft, PresentationJob } from "../../types/presentationDraft";
 import { openPrivatePDF, pdfText, selectedPDFPages, extractPDFPages } from "./privatePDF";
@@ -467,6 +467,62 @@ export function PrivatePDFPanel({
 					<div className="private-pdf-canvas" ref={viewer}>
 						<canvas ref={canvas} aria-label={`Private PDF page ${page}`} />
 					</div>
+					<button
+						disabled={busy || dirty || !pdf || !metadata}
+						data-help="Attach this PDF page as a reusable image reference. It stays private until you deploy it from Talking points."
+						onClick={async () => {
+							if (!pdf || !metadata) return;
+							setBusy(true);
+							try {
+								const p = await pdf.getPage(page),
+									original = p.getViewport({ scale: 1 });
+								const viewport = p.getViewport({
+									scale: Math.min(
+										2,
+										1600 / Math.max(original.width, original.height),
+									),
+								});
+								const image = window.document.createElement("canvas");
+								image.width = Math.ceil(viewport.width);
+								image.height = Math.ceil(viewport.height);
+								await p.render({ canvas: image, viewport }).promise;
+								const name = `PDF: ${metadata.name.slice(0, 55)} · page ${page}`;
+								const dataURL = image.toDataURL("image/png");
+								const board = await transport.request<BoardState>(
+									"importPresenterImage",
+									{ name, dataURL },
+								);
+								const file = Object.values(board.assets).find(
+									(f) => f.dataURL === dataURL && f.name === name,
+								)!;
+								const token = `PDF page ${page} ${file.id.slice(0, 8)}`;
+								const next = await transport.request<PresenterDocument>(
+									"saveTalkingNotes",
+									{
+										version: doc.notesVersion,
+										notes: {
+											...doc.notes,
+											body: `${doc.notes.body}\n- ${name} @{${token}}`.trim(),
+											references: {
+												...doc.notes.references,
+												[token]: { kind: "image", id: file.id },
+											},
+										},
+									},
+								);
+								onChanged(next);
+								setNotice(
+									"PDF page attached to Talking points. Tap its reference to preview privately.",
+								);
+							} catch (e) {
+								setNotice(String(e));
+							} finally {
+								setBusy(false);
+							}
+						}}
+					>
+						Attach page to talking points
+					</button>
 					<button aria-expanded={setup} onClick={() => setSetup(!setup)}>
 						Make presentation with AI
 					</button>

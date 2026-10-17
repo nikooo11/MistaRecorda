@@ -3,7 +3,13 @@ export interface ObjectReference {
 	kind: PresenterObjectKind;
 	id: string;
 }
+export interface TalkingPoint {
+	id: string;
+	text: string;
+	covered: boolean;
+}
 export interface TalkingNotes {
+	points?: TalkingPoint[];
 	body: string;
 	/** Human-readable tokens map to stable IDs, so renaming never breaks a reference. */
 	references: Record<string, ObjectReference>;
@@ -27,6 +33,8 @@ export interface PresenterNote {
 	text: string;
 }
 export interface TalkingSet {
+	project?: string;
+	scene?: string;
 	id: string;
 	name: string;
 	notes: TalkingNotes;

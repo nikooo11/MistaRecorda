@@ -73,7 +73,7 @@ export function presenterObjects(
 				kind: "link",
 				id: a.id,
 				name: a.name,
-				detail: `Chrome · ${presenterURL(a.url).hostname}`,
+				detail: `Chrome · ${presenterURL(a.url).hostname} · ${a.url}`,
 			}),
 		),
 		...charts.map(

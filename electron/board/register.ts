@@ -367,6 +367,11 @@ async function prepare() {
 		height: 10,
 		focusable: false,
 	});
+	// Refresh native exclusions before a newly created private editor can be shown.
+	if (nativeCaptureProcess && studioIsShownInCapture()) {
+		await recorderCommand("show-app-windows 1", "APP_WINDOWS_READY", "APP_WINDOWS_FAILED");
+	}
+	preview?.restart();
 	edgeTimer = setInterval(() => {
 		if (closing || !hint || hint.isDestroyed()) return;
 		const p = screen.getCursorScreenPoint(),
@@ -1801,8 +1806,7 @@ export function assertBoardCaptureSource(source: { sourceType?: string; display_
 			"For drawing-board recording, select the same full display in the recorder and Drawing board panel.",
 		);
 	if (store?.state.enabled && process.platform === "win32")
-		for (const w of BrowserWindow.getAllWindows())
-			if (w !== surface) protectAppWindow(w);
+		for (const w of BrowserWindow.getAllWindows()) if (w !== surface) protectAppWindow(w);
 }
 const defaultMemeAssets = () =>
 	path.join(app.getAppPath(), app.isPackaged ? "dist" : "public", "assets/memes/starter-v1");

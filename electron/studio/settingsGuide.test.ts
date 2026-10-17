@@ -18,6 +18,9 @@ vi.mock("electron", () => ({
 		isDestroyed() {
 			return this.destroyed;
 		}
+		getTitle() {
+			return "Settings guide";
+		}
 		setContentProtection() {}
 		loadURL(url: string) {
 			return host.load(url);

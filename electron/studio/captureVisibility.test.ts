@@ -47,3 +47,13 @@ it("keeps the clean drawing output recordable when app controls are hidden", () 
 	protectAppWindow(surface as never, false);
 	expect(surface.setContentProtection).toHaveBeenLastCalledWith(false);
 });
+
+it("keeps presenter notes and the private stream out even when app windows are enabled", () => {
+	state.windows = [
+		makeWindow("MistaRecorda Board Editor"),
+		makeWindow("MistaRecorda Board Stream"),
+	];
+	setStudioCaptureVisibility(true);
+	for (const window of state.windows)
+		expect(window.setContentProtection).toHaveBeenLastCalledWith(true);
+});

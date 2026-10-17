@@ -19,6 +19,9 @@ vi.mock("electron", () => ({
 			super();
 			host.contents = this.webContents;
 		}
+		getTitle() {
+			return "Audio engine";
+		}
 		setContentProtection() {}
 		loadURL() {
 			host.loads++;

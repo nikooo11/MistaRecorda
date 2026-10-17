@@ -558,3 +558,59 @@
 	border-color: #4f6fe4;
 	background: #e4e9ff;
 }
+
+/* Glanceable private presenter checklist; never part of the clean canvas. */
+.talking-line {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 8px 0;
+	border-bottom: 1px solid #c5cbd3;
+}
+.talking-line.is-covered {
+	opacity: 0.5;
+}
+.point-actions {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: 2px;
+}
+.point-actions button {
+	min-width: 30px !important;
+	padding: 3px !important;
+}
+.point-actions input {
+	width: 22px;
+	height: 22px;
+}
+.reference-stage {
+	border-top: 1px solid #aab6c2;
+	padding: 10px;
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+	background: #edf4fa;
+}
+.reference-stage img {
+	max-width: 120px;
+	max-height: 100px;
+	object-fit: contain;
+}
+.reference-stage small {
+	width: 100%;
+	overflow-wrap: anywhere;
+}
+
+.point-body {
+	flex: 1;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.point-body .talking-reference {
+	white-space: normal;
+	word-break: normal;
+}
+.reference-stage {
+	color: #243342;
+}

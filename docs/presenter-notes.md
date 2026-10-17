@@ -124,3 +124,17 @@ References:
 - Native installed-app playtest: both OpenAI and ElevenLabs manual checks passed. After quitting, installing the final signed package and relaunching, both saved keys automatically displayed Connection verified without re-entry. Facecam remained off. The installed/package app.asar hashes matched and strict/deep signature verification passed.
 - Typecheck, repository lint, full suite **1,428 tests / 185 files**, production build and Electron startup smoke passed. A final 14-test focused run covered key-import callers, health classification/stale results, provider request bounds and companion denial. Invalid-key recording prompts are covered through the check logic; no real key was revoked/replaced with an invalid fixture for this test.
 - The proposed private-PDF and AI presentation drafting workflow is documented in [PDF presentation plan](pdf-presentation-plan.md). That feature is planned, not implemented.
+
+## Reference workflow and covered points
+
+Use short lines in a talking-point set. Attach saved links, images, memes/GIFs, charts or sounds with `@`. In reading mode, the first tap stages a private reference card with its image or link address. Tap that same reference again (or Deploy reference) to show it/play its sound/open Chrome. Choosing a different reference replaces the private preview; Cancel discards it. Dragging still opens the placement workflow for fine positioning. Charts must pass their existing data review before public deployment.
+
+Use each line's checkbox to mark it covered, and the up/down controls to reorder it. Covered state follows unchanged text. Editing the wording makes that point uncovered again. Manage sets allows optional project and scene labels. Sets, references, order and covered state persist on the Mac and sync using version-checked writes; a stale device cannot overwrite newer notes.
+
+In PDFs, **Attach page to talking points** saves the selected page as a still image in standby objects and inserts an image reference. The whole PDF remains private. Only deliberately deploying that page snapshot makes it visible. Attachments use local PDF rendering; no AI request is needed.
+
+The Mac's private board editor (including notes, PDF reader and draft previews) and its private stream remain capture-protected even when app windows are enabled. The separately rendered clean drawing surface remains recordable. External screenshot apps can have different macOS capture behavior; check privacy on the intended capture path.
+
+Manual checks: edit on Mac and read on iPad; check/reorder a referenced line and reconnect; stage a sound without hearing it, then deploy; attach and deploy one PDF page; toggle app-window visibility during display capture while notes are open. Physical-device and installed-app verification for this revision is pending.
+
+Validation: 1,453 Vitest tests passed; TypeScript passed; all native helpers built for arm64 and x64. Isolated browser playtest verified silent first-tap sound staging, second-tap deployment, covered state and reordering. This does not replace installed-app capture/privacy and physical-iPad checks.

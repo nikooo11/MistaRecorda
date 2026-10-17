@@ -11,6 +11,9 @@ vi.mock("electron", () => ({
 		listeners: Record<string, () => void> = {};
 		webContents = { send: vi.fn() };
 		loadURL = vi.fn(async () => {});
+		getTitle() {
+			return "Camera";
+		}
 		setContentProtection = vi.fn();
 		setVisibleOnAllWorkspaces = vi.fn();
 		setMovable = vi.fn();

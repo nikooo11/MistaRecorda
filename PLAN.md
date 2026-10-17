@@ -1,5 +1,19 @@
 # MistaRecorda — Implementation Plan
 
+## Presentation workflow roadmap (October 17, 2026)
+
+| Item | Status |
+|---|---|
+| 1. Talking points with attached references | Built — device/capture playtest pending |
+| 2. Always-visible iPad record controls | Planned |
+| 3. Phone/iPad remote and Stream Deck endpoint | Planned |
+| 4. YouTube upload | Planned — waiting for YouTube approval |
+| 5. Native vertical 9:16 capture and Send to phone | Planned |
+| 6. USB fallback investigation and Apple Pencil | Planned |
+| 7. Native iPad app plan | Planned |
+
+
+
 Personal-use fork of [Recordly](https://github.com/webadderallorg/Recordly) (AGPLv3). Keep `LICENSE.md` and Recordly attribution intact. Not distributed.
 
 **Goal:** record screen + system audio on macOS and Windows normally, record mic on its own track, and after recording stops and the user clicks Process voice, convert ONLY the mic track into a chosen ElevenLabs voice ("Voice Change"), then produce a synced final video. Originals are never overwritten.

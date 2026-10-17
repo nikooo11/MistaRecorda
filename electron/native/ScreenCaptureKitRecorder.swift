@@ -1,3 +1,8 @@
+// Presenter notes and private PDF/reference previews are never captured.
+private func isPrivatePresenterWindow(_ window: SCWindow, ownerPID: Int32?) -> Bool {
+    return window.owningApplication?.processID == ownerPID &&
+        ["MistaRecorda Board Editor", "MistaRecorda Board Stream"].contains(window.title ?? "")
+}
 import Foundation
 import ScreenCaptureKit
 import AVFoundation
@@ -292,7 +297,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
 		if let windowId = config.windowId {
 			trackedWindowId = windowId
-			guard let window = availableContent.windows.first(where: { $0.windowID == windowId }) else {
+			guard let window = availableContent.windows.first(where: { $0.windowID == windowId }), !isPrivatePresenterWindow(window, ownerPID: config.zoomOverlayOwnerPID) else {
 				throw NSError(domain: "RecordlyCapture", code: 3, userInfo: [NSLocalizedDescriptionKey: "Window not found"])
 			}
 
@@ -327,7 +332,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                     included = [cleanSurface]
                 }
                 // An empty app exclusion also includes app windows opened after capture starts.
-                filter = SCContentFilter(display: display, excludingApplications: showAppWindows ? [] : [owner], exceptingWindows: showAppWindows ? [] : included)
+                filter = showAppWindows ? SCContentFilter(display: display, excludingWindows: availableContent.windows.filter { isPrivatePresenterWindow($0, ownerPID: owner.processID) }) : SCContentFilter(display: display, excludingApplications: [owner], exceptingWindows: included)
             } else {
                 throw NSError(domain: "RecordlyCapture", code: 10, userInfo: [NSLocalizedDescriptionKey: "Could not exclude recorder controls. Reopen MistaRecorda and try again."])
             }
@@ -504,7 +509,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 			throw NSError(domain: "RecordlyCapture", code: 8, userInfo: [NSLocalizedDescriptionKey: "Window capture is not active"])
 		}
 		let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-		guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
+		guard let window = content.windows.first(where: { $0.windowID == windowID }), !isPrivatePresenterWindow(window, ownerPID: captureSettings?.zoomOverlayOwnerPID) else {
 			throw NSError(domain: "RecordlyCapture", code: 9, userInfo: [NSLocalizedDescriptionKey: "Window unavailable"])
 		}
 		// Keep the writer, frame size, audio and media clock alive across source changes.
@@ -524,7 +529,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         guard let display = content.displays.first(where: { $0.displayID == displayID }),
               let owner = content.applications.first(where: { $0.processID == settings.zoomOverlayOwnerPID }) else { throw NSError(domain: "Capture", code: 2) }
         let included = content.windows.filter { $0.owningApplication?.processID == owner.processID && $0.windowID == currentDrawingId }
-        try await stream.updateContentFilter(SCContentFilter(display: display, excludingApplications: showAppWindows ? [] : [owner], exceptingWindows: showAppWindows ? [] : included))
+        try await stream.updateContentFilter(showAppWindows ? SCContentFilter(display: display, excludingWindows: content.windows.filter { isPrivatePresenterWindow($0, ownerPID: owner.processID) }) : SCContentFilter(display: display, excludingApplications: [owner], exceptingWindows: included))
         trackedWindowId = nil
         currentDisplayId = displayID
         startWindowValidationIfNeeded()
@@ -976,7 +981,11 @@ final class RecorderService {
         } }
     }
     func setAppWindowsVisible(_ visible: Bool) {
-        queue.async { Task { try? await self.recorder.setAppWindowsVisible(visible) } }
+        queue.async { Task {
+            do { try await self.recorder.setAppWindowsVisible(visible); print("APP_WINDOWS_READY") }
+            catch { print("APP_WINDOWS_FAILED") }
+            fflush(stdout)
+        } }
     }
 
 	func waitUntilFinished() {

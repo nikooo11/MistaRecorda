@@ -20,6 +20,7 @@ import type { SoundEffect } from "../../types/studio";
 import { mentionAt, noteParts, presenterObjects, referenceToken } from "./presenterModel";
 import { ObjectIcon, PresenterObjects, validNoteLink } from "./PresenterObjects";
 import "./presenter.css";
+import { talkingPointRows, editTalkingPoint, referenceTap } from "./talkingPointRows";
 import type { ChartDocument } from "../../types/charts";
 import { EnvironmentFiles } from "./EnvironmentFiles";
 const PrivatePDFPanel = lazy(() =>
@@ -46,7 +47,7 @@ export function TalkingPoints({
 	openRequest?: number;
 	transport: BoardAPI;
 	state: BoardState;
-	onPlace: (object: PresenterObject, point?: PlacementPoint) => Promise<void>;
+	onPlace: (object: PresenterObject, point?: PlacementPoint, deploy?: boolean) => Promise<void>;
 	onPreview: (object: PresenterObject | undefined, point?: PlacementPoint) => void;
 	onMemeSettings: (id?: string) => void;
 }) {
@@ -58,6 +59,9 @@ export function TalkingPoints({
 	const [doc, setDoc] = useState(emptyPresenterDocument);
 	const [loaded, setLoaded] = useState(false);
 	const [setName, setSetName] = useState("");
+	const [armed, setArmed] = useState<PresenterObject & { url?: string }>();
+	const [groupProject, setGroupProject] = useState("");
+	const [groupScene, setGroupScene] = useState("");
 	const [pdfVisited, setPDFVisited] = useState(false);
 	const [notes, setNotes] = useState<TalkingNotes>({ body: "", references: {} });
 	const [version, setVersion] = useState(0);
@@ -139,6 +143,7 @@ export function TalkingPoints({
 		const start = mention?.start ?? caret;
 		const text = `@{${token}} `;
 		changed({
+			...notes,
 			body: notes.body.slice(0, start) + text + notes.body.slice(caret),
 			references: { ...notes.references, [token]: { kind: object.kind, id: object.id } },
 		});
@@ -149,12 +154,12 @@ export function TalkingPoints({
 			textarea.current?.setSelectionRange(start + text.length, start + text.length);
 		});
 	}
-	async function save() {
+	async function save(value = notes, stayReading = false) {
 		setBusy(true);
 		setNotice("");
 		try {
 			const next = await transport.request<PresenterDocument>("saveTalkingNotes", {
-				notes,
+				notes: value,
 				version,
 			});
 			setDoc(next);
@@ -162,7 +167,7 @@ export function TalkingPoints({
 			setNotes(next.notes);
 			setDirty(false);
 			dirtyRef.current = false;
-			setEditing(false);
+			if (!stayReading) setEditing(false);
 			setNotice("Saved on your Mac and synced to connected iPads.");
 		} catch (e) {
 			setNotice(String(e));
@@ -193,13 +198,27 @@ export function TalkingPoints({
 			setBusy(false);
 		}
 	}
-	async function activateObject(object: PresenterObject, point?: PlacementPoint) {
+	async function activateObject(
+		object: PresenterObject & { url?: string },
+		point?: PlacementPoint,
+	) {
+		if (busy) return;
+		if (!point && referenceTap(armed && objectKey(armed), objectKey(object)) === "stage") {
+			setArmed(object);
+			setNotice("Private preview. Tap the same reference again to deploy, or Cancel.");
+			return;
+		}
+		if (busy) return;
+		setBusy(true);
 		try {
 			setNotice("");
-			if (object.kind === "link" && !object.shadow) {
-				await transport.request("openPresenterLink", { id: object.id });
+			if (object.kind === "link" && !point) {
+				await transport.request(
+					"openPresenterLink",
+					object.url ? { url: object.url } : { id: object.id },
+				);
 				setNotice("Opened in Chrome on the computer.");
-			} else if (object.kind === "sound" && !object.shadow) {
+			} else if (object.kind === "sound" && !point) {
 				await transport.request("playSound", object.id);
 				setNotice(`Playing ${object.name} on the computer.`);
 				clearTimeout(noticeTimer.current);
@@ -209,18 +228,27 @@ export function TalkingPoints({
 					Math.max(1800, sounds.find((s) => s.id === object.id)?.durationMs ?? 3000),
 				);
 			} else {
-				await onPlace(object, point);
+				await onPlace({ ...object, shadow: false }, point, !point);
 				setOpen(false);
 			}
 		} catch (e) {
 			setNotice(String(e));
+		} finally {
+			setArmed(undefined);
+			setBusy(false);
 		}
 	}
 	const openURL = (url: string) =>
-		void transport
-			.request("openPresenterLink", { url })
-			.then(() => setNotice("Opened in Chrome on the computer."))
-			.catch((e) => setNotice(String(e)));
+		void activateObject({ kind: "link", id: url, name: "Webpage", detail: url, url });
+	const activeSet = doc.noteSets?.find((s) => s.id === doc.activeSetId);
+	useEffect(() => {
+		setGroupProject(activeSet?.project ?? "");
+		setGroupScene(activeSet?.scene ?? "");
+	}, [activeSet?.project, activeSet?.scene, doc.activeSetId]);
+	useEffect(() => {
+		setArmed(undefined);
+	}, [doc.activeSetId, open, editing]);
+
 	return (
 		<div className="presenter-ui" onKeyDown={(e) => e.stopPropagation()}>
 			{!open && !dock && (
@@ -345,13 +373,46 @@ export function TalkingPoints({
 												]
 											).map((s) => (
 												<option key={s.id} value={s.id}>
-													{s.name}
+													{[s.project, s.scene, s.name]
+														.filter(Boolean)
+														.join(" / ")}
 												</option>
 											))}
 										</select>
 									</label>
 									<details>
 										<summary>Manage sets</summary>
+										<label>
+											Project
+											<input
+												aria-label="Notes project"
+												value={groupProject}
+												placeholder="Project name"
+												maxLength={120}
+												onChange={(e) => setGroupProject(e.target.value)}
+											/>
+										</label>
+										<label>
+											Scene
+											<input
+												aria-label="Notes scene"
+												value={groupScene}
+												placeholder="Scene name"
+												maxLength={120}
+												onChange={(e) => setGroupScene(e.target.value)}
+											/>
+										</label>
+										<button
+											disabled={busy || dirty}
+											onClick={() =>
+												void manageSet("group", {
+													project: groupProject,
+													scene: groupScene,
+												})
+											}
+										>
+											Save grouping
+										</button>
 										<input
 											aria-label="Note set name"
 											placeholder="Name for new or renamed set"
@@ -422,9 +483,9 @@ export function TalkingPoints({
 								<p className="presenter-help">
 									Edit here or on your Mac. Save points to sync the same notes
 									across devices. Use @object name to reference images, memes,
-									sounds, notes or links. Tap a reference to use it. Hold and drag
-									to place on the screen or whiteboard. These notes stay off the
-									recording.
+									sounds, charts, PDF page images, notes or links. Tap once for a
+									private preview; tap again to deploy. Hold and drag to place on
+									the screen or whiteboard. These notes stay off the recording.
 								</p>
 								<div className="talking-mode">
 									<button
@@ -570,19 +631,76 @@ export function TalkingPoints({
 												bullets.
 											</p>
 										)}
-										{notes.body.split("\n").map((line, index) => (
+										{talkingPointRows(notes).map((point, index) => (
 											<div
-												className={`talking-line ${/^\s*[-*] /.test(line) ? "is-bullet" : ""}`}
+												className={`talking-line ${point.covered ? "is-covered" : ""}`}
 												key={index}
 											>
-												<NoteContent
-													text={line.replace(/^\s*[-*] /, "")}
-													notes={notes}
-													objects={objects}
-													onUse={activateObject}
-													onPreview={onPreview}
-													openURL={openURL}
-												/>
+												<div className="point-actions">
+													<input
+														type="checkbox"
+														aria-label={`Point ${index + 1} covered`}
+														checked={point.covered}
+														disabled={busy || dirty}
+														onChange={() =>
+															void save(
+																editTalkingPoint(
+																	notes,
+																	index,
+																	"covered",
+																),
+																true,
+															)
+														}
+													/>
+													<button
+														aria-label={`Move point ${index + 1} up`}
+														disabled={busy || dirty || index === 0}
+														onClick={() =>
+															void save(
+																editTalkingPoint(
+																	notes,
+																	index,
+																	"up",
+																),
+																true,
+															)
+														}
+													>
+														↑
+													</button>
+													<button
+														aria-label={`Move point ${index + 1} down`}
+														disabled={
+															busy ||
+															dirty ||
+															index ===
+																notes.body.split("\n").length - 1
+														}
+														onClick={() =>
+															void save(
+																editTalkingPoint(
+																	notes,
+																	index,
+																	"down",
+																),
+																true,
+															)
+														}
+													>
+														↓
+													</button>
+												</div>
+												<span className="point-body">
+													<NoteContent
+														text={point.text.replace(/^\s*[-*] /, "")}
+														notes={notes}
+														objects={objects}
+														onUse={activateObject}
+														onPreview={onPreview}
+														openURL={openURL}
+													/>
+												</span>
 											</div>
 										))}
 									</div>
@@ -590,6 +708,17 @@ export function TalkingPoints({
 							</>
 						)}
 					</div>
+					{armed && (
+						<section className="reference-stage" aria-label="Private reference preview">
+							{armed.preview && <img src={armed.preview} alt={armed.name} />}
+							<strong>{armed.name}</strong>
+							<small>{armed.detail}</small>
+							<button disabled={busy} onClick={() => void activateObject(armed)}>
+								Deploy reference
+							</button>
+							<button onClick={() => setArmed(undefined)}>Cancel</button>
+						</section>
+					)}
 					{notice && <footer role="status">{notice}</footer>}
 					{dirty && doc.notesVersion !== version && (
 						<footer>
@@ -715,7 +844,7 @@ function ReferenceButton({
 	return (
 		<button
 			className={`talking-reference type-${object.kind}`}
-			title={`${object.name} · ${object.kind}. Tap to use; hold then drag to the canvas.`}
+			title={`${object.name} · ${object.kind}. Tap to preview privately, then tap again to deploy. Hold and drag to position.`}
 			onContextMenu={(e) => e.preventDefault()}
 			onPointerDown={(e) => {
 				if (e.button !== 0) return;

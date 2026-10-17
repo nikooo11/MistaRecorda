@@ -826,14 +826,55 @@ export function BoardCanvas({
 		});
 		apply(mergeScenePatch(current.current, { mode, scene, revision: reply.revision }));
 	}
-	async function usePresenterObject(object: PresenterObject, client?: PlacementPoint) {
+	async function usePresenterObject(
+		object: PresenterObject,
+		client?: PlacementPoint,
+		deploy = false,
+	) {
 		if (!api) throw Error("The canvas is still loading. Try again in a moment.");
 		if (!drawing && onEnableDrawing && object.kind !== "meme" && object.kind !== "image") {
 			await onEnableDrawing();
 			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 		}
 		api.refresh();
-		const point = client ? memeCoordinates(client.x, client.y) : undefined;
+		const box = stage.current!.getBoundingClientRect();
+		const center = client ?? { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+		const point = client || deploy ? memeCoordinates(center.x, center.y) : undefined;
+		if (deploy && object.kind === "meme") {
+			const asset = current.current.memes?.find((m) => m.id === object.id);
+			if (!asset) throw Error("This meme is no longer available.");
+			const rect = draftRect(
+				center.x,
+				center.y,
+				asset.width / asset.height,
+				canvasView(),
+				Math.min(240, box.width * 0.3),
+			);
+			await flush();
+			await transport.request("placeMeme", {
+				assetId: asset.id,
+				mode: modeRef.current,
+				...rect,
+				shadow: false,
+			});
+			return;
+		}
+		if (deploy && object.kind === "image") {
+			const file = current.current.assets[object.id];
+			if (!file) throw Error("This image is no longer available.");
+			const img = new Image();
+			img.src = file.dataURL;
+			await img.decode();
+			const rect = draftRect(
+				center.x,
+				center.y,
+				img.width / img.height,
+				canvasView(),
+				Math.min(320, box.width * 0.4),
+			);
+			await placeImage(file.id, img.width, img.height, rect, rect.width, object);
+			return;
+		}
 		setPendingMeme(undefined);
 		setPendingImage(undefined);
 		setPendingCard(undefined);
